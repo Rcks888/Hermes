@@ -94,3 +94,8 @@ VPS has only 1GB RAM, shared with Ares. Reviewer flagged risk of OOM kills, Ares
 1. Reduce soak frequency to every 30 min
 2. Move Hermes to separate $6/month VPS
 3. Switch to Windows VPS for MT5 (eliminates Wine overhead)
+
+### Ongoing watchpoints (from reviewer)
+- Monitor free RAM during Ares scan windows (9:30 PM, 11:30 PM, 1:30 AM, 5:00 AM MYT)
+- If free RAM often <200MB or swap keeps climbing → switch soak to every 30 min immediately
+- Persistent MT5 trades speed for idle RAM — acceptable, just monitor
