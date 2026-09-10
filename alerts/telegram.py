@@ -35,12 +35,16 @@ def send_message(text):
 def alert_disconnected(consecutive_failures=1):
     global _last_disconnect_alert
     if consecutive_failures == 1 and not _last_disconnect_alert:
-        send_message("🔱 HERMES — MT5 connection lost, skipping cycle")
+        send_message("⚠️ HERMES — MT5 connection lost, skipping cycle (1st failure)")
         _last_disconnect_alert = True
-    elif consecutive_failures >= 3:
+    elif 2 <= consecutive_failures < 4:
+        send_message(f"⚠️ HERMES — MT5 still down ({consecutive_failures} consecutive failures)")
+    elif consecutive_failures >= 4:
         send_message(
-            f"🚨 HERMES CRITICAL — MT5 down for {consecutive_failures} "
-            f"consecutive cycles. Manual intervention needed."
+            f"🚨 HERMES CRITICAL HALT — MT5 down for {consecutive_failures} "
+            f"consecutive cycles. rpyc bridge or MT5 may need manual restart.\n"
+            f"Run: ssh root@134.209.103.20 'pkill -f python.exe; sleep 2; "
+            f"cd ~/Hermes && DISPLAY=:99 venv/bin/python run_soak.py'"
         )
 
 

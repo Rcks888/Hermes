@@ -144,6 +144,8 @@ def is_connected():
 def ensure_connected():
     global _consecutive_failures, _last_disconnect_time
 
+    rpyc_restarted = False
+
     if is_connected():
         if _consecutive_failures > 0:
             downtime = 0
@@ -152,8 +154,8 @@ def ensure_connected():
             _consecutive_failures = 0
             _last_disconnect_time = None
             logger.info("MT5 reconnected")
-            return True, {"reconnected": True, "downtime_seconds": downtime}
-        return True, None
+            return True, {"reconnected": True, "downtime_seconds": downtime, "rpyc_restarted": False, "consecutive_failures": 0}
+        return True, {"consecutive_failures": 0, "rpyc_restarted": False}
 
     if _last_disconnect_time is None:
         _last_disconnect_time = datetime.now(timezone.utc)
@@ -164,6 +166,10 @@ def ensure_connected():
     except Exception:
         pass
 
+    if not _is_port_open(RPYC_HOST, RPYC_PORT):
+        rpyc_restarted = True
+        logger.warning("rpyc server down, restarting...")
+
     for i, delay in enumerate(RETRY_BACKOFF):
         logger.warning(f"MT5 reconnect attempt {i+1}/3 (backoff {delay}s)")
         time.sleep(delay)
@@ -172,11 +178,16 @@ def ensure_connected():
             _consecutive_failures = 0
             _last_disconnect_time = None
             logger.info(f"MT5 reconnected after {downtime:.0f}s")
-            return True, {"reconnected": True, "downtime_seconds": downtime}
+            return True, {"reconnected": True, "downtime_seconds": downtime, "rpyc_restarted": rpyc_restarted, "consecutive_failures": 0}
 
     _consecutive_failures += 1
     logger.error(f"MT5 reconnect failed. Consecutive failures: {_consecutive_failures}")
-    return False, {"consecutive_failures": _consecutive_failures}
+
+    if _consecutive_failures >= 4:
+        telegram_msg = f"CRITICAL: {_consecutive_failures} consecutive failures. Manual intervention needed."
+        logger.critical(telegram_msg)
+
+    return False, {"consecutive_failures": _consecutive_failures, "rpyc_restarted": rpyc_restarted}
 
 
 def get_server_time_offset():

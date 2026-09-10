@@ -79,13 +79,24 @@ def main():
         "spread": None,
         "spread_usd": None,
         "time_offset_seconds": None,
+        "init_latency_s": None,
+        "rpyc_restarted": False,
+        "consecutive_failures": 0,
         "error": None,
     }
 
+    import time as _time
+    t0 = _time.monotonic()
     connected, reconnect_info = mt5_connector.ensure_connected()
+    init_latency = round(_time.monotonic() - t0, 2)
+    cycle["init_latency_s"] = init_latency
 
-    if reconnect_info and reconnect_info.get("reconnected"):
-        telegram.alert_reconnected(reconnect_info["downtime_seconds"])
+    if reconnect_info:
+        if reconnect_info.get("reconnected"):
+            telegram.alert_reconnected(reconnect_info["downtime_seconds"])
+        if reconnect_info.get("rpyc_restarted"):
+            cycle["rpyc_restarted"] = True
+        cycle["consecutive_failures"] = reconnect_info.get("consecutive_failures", 0)
 
     if not connected:
         cycle["error"] = "Connection failed"
@@ -93,8 +104,7 @@ def main():
         telegram.alert_disconnected(failures)
         soak["cycles"].append(cycle)
         save_soak_data(soak)
-        logger.error("Soak cycle failed: MT5 not connected")
-        mt5_connector.shutdown()
+        logger.error(f"Soak cycle failed: MT5 not connected (latency={init_latency}s)")
         return
 
     cycle["connected"] = True
@@ -157,9 +167,7 @@ def main():
             "time_offset": f"{offset:.2f}s" if offset else "N/A",
         })
 
-    logger.info(f"Soak cycle #{total}: uptime={uptime_pct:.1f}% ({success}/{total})")
-
-    mt5_connector.shutdown()
+    logger.info(f"Soak cycle #{total}: uptime={uptime_pct:.1f}% ({success}/{total}) init={init_latency}s")
 
 
 if __name__ == "__main__":

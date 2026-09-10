@@ -38,3 +38,29 @@
 - Monitor soak for 3-7 days
 - Gate 0 pass criteria: ≥98% uptime, stable candle pulls, spread data collected
 - After Gate 0: build strategy engine (market structure, indicators, pullback detection)
+
+---
+
+## 2026-09-10 — Reviewer Feedback & Fixes
+
+### Reviewer findings addressed
+1. **rpyc bridge fragility** — Now tracking: rpyc server restarts, init latency per cycle, consecutive failure streaks. Soak metrics expanded.
+2. **requirements.txt** — Split into Linux (rpyc, pandas, numpy, requests) vs Wine (MetaTrader5, rpyc, numpy<2) sections.
+3. **settings.json** — Confirmed gitignored, stays only on VPS.
+4. **Time offset ~3 hours** — Classified as broker server timezone (MetaQuotes-Demo uses EET). Strategy will use MT5 bar timestamps, not VPS local time.
+5. **Shutdown every cycle removed** — rpyc server + MT5 now stay alive between cron cycles. Reduces init latency from ~30-60s to near-zero on warm cycles.
+6. **Escalation thresholds** — Telegram now distinguishes: 1st failure (warning), 2-3 failures (still down), 4+ failures (CRITICAL HALT with recovery command).
+
+### New soak metrics tracked
+- `init_latency_s`: time to connect/reconnect per cycle
+- `rpyc_restarted`: whether rpyc server had to be restarted
+- `consecutive_failures`: failure streak count
+
+### Gate 0 daily review checklist
+- Uptime % (target: ≥98%)
+- Candle-pull success rate
+- Account-info success rate
+- Median + p95 spread by session (Asia/London/NY)
+- Init/reconnect latency (median + max)
+- Consecutive failure streaks
+- Symbol + contract specs consistency
