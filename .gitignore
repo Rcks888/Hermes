@@ -1,0 +1,8 @@
+venv/
+logs/
+__pycache__/
+*.pyc
+config/settings.json
+mt5setup.exe
+python-3.12.4-amd64.exe
+*.swp
