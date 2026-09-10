@@ -14,6 +14,8 @@ After 3-7 days, review logs/soak.json to determine:
 
 import json
 import logging
+import os
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,6 +52,48 @@ def get_session_tag(utc_hour):
         return "OFF"
 
 
+def get_resource_stats():
+    stats = {}
+    try:
+        with open("/proc/meminfo") as f:
+            meminfo = {}
+            for line in f:
+                parts = line.split()
+                meminfo[parts[0].rstrip(":")] = int(parts[1])
+            stats["ram_total_mb"] = meminfo.get("MemTotal", 0) // 1024
+            stats["ram_free_mb"] = meminfo.get("MemAvailable", 0) // 1024
+            stats["swap_used_mb"] = (meminfo.get("SwapTotal", 0) - meminfo.get("SwapFree", 0)) // 1024
+    except Exception:
+        pass
+    try:
+        load1, load5, load15 = os.getloadavg()
+        stats["load_avg_1m"] = round(load1, 2)
+        stats["load_avg_5m"] = round(load5, 2)
+    except Exception:
+        pass
+    return stats
+
+
+def rotate_logs_if_needed():
+    log_dir = PROJECT_ROOT / "logs"
+    hermes_log = log_dir / "hermes.log"
+    if hermes_log.exists() and hermes_log.stat().st_size > 5 * 1024 * 1024:
+        archive = log_dir / f"hermes.log.{datetime.now().strftime('%Y%m%d')}"
+        shutil.move(str(hermes_log), str(archive))
+        logger.info(f"Rotated hermes.log to {archive.name}")
+
+    if SOAK_LOG.exists():
+        with open(SOAK_LOG) as f:
+            data = json.load(f)
+        if len(data.get("cycles", [])) > 2000:
+            archive = log_dir / f"soak.{datetime.now().strftime('%Y%m%d')}.json"
+            shutil.copy2(str(SOAK_LOG), str(archive))
+            data["cycles"] = data["cycles"][-500:]
+            with open(SOAK_LOG, "w") as f:
+                json.dump(data, f, indent=2, default=str)
+            logger.info(f"Archived soak.json (kept last 500 cycles)")
+
+
 def load_soak_data():
     if SOAK_LOG.exists():
         with open(SOAK_LOG) as f:
@@ -63,11 +107,14 @@ def save_soak_data(data):
 
 
 def main():
+    rotate_logs_if_needed()
     soak = load_soak_data()
     now = datetime.now(timezone.utc)
 
     if soak["first_run"] is None:
         soak["first_run"] = now.isoformat()
+
+    resources = get_resource_stats()
 
     cycle = {
         "timestamp": now.isoformat(),
@@ -82,6 +129,7 @@ def main():
         "init_latency_s": None,
         "rpyc_restarted": False,
         "consecutive_failures": 0,
+        "resources": resources,
         "error": None,
     }
 
@@ -167,7 +215,14 @@ def main():
             "time_offset": f"{offset:.2f}s" if offset else "N/A",
         })
 
-    logger.info(f"Soak cycle #{total}: uptime={uptime_pct:.1f}% ({success}/{total}) init={init_latency}s")
+    ram_free = resources.get("ram_free_mb", "?")
+    swap_used = resources.get("swap_used_mb", "?")
+    load1 = resources.get("load_avg_1m", "?")
+    logger.info(f"Soak cycle #{total}: uptime={uptime_pct:.1f}% ({success}/{total}) init={init_latency}s RAM_free={ram_free}MB swap={swap_used}MB load={load1}")
+
+    if isinstance(ram_free, int) and ram_free < 150:
+        logger.warning(f"LOW RAM: {ram_free}MB free — Ares may be affected")
+        telegram.send_message(f"⚠️ HERMES — Low RAM: {ram_free}MB free, swap={swap_used}MB. Ares may be affected.")
 
 
 if __name__ == "__main__":
