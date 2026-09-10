@@ -64,3 +64,33 @@
 - Init/reconnect latency (median + max)
 - Consecutive failure streaks
 - Symbol + contract specs consistency
+
+---
+
+## 2026-09-10 — Resource Monitoring & VPS Safety
+
+### Problem
+VPS has only 1GB RAM, shared with Ares. Reviewer flagged risk of OOM kills, Ares slowdowns, and cron overlaps.
+
+### VPS baseline (with Hermes running)
+| Component | RAM | Notes |
+|-----------|-----|-------|
+| MT5 terminal (Wine) | ~185MB | Stays running between cycles |
+| Wine Python + rpyc | ~49MB | Stays running between cycles |
+| Available RAM | 462MB | After Hermes loaded |
+| Swap used | 305MB | Some pressure already |
+| Load avg (1m) | 0.88 | Fine for 1 CPU |
+| Total Hermes footprint | ~235MB | |
+
+### Changes made
+1. **Staggered cron** — Hermes runs at :07,:22,:37,:52 (Ares runs at :00,:30). No overlap.
+2. **Resource logging** — Every cycle now records: free RAM, swap used, load average.
+3. **Low RAM alert** — Telegram warning if free RAM drops below 150MB.
+4. **Log rotation** — hermes.log rotates at 5MB, soak.json archives at 2000 cycles (keeps last 500).
+5. **Health check script** — `./check_health.sh` for manual VPS status.
+6. **2GB swap file added** — Prevents OOM kills if RAM fills up.
+
+### Escalation plan if Hermes causes instability
+1. Reduce soak frequency to every 30 min
+2. Move Hermes to separate $6/month VPS
+3. Switch to Windows VPS for MT5 (eliminates Wine overhead)
