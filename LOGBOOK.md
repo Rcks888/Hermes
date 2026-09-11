@@ -99,3 +99,23 @@ VPS has only 1GB RAM, shared with Ares. Reviewer flagged risk of OOM kills, Ares
 - Monitor free RAM during Ares scan windows (9:30 PM, 11:30 PM, 1:30 AM, 5:00 AM MYT)
 - If free RAM often <200MB or swap keeps climbing → switch soak to every 30 min immediately
 - Persistent MT5 trades speed for idle RAM — acceptable, just monitor
+
+---
+
+## 2026-09-11 — VPS Upgraded to 2GB RAM ($12/month)
+
+### Reason
+1GB RAM was tight — swap usage at 305MB, free RAM at 462MB with Hermes running. Ares was also affected (see Ares LOGBOOK for details).
+
+### Before vs After
+| Metric | 1GB VPS | 2GB VPS |
+|--------|---------|---------|
+| RAM free | 462MB | 791MB |
+| Swap used | 305MB | 18MB |
+| Risk to Ares | Medium | None |
+
+### Soak status at upgrade
+- 74 cycles completed, 98.6% uptime (73/74)
+- 1 failure (likely during VPS resize/reboot)
+- Init latency: ~2s (warm cycles)
+- RAM concern eliminated
