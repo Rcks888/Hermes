@@ -119,3 +119,39 @@ VPS has only 1GB RAM, shared with Ares. Reviewer flagged risk of OOM kills, Ares
 - 1 failure (likely during VPS resize/reboot)
 - Init latency: ~2s (warm cycles)
 - RAM concern eliminated
+
+---
+
+## 2026-09-14 — Gate 0 PASSED ✅
+
+### Soak results (187 cycles, ~4 days)
+| Metric | Result | Target |
+|--------|--------|--------|
+| Uptime | 99.47% (186/187) | ≥98% ✅ |
+| Init latency P50 | 2.03s | — |
+| Init latency P95 | 2.07s | — |
+| Init latency max | 24.48s (cold start) | — |
+| rpyc restarts | 1 (VPS resize) | — |
+| Ares impact | None after 2GB upgrade | — |
+
+### Spread analysis
+| Session | P50 | P95 | Best | Worst | Samples |
+|---------|-----|-----|------|-------|---------|
+| London | 22 | 35 | 16 | 37 | 38 |
+| NY | 28 | 40 | 13 | 62 | 71 |
+| Asia | 41 | 51 | 19 | 53 | 61 |
+| OFF | 36 | 66 | 35 | 66 | 16 |
+
+### Key takeaways for strategy
+- London has tightest spreads — prefer for entries
+- NY also good, wider range
+- Asia widest — avoid or use wider SL
+- OFF hours (weekends/gaps) — do not trade
+
+### RAM after 2GB upgrade
+- Free RAM avg: 789MB, min: 218MB (during Ares scans)
+- Swap avg: 366MB (includes pre-upgrade data)
+- Load avg: 0.71 — healthy
+
+### Decision
+Gate 0 passed. Proceeding to Gate 1: Pullback strategy engine build.
