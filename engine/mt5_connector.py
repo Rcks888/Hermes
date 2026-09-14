@@ -145,6 +145,7 @@ def ensure_connected():
     global _consecutive_failures, _last_disconnect_time
 
     rpyc_restarted = False
+    cold_start = (mt5 is None)
 
     if is_connected():
         if _consecutive_failures > 0:
@@ -157,7 +158,7 @@ def ensure_connected():
             return True, {"reconnected": True, "downtime_seconds": downtime, "rpyc_restarted": False, "consecutive_failures": 0}
         return True, {"consecutive_failures": 0, "rpyc_restarted": False}
 
-    if _last_disconnect_time is None:
+    if not cold_start and _last_disconnect_time is None:
         _last_disconnect_time = datetime.now(timezone.utc)
 
     try:
@@ -174,7 +175,12 @@ def ensure_connected():
         logger.warning(f"MT5 reconnect attempt {i+1}/3 (backoff {delay}s)")
         time.sleep(delay)
         if initialize() and is_connected():
-            downtime = (datetime.now(timezone.utc) - _last_disconnect_time).total_seconds()
+            if cold_start:
+                logger.info("MT5 connected (cold start)")
+                return True, {"reconnected": False, "rpyc_restarted": rpyc_restarted, "consecutive_failures": 0}
+            downtime = 0
+            if _last_disconnect_time:
+                downtime = (datetime.now(timezone.utc) - _last_disconnect_time).total_seconds()
             _consecutive_failures = 0
             _last_disconnect_time = None
             logger.info(f"MT5 reconnected after {downtime:.0f}s")
@@ -184,8 +190,7 @@ def ensure_connected():
     logger.error(f"MT5 reconnect failed. Consecutive failures: {_consecutive_failures}")
 
     if _consecutive_failures >= 4:
-        telegram_msg = f"CRITICAL: {_consecutive_failures} consecutive failures. Manual intervention needed."
-        logger.critical(telegram_msg)
+        logger.critical(f"CRITICAL: {_consecutive_failures} consecutive failures. Manual intervention needed.")
 
     return False, {"consecutive_failures": _consecutive_failures, "rpyc_restarted": rpyc_restarted}
 
