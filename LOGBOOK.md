@@ -155,3 +155,51 @@ VPS has only 1GB RAM, shared with Ares. Reviewer flagged risk of OOM kills, Ares
 
 ### Decision
 Gate 0 passed. Proceeding to Gate 1: Pullback strategy engine build.
+
+---
+
+## 2026-09-14 — Gate 1: Strategy Engine Built & Deployed
+
+### New modules
+| Module | Purpose |
+|--------|---------|
+| `engine/market_structure.py` | Swing points, BOS/CHoCH detection, trend classification |
+| `engine/indicators.py` | VWAP (daily reset), volume avg, ATR(14), S/R zone clustering |
+| `engine/price_action.py` | Momentum, engulfing, reaction candle detection |
+| `engine/strategy.py` | Pullback signal evaluation — all 6 conditions checked |
+| `engine/risk_manager.py` | Position sizing (1% risk), daily loss limit, no-trade filters |
+| `run_hermes.py` | Main loop: data → structure → indicators → strategy → risk → alert |
+
+### Pullback signal conditions (all must pass)
+1. Trend confirmed (≥2 BOS in same direction)
+2. Price in pullback (retracing against trend)
+3. Candlestick confirmation (momentum/engulfing/reaction)
+4. VWAP alignment (long above, short below)
+5. Volume on signal candle > 1.2x average
+6. ATR gate (min 3.0 USD, SL within 0.5-2.5x ATR)
+
+### No-trade filters
+- Spread > 50 points → reject
+- Session: only LONDON and NY
+- Daily loss limit: 3
+- Max open trades: 1
+
+### Calibrated from soak data
+- Max spread: 50 points (P95 across all sessions was 40-66)
+- Trading sessions: London (tightest spreads P50=22) and NY (P50=28)
+- Asia excluded (P50=41, too wide)
+
+### Cron schedule
+- Soak: :07, :22, :37, :52
+- Strategy: :08, :23, :38, :53 (1 min after soak)
+- Both Mon-Fri only (XAU/USD market hours)
+
+### First test run
+- Trend detected: DOWN confirmed
+- No signal: ASIA session (correctly filtered)
+- Mode: ALERT_ONLY (no auto-execution)
+
+### Next steps
+- Monitor signals during London/NY sessions this week
+- Review signal quality in logs/trades.json
+- Target: 100+ logged signals before considering Phase 2 (semi-auto)
