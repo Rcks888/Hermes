@@ -16,6 +16,12 @@
     "min_rr_ratio": 2.0,
     "daily_loss_limit": 3,
     "sl_buffer_atr_multiplier": 0.5,
+    "sl_atr_low": 0.5,
+    "sl_atr_high": 2.5,
+
+    "min_atr": 3.0,
+    "max_spread_points": 50,
+    "trading_sessions": ["LONDON", "NY"],
 
     "mode": "ALERT_ONLY",
     "max_open_trades": 1
