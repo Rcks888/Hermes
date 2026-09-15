@@ -203,3 +203,40 @@ Gate 0 passed. Proceeding to Gate 1: Pullback strategy engine build.
 - Monitor signals during London/NY sessions this week
 - Review signal quality in logs/trades.json
 - Target: 100+ logged signals before considering Phase 2 (semi-auto)
+
+---
+
+## 2026-09-15 — First Day Strategy Monitoring
+
+### Observations
+- Strategy engine running correctly every 15 min via cron
+- Trend detection working: saw DOWN confirmed=True during London/NY on Sep 14
+- Trend flipped to UP via CHoCH at idx=168, but not yet confirmed (needs ≥2 BOS UP)
+- No signals triggered — correct behavior, market hasn't given a valid pullback setup yet
+
+### Market snapshot (10:19 AM MYT, Asia session)
+| Metric | Value |
+|--------|-------|
+| Price | 4310.18 |
+| VWAP | 4295.85 |
+| ATR(14) | 6.53 |
+| Trend | UP (unconfirmed, 0 BOS UP) |
+| Swing highs | 16 |
+| Swing lows | 21 |
+| S/R zones | 5 |
+| Volume | Very low (Asia/MetaQuotes-Demo) |
+
+### Key S/R zones
+- 4300.64 - 4321.87 (7 touches)
+- 4323.22 - 4343.99 (10 touches)
+- 4347.44 - 4361.01 (8 touches)
+
+### Fixes applied today
+- Disabled routine soak Telegram summary (was firing every 24 cycles)
+- Fixed cold start false "reconnected" alerts — only alerts on real disconnections now
+- Telegram is now silent unless: signal found, MT5 failure, or low RAM
+
+### Status
+- Waiting for market to confirm trend with ≥2 BOS before pullback signals can trigger
+- All conditions checked correctly: trend → pullback → candle → VWAP → volume → ATR
+- Strategy is selective by design — patience required
