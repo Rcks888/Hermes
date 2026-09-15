@@ -203,18 +203,6 @@ def main():
     fail = total - success
     uptime_pct = (success / total * 100) if total > 0 else 0
 
-    if total % 24 == 0:
-        spreads = [c["spread"] for c in soak["cycles"] if c["spread"] is not None]
-        telegram.alert_soak_status({
-            "uptime_pct": uptime_pct,
-            "total_cycles": total,
-            "success_cycles": success,
-            "fail_cycles": fail,
-            "symbol": sym["name"] if sym else "N/A",
-            "spread": cycle.get("spread", "N/A"),
-            "time_offset": f"{offset:.2f}s" if offset else "N/A",
-        })
-
     ram_free = resources.get("ram_free_mb", "?")
     swap_used = resources.get("swap_used_mb", "?")
     load1 = resources.get("load_avg_1m", "?")
