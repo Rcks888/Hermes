@@ -240,3 +240,69 @@ Gate 0 passed. Proceeding to Gate 1: Pullback strategy engine build.
 - Waiting for market to confirm trend with ≥2 BOS before pullback signals can trigger
 - All conditions checked correctly: trend → pullback → candle → VWAP → volume → ATR
 - Strategy is selective by design — patience required
+
+---
+
+## 2026-09-15 — Security Audit & VPS Hardening (post-Ares handoff)
+
+Triggered by an Ares incident: its Telegram bot token was committed in plaintext to
+a public repo and the bot was hijacked within days. Audited Hermes for the same
+exposure and four other failure modes carried over from the Ares thread.
+
+### Audit results — Hermes clean on all five
+| Check | Result |
+|-------|--------|
+| Secrets in tracked files | ✅ None — only key names (`cfg["bot_token"]`), never values |
+| Secrets in git history | ✅ None — `config/settings.json` never committed |
+| Telegram bot | ✅ Separate bot from Ares, never leaked, no rotation needed |
+| tzdata dependency | ✅ None — stdlib `timezone.utc` + `utc=True` only, no `ZoneInfo`/`pytz` |
+| Cache staleness | ✅ No cache exists — every cycle pulls fresh candles from MT5 |
+
+Session tags are computed by integer hour arithmetic, not timezone conversion, so
+Hermes is structurally immune to the `ZoneInfoNotFoundError` that silently broke
+all Ares IBKR data.
+
+### Changes applied
+- `.gitignore` hardened: blocks `.env*`, `*.pem`, `*.key`, `*.p12`, `config.ini`,
+  `*token*`, `*secret*`, `*credential*`, `*password*`. Verified via `git check-ignore`.
+- `run_soak.py`: added `cron.log` rotation at 10 MB — previously unrotated, and at
+  ~100 KB/day (96 soak runs) it is the largest log source on the box.
+- `run_soak.py`: archive pruning, keeps last 3.
+- `run_soak.py`: low-RAM threshold raised 150 → 300 MB to align with the Ares dashboard.
+- `run_soak.py`: new swap alert at >200 MB — Hermes filled the swap, so Hermes reports it.
+
+### Measured RAM footprint — higher than assumed
+| Process | RSS |
+|---------|-----|
+| `main` (wine64 = MT5 terminal) | 245 MB |
+| `python.exe` (Wine MT5 bridge) | 82 MB |
+| `winedevice.exe` ×2 | ~32 MB |
+| `wineserver` | 17 MB |
+| **Total** | **~376 MB** |
+
+The proposal assumed 200–300 MB. Actual is ~50% higher, and ~130 MB had been paged
+to swap. Hermes is the single largest consumer on the shared 2 GB box
+(vs IB Gateway ~440 MB, Ares Python ~100 MB). ~790 MB free after both systems.
+
+**Action item:** revisit the proposal's resource section before Phase 3. Full-auto
+holds the MT5 connection continuously rather than per-cycle, so the footprint will
+not drop and may rise.
+
+### Shared-VPS context from Ares thread
+- `multipathd`, `ModemManager` disabled; `fwupd` masked (~61 MB reclaimed).
+  Not yet reboot-tested — nothing in the Wine stack should depend on them, but Xvfb
+  is worth verifying after the next boot.
+- journald capped to 50 MB. Prefer Hermes' own log files over `journalctl` for history.
+- Swap reclaimed 313 MB → 0. Watching whether it re-accumulates.
+- Ares monitor moved :05 → :10 to avoid Hermes' :07/:08. Hermes cron unchanged and
+  clear of Ares' :00/:10/:25/:30 windows.
+
+### Still pending
+- News filter (Forex Factory blackout ±30 min on high-impact USD/gold events) — last
+  spec'd V1 item outstanding. Lower risk in alert-only, matters before Phase 2.
+- Reboot test of the Wine stack (do on a weekend, market closed).
+
+### Decision
+Run unchanged through Friday. If no signals by then, the question to investigate is
+**not** threshold tuning — it is whether `trend_confirmed` requiring ≥2 BOS inside a
+50-bar window is too strict for M15 gold. Review against actual bar data, not guesswork.
