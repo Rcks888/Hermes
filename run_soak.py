@@ -82,6 +82,16 @@ def rotate_logs_if_needed():
         shutil.move(str(hermes_log), str(archive))
         logger.info(f"Rotated hermes.log to {archive.name}")
 
+    cron_log = log_dir / "cron.log"
+    if cron_log.exists() and cron_log.stat().st_size > 10 * 1024 * 1024:
+        archive = log_dir / f"cron.log.{datetime.now().strftime('%Y%m%d')}"
+        shutil.move(str(cron_log), str(archive))
+        logger.info(f"Rotated cron.log to {archive.name}")
+
+    for old in sorted(log_dir.glob("*.log.*"))[:-3]:
+        old.unlink()
+        logger.info(f"Deleted old archive {old.name}")
+
     if SOAK_LOG.exists():
         with open(SOAK_LOG) as f:
             data = json.load(f)
@@ -208,9 +218,13 @@ def main():
     load1 = resources.get("load_avg_1m", "?")
     logger.info(f"Soak cycle #{total}: uptime={uptime_pct:.1f}% ({success}/{total}) init={init_latency}s RAM_free={ram_free}MB swap={swap_used}MB load={load1}")
 
-    if isinstance(ram_free, int) and ram_free < 150:
+    if isinstance(ram_free, int) and ram_free < 300:
         logger.warning(f"LOW RAM: {ram_free}MB free — Ares may be affected")
         telegram.send_message(f"⚠️ HERMES — Low RAM: {ram_free}MB free, swap={swap_used}MB. Ares may be affected.")
+
+    if isinstance(swap_used, int) and swap_used > 200:
+        logger.warning(f"SWAP PRESSURE: {swap_used}MB used — Hermes is the largest consumer (~376MB)")
+        telegram.send_message(f"⚠️ HERMES — Swap climbing: {swap_used}MB used, RAM free={ram_free}MB. Consider capping IB Gateway heap or upgrading to 4GB.")
 
 
 if __name__ == "__main__":

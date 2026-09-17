@@ -1,8 +1,26 @@
+# Environments
 venv/
-logs/
 __pycache__/
 *.pyc
-config/settings.json
-mt5setup.exe
-python-3.12.4-amd64.exe
 *.swp
+
+# Logs and runtime data
+logs/
+
+# Secrets — NEVER COMMIT
+config/settings.json
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+config.ini
+*token*
+*secret*
+*credential*
+*password*
+
+# Installers
+mt5setup.exe
+python-*-amd64.exe
