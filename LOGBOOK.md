@@ -306,3 +306,174 @@ not drop and may rise.
 Run unchanged through Friday. If no signals by then, the question to investigate is
 **not** threshold tuning — it is whether `trend_confirmed` requiring ≥2 BOS inside a
 50-bar window is too strict for M15 gold. Review against actual bar data, not guesswork.
+
+### ⚠️ Correction (logged 2026-09-18)
+The Day 1 entry above recorded that reject reasons were being logged per signal.
+**That was wrong.** `strategy.evaluate()` had 11 bare `return None` paths, none of
+which logged anything, and `log_trade()` only ran after a signal survived all 11
+gates. Since no signal ever survived, **nothing was logged at all** for the first
+three days. This is why the "why no signals" question was unanswerable. Fixed below.
+
+---
+
+## 2026-09-18 — Signal Diagnostics, Fail-Closed Risk Gates, Memory Monitoring
+
+### Root cause of the blind spot
+No diagnostic existed for why a bar produced no signal. `evaluate()` returned bare
+`None` from 11 different gates, so all failures looked identical from outside.
+
+### Fix: `evaluate()` now returns `(signal, reason)` on every path
+One consistent return shape, 16 return sites, every one a 2-tuple. Reason strings
+are specific and include the numbers that caused the block, e.g.
+`volume_too_low (1 < 1.2x avg 2742 = 3290)`.
+
+### "Cannot evaluate" is now distinct from "rule violation"
+Same bug family as the Ares queue incident, but Hermes was failing **open** rather
+than closed — a transient data failure silently bypassed the gate meant to validate it.
+
+| Location | Old behaviour | New behaviour |
+|----------|---------------|---------------|
+| VWAP gate | `if vwap is not None:` → missing VWAP skipped the check, signal passed | Rejects with `cannot_evaluate: vwap unavailable` |
+| Volume gate | `if vol_avg and vol_avg > 0` → missing average skipped the check | Rejects with `cannot_evaluate: volume average unavailable` |
+| Spread filter | `if max_spread and spread_points and ...` → `None` spread skipped the filter entirely | **Fails closed** — rejects with `cannot_evaluate: spread unknown` |
+| Open positions | `get_positions()` returned `[]` on failure → `0 >= 1` False → **approved** | Returns `None`; risk_manager **fails closed** against double entry |
+| Daily loss count | Unparseable `SL_HIT` timestamps silently dropped | Counted and warned — limit could have been understated |
+
+The open-positions bug is the Ares bug verbatim. Harmless in alert-only; it would
+have permitted double entry on the first day of Phase 3.
+
+### Append-only event log — `logs/events.jsonl`
+`trades.json` is rewritten wholesale each cycle (`open(..., "w")`), so a crash
+mid-write truncates all history. The new event trail is append-only, one JSON object
+per line, and covers cycles that abort before ever reaching a signal
+(`mt5_not_connected`, `insufficient_candles`, `account_info_unavailable`).
+
+Friday review command:
+```bash
+python3 -c "
+import json,collections
+c=collections.Counter()
+for l in open('logs/events.jsonl'):
+    e=json.loads(l)
+    c[e.get('blocked_at','—').split(' (')[0]]+=1
+for k,v in c.most_common(): print(f'{v:5d}  {k}')
+"
+```
+
+### Inert config key fixed
+`momentum_candle_lookback` had **zero** code references while the body-average window
+was hardcoded to `range(len(df)-4, len(df)-1)`. Value happened to match, so harmless,
+but silently ignored if changed. Now wired. Confirmed no other unread keys remain.
+
+### First live diagnostic output
+```
+No signal | session=LONDON | blocked_at=trend_not_confirmed (trend=UP, bos_up=0, bos_down=1)
+```
+`trend=UP` but `bos_up=0, bos_down=1` — these disagree. `trend` is set by the latest
+CHoCH; `trend_confirmed` requires ≥2 BOS in the trend direction. A CHoCH *is* the
+flip, so immediately after one fires there are ~0 BOS in the new direction. In chop
+the next CHoCH resets the count before two BOS accumulate. Consistent with observed
+behaviour: long `confirmed=True` runs in trending sessions, near-permanent `False`
+otherwise. Price also moved 4310 → 4398 (~2%) with `bos_up=0`, suggesting either the
+50-bar window is too short to contain the move or `swing_lookback=3` is fragmenting
+it. **Not acting on one sample** — deferred to Friday's histogram.
+
+---
+
+### Memory monitoring — two false-positive alerts corrected
+
+**1. Cold-start reconnect (fixed earlier, confirmed live today)**
+Each cron cycle is a fresh process, so `mt5` was always `None` at start →
+`is_connected()` False → reconnect path → reported "reconnected after 0.0min" every
+cycle. Now distinguishes cold start from real reconnection. Confirmed in today's run:
+`MT5 connected (cold start)` with no Telegram.
+
+**2. Swap occupancy misread as memory pressure**
+Alert fired continuously at swap=284–308MB while **RAM free was 1486MB**. That is not
+pressure. At the default `vm.swappiness=60` the kernel evicts idle anonymous pages
+even with GBs free, and headless Wine/MT5 holds many such pages (GUI paths, chart
+rendering) never faulted back in. Swap fills once and never self-releases.
+
+Observed two-phase pattern after a manual `swapoff -a && swapon -a`:
+- 0 → 284 MB rapidly
+- 284 → 308 MB over 21 hours (~1 MB/hr)
+
+**Swap occupancy cannot distinguish** a genuine RAM peak from equilibrium restoration
+after the swap clear — both produce that shape. This invalidates the earlier
+assumption (carried over from the Ares thread) that swap is a sufficient proxy for
+peak RAM. Peak tracking had been deferred on the strength of that proxy.
+
+### Correct detector: PSI, not occupancy
+| Signal | Measures | Catches |
+|--------|----------|---------|
+| `MemAvailable` | State, sampled | Only pressure present *at* the sample |
+| `swap_used` | Cumulative occupancy | That eviction happened *sometime*, cause unknown |
+| `pswpout` delta | Rate | Active churn between cycles |
+| **PSI `full` delta** | **Cumulative stall time** | **Any real event, incl. between samples** |
+
+`/proc/pressure/memory` `full` measures time in which *every* runnable task was
+blocked on memory reclaim. Totals are cumulative since boot, so a 15-min sampling
+interval still detects spikes that begin and end between samples — which point-in-time
+`MemAvailable` reads structurally cannot.
+
+New alert conditions:
+- swap >200 MB **AND** RAM free <400 MB → real pressure
+- `pswpout` delta >25k pages/cycle (~100 MB) → active thrashing
+- PSI `full` delta >1s/cycle → pressure event occurred
+- Benign occupancy → INFO log only, no Telegram
+
+Both false positives shared a root cause: **alerting on a state rather than a
+transition or rate.**
+
+### Do not clear swap again
+`swapoff -a && swapon -a` force-faults every evicted page back into RAM at once — a
+real spike with Ares' JVM also resident — and the kernel then re-evicts the same idle
+pages over the following hours. That is exactly the 0 → 308 MB refill observed. Churn
+for no benefit. If the occupancy is unwanted, reduce the cause instead:
+`sysctl vm.swappiness=10`.
+
+### Current Telegram surface (7 message types)
+Signal detected · MT5 disconnected · MT5 still down (2–3) · CRITICAL HALT (4+) ·
+MT5 reconnected · Low RAM (<300 MB) · Real memory pressure · Swap thrashing ·
+Memory stall (PSI)
+
+Silenced: periodic soak summary, cold-start reconnects, swap-occupancy-only warnings.
+Expected steady state is **silence**.
+
+---
+
+### 🚩 Flagged, not fixed
+1. **`alert_soak_status()` is orphaned** — its only caller was removed when the
+   periodic summary was disabled. ~20 lines unreachable in `alerts/telegram.py`.
+   Left deliberately: it is the hook to re-wire if a weekly digest is ever wanted.
+   Same dead-code pattern as the 53 lines found in Ares.
+2. **`price_action.scan()` is never called** — `strategy.py` imports the individual
+   pattern functions directly. Left in place as it appears intended for the V2
+   Failure Test strategy. Unused `price_action` import removed from `run_hermes.py`.
+3. **Duplicate disconnect alerts** — `run_soak.py` and `run_hermes.py` run one minute
+   apart and each call `ensure_connected()` in separate processes. A genuine outage
+   produces **two** disconnect alerts per 15-min window. Fix would be a shared
+   timestamped state file with a cooldown. Low priority while connectivity is stable,
+   but it will be noticeable during a real broker outage.
+4. **`ram_free < 300` is still a state check** — same shape as the two corrected false
+   positives. It will re-fire every cycle during any sustained dip rather than once on
+   crossing. Not urgent at 1486 MB free.
+5. **News filter still outstanding** — last spec'd V1 item. Lower risk in alert-only,
+   matters before Phase 2.
+6. **Structure indices vs indicator dataframe** — `market_structure.analyze()` runs
+   before the indicator columns are added, and `find_sr_zones()` uses swing indices
+   from the pre-indicator frame against the post-indicator frame. Same length today so
+   correct, but fragile: any future reindex or row-drop in the indicator path would
+   silently misalign zones. Latent, matches the "order of operations was silent"
+   pattern from the Ares handoff.
+
+### Commits
+- `5e4b608` — distinguish cannot-evaluate from rule violation, event log, config key
+- `18f17b3` — alert on real memory pressure, not swap occupancy
+- `7006d4e` — detect pressure events via PSI instead of inferring from swap
+
+### Open question for the user
+`cat /proc/pressure/memory` on the VPS answers retroactively whether a genuine RAM
+peak ever occurred. `full total=0` plus a clean `dmesg` means phase 1 was housekeeping
+after the swap clear. A substantial `full total` means a real event happened and the
+next question is which process caused it.
