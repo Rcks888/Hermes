@@ -19,13 +19,13 @@ from engine import mt5_connector
 from engine import data_feed
 from engine import market_structure
 from engine import indicators
-from engine import price_action
 from engine import strategy
 from engine import risk_manager
 from alerts import telegram
 
 TRADES_LOG = PROJECT_ROOT / "logs" / "trades.json"
 SIGNAL_KEYS_FILE = PROJECT_ROOT / "logs" / "signal_keys.json"
+EVENTS_LOG = PROJECT_ROOT / "logs" / "events.jsonl"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +36,18 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("hermes.main")
+
+
+def log_event(payload):
+    """Append-only audit trail. One JSON object per line, never rewritten,
+    so a crash mid-write cannot truncate prior history."""
+    record = {"ts": datetime.now(timezone.utc).isoformat()}
+    record.update(payload)
+    try:
+        with open(EVENTS_LOG, "a") as f:
+            f.write(json.dumps(record, default=str) + "\n")
+    except Exception as e:
+        logger.error(f"Failed to append event log: {e}")
 
 
 def load_params():
@@ -162,6 +174,7 @@ def main():
         failures = reconnect_info.get("consecutive_failures", 1) if reconnect_info else 1
         telegram.alert_disconnected(failures)
         logger.error("Hermes cycle skipped: MT5 not connected")
+        log_event({"event": "CYCLE_ABORTED", "session": session, "reason": "mt5_not_connected", "consecutive_failures": failures})
         return
 
     instrument = params.get("instrument", "XAUUSD")
@@ -169,12 +182,15 @@ def main():
 
     candles = data_feed.get_candles(instrument, count=candle_count)
     if candles is None or len(candles) < 50:
-        logger.error("Not enough candle data")
+        got = 0 if candles is None else len(candles)
+        logger.error(f"Not enough candle data (got {got}, need 50)")
+        log_event({"event": "CYCLE_ABORTED", "session": session, "reason": f"insufficient_candles ({got})"})
         return
 
     account = mt5_connector.get_account_info()
     if not account:
         logger.error("Failed to get account info")
+        log_event({"event": "CYCLE_ABORTED", "session": session, "reason": "account_info_unavailable"})
         return
 
     sym_info = mt5_connector.get_symbol_info(instrument)
@@ -192,10 +208,20 @@ def main():
         params.get("sr_min_touches", 2),
     )
 
-    signal = strategy.evaluate(candles, structure, zones, params)
+    signal, reason = strategy.evaluate(candles, structure, zones, params)
 
     if signal is None:
-        logger.info(f"No signal | trend={structure['trend']} confirmed={structure['trend_confirmed']} session={session}")
+        logger.info(f"No signal | session={session} | blocked_at={reason}")
+        log_event({
+            "event": "NO_SIGNAL",
+            "session": session,
+            "blocked_at": reason,
+            "trend": structure["trend"],
+            "trend_confirmed": structure["trend_confirmed"],
+            "bar_time": str(candles.iloc[-1]["datetime"]),
+            "close": round(float(candles.iloc[-1]["close"]), 2),
+            "spread_points": spread_points,
+        })
         return
 
     signal_key = f"{signal['signal_bar_time']}_{signal['strategy']}"
@@ -211,18 +237,35 @@ def main():
         sym_params["lot_min"] = sym_info.get("volume_min", 0.01)
         sym_params["lot_step"] = sym_info.get("volume_step", 0.01)
 
-    approved, reason, risk_details = risk_manager.approve(
+    approved, risk_reason, risk_details = risk_manager.approve(
         signal, account, spread_points, session, sym_params
     )
 
-    log_trade(signal, approved, reason, risk_details, spread_points, session)
+    log_trade(signal, approved, risk_reason, risk_details, spread_points, session)
     record_signal_key(signal_key)
+
+    log_event({
+        "event": "SIGNAL_APPROVED" if approved else "SIGNAL_REJECTED",
+        "session": session,
+        "reason": risk_reason,
+        "direction": signal["direction"],
+        "entry": signal["entry"],
+        "sl": signal["sl"],
+        "tp": signal["tp"],
+        "rr_ratio": signal["rr_ratio"],
+        "atr": signal["atr"],
+        "volume": signal["volume"],
+        "vol_avg": signal["vol_avg"],
+        "spread_points": spread_points,
+        "position_size": risk_details.get("position_size"),
+        "bar_time": signal["signal_bar_time"],
+    })
 
     if approved:
         send_signal_alert(signal, risk_details, spread_points, session)
         logger.info(f"SIGNAL SENT: {signal['direction']} @ {signal['entry']}")
     else:
-        logger.info(f"Signal rejected: {reason}")
+        logger.info(f"Signal rejected: {risk_reason}")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ logger = logging.getLogger("hermes.strategy")
 
 def _is_pullback(df, trend, lookback=5):
     if len(df) < lookback + 1:
-        return False
+        return None
 
     recent = df.iloc[-lookback:]
     close = recent["close"].values
@@ -19,14 +19,19 @@ def _is_pullback(df, trend, lookback=5):
 
 
 def evaluate(df, structure, zones, params):
+    """Returns (signal_or_None, reason). Reason is always a string describing
+    which gate blocked, or "OK" when a signal was produced."""
     trend = structure["trend"]
     trend_confirmed = structure["trend_confirmed"]
 
     if not trend_confirmed:
-        return None
+        return None, f"trend_not_confirmed (trend={trend}, bos_up={structure['recent_bos_up']}, bos_down={structure['recent_bos_down']})"
 
-    if not _is_pullback(df, trend):
-        return None
+    pullback = _is_pullback(df, trend)
+    if pullback is None:
+        return None, "cannot_evaluate: insufficient bars for pullback check"
+    if not pullback:
+        return None, f"no_pullback (trend={trend}, last_close={df.iloc[-1]['close']:.2f})"
 
     last_candle = df.iloc[-1]
     prev_candle = df.iloc[-2]
@@ -37,7 +42,9 @@ def evaluate(df, structure, zones, params):
 
     from engine.price_action import is_momentum_candle, is_engulfing, is_reaction_candle
 
-    recent_bodies = [abs(df.iloc[j]["close"] - df.iloc[j]["open"]) for j in range(len(df) - 4, len(df) - 1)]
+    body_lookback = params.get("momentum_candle_lookback", 3)
+    body_start = max(0, len(df) - 1 - body_lookback)
+    recent_bodies = [abs(df.iloc[j]["close"] - df.iloc[j]["open"]) for j in range(body_start, len(df) - 1)]
     avg_body = sum(recent_bodies) / len(recent_bodies) if recent_bodies else 0.01
 
     has_momentum = is_momentum_candle(last_candle, avg_body, params.get("momentum_candle_multiplier", 2.0))
@@ -55,26 +62,31 @@ def evaluate(df, structure, zones, params):
         candle_confirmed = candle_confirmed or reaction_dir == "BEARISH"
 
     if not candle_confirmed:
-        return None
+        return None, f"no_candle_confirmation (momentum={has_momentum}, engulf={engulf}, reaction={reaction_dir})"
 
     vwap = last_candle.get("vwap")
-    if vwap is not None:
-        if trend == "UP" and price < vwap:
-            return None
-        if trend == "DOWN" and price > vwap:
-            return None
+    if vwap is None or (isinstance(vwap, float) and np.isnan(vwap)):
+        return None, "cannot_evaluate: vwap unavailable"
+    if trend == "UP" and price < vwap:
+        return None, f"vwap_misaligned (LONG but price {price:.2f} < vwap {vwap:.2f})"
+    if trend == "DOWN" and price > vwap:
+        return None, f"vwap_misaligned (SHORT but price {price:.2f} > vwap {vwap:.2f})"
 
     vol = last_candle.get("volume", 0)
-    vol_avg = last_candle.get("vol_avg", 0)
+    vol_avg = last_candle.get("vol_avg")
     vol_threshold = params.get("volume_threshold_pullback", 1.2)
-    if vol_avg and vol_avg > 0 and vol < vol_avg * vol_threshold:
-        return None
+    if vol_avg is None or (isinstance(vol_avg, float) and np.isnan(vol_avg)) or vol_avg <= 0:
+        return None, "cannot_evaluate: volume average unavailable"
+    if vol < vol_avg * vol_threshold:
+        return None, f"volume_too_low ({vol} < {vol_threshold}x avg {vol_avg:.0f} = {vol_avg * vol_threshold:.0f})"
 
     at_zone = touched_zone is not None or reaction_zone is not None
 
     atr = last_candle.get("atr")
-    if atr is None or atr <= 0:
-        return None
+    if atr is None or (isinstance(atr, float) and np.isnan(atr)):
+        return None, "cannot_evaluate: atr unavailable"
+    if atr <= 0:
+        return None, f"atr_invalid ({atr})"
 
     sl_buffer = atr * params.get("sl_buffer_atr_multiplier", 0.5)
 
@@ -100,7 +112,7 @@ def evaluate(df, structure, zones, params):
         sl_distance = sl_price - entry
 
     if sl_distance <= 0:
-        return None
+        return None, f"sl_distance_invalid ({sl_distance:.2f} — SL on wrong side of entry)"
 
     min_rr = params.get("min_rr_ratio", 2.0)
     tp_distance = sl_distance * min_rr
@@ -112,12 +124,14 @@ def evaluate(df, structure, zones, params):
 
     min_atr = params.get("min_atr", 3.0)
     if atr < min_atr:
-        return None
+        return None, f"atr_too_low ({atr:.2f} < {min_atr})"
 
     sl_atr_low = params.get("sl_atr_low", 0.5)
     sl_atr_high = params.get("sl_atr_high", 2.5)
-    if sl_distance < atr * sl_atr_low or sl_distance > atr * sl_atr_high:
-        return None
+    if sl_distance < atr * sl_atr_low:
+        return None, f"sl_too_tight ({sl_distance:.2f} < {sl_atr_low}x atr {atr:.2f} = {atr * sl_atr_low:.2f})"
+    if sl_distance > atr * sl_atr_high:
+        return None, f"sl_too_wide ({sl_distance:.2f} > {sl_atr_high}x atr {atr:.2f} = {atr * sl_atr_high:.2f})"
 
     rr_ratio = tp_distance / sl_distance if sl_distance > 0 else 0
 
@@ -150,4 +164,4 @@ def evaluate(df, structure, zones, params):
         signal["candle_pattern"].append(f"REACTION_{reaction_dir}")
 
     logger.info(f"SIGNAL: {direction} @ {entry} SL={sl_price} TP={tp_price} RR={rr_ratio:.1f}")
-    return signal
+    return signal, "OK"

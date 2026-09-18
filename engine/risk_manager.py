@@ -19,6 +19,7 @@ def _daily_loss_count(trades):
     now = datetime.now(timezone.utc)
     today = now.date()
     count = 0
+    unparseable = 0
     for t in trades:
         if t.get("outcome") == "SL_HIT":
             ts = t.get("signal_bar_time", "")
@@ -27,7 +28,9 @@ def _daily_loss_count(trades):
                 if trade_date == today:
                     count += 1
             except (ValueError, TypeError):
-                pass
+                unparseable += 1
+    if unparseable:
+        logger.warning(f"{unparseable} SL_HIT trades had unparseable timestamps — daily loss count may be understated")
     return count
 
 
@@ -35,8 +38,11 @@ def check_no_trade_filters(signal, spread_points, params, session):
     reasons = []
 
     max_spread = params.get("max_spread_points")
-    if max_spread and spread_points and spread_points > max_spread:
-        reasons.append(f"Spread too wide: {spread_points} > {max_spread}")
+    if max_spread:
+        if spread_points is None:
+            reasons.append("cannot_evaluate: spread unknown (symbol_info failed) — failing closed")
+        elif spread_points > max_spread:
+            reasons.append(f"Spread too wide: {spread_points} > {max_spread}")
 
     allowed_sessions = params.get("trading_sessions", ["LONDON", "NY"])
     if session not in allowed_sessions:
@@ -96,6 +102,9 @@ def approve(signal, account, spread_points, session, params):
     from engine import data_feed
     positions = data_feed.get_positions(params.get("instrument", "XAUUSD"))
     max_open = params.get("max_open_trades", 1)
+    if positions is None:
+        logger.error("Cannot determine open positions — failing closed to avoid double entry")
+        return False, "cannot_evaluate: open positions unknown (positions_get failed) — failing closed", {}
     if len(positions) >= max_open:
         logger.warning(f"Max open trades reached: {len(positions)}/{max_open}")
         return False, "Max open trades reached", {}

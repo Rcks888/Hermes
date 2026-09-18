@@ -42,10 +42,13 @@ def get_current_spread(symbol="XAUUSD"):
 
 
 def get_positions(symbol="XAUUSD"):
+    """Returns a list of open positions, or None if the query failed.
+    None means "could not determine" — it must not be treated as "no positions"."""
     mt5 = mt5_connector.mt5
     positions = mt5.positions_get(symbol=symbol)
     if positions is None:
-        return []
+        logger.error(f"Failed to get positions: {mt5.last_error()}")
+        return None
     result = []
     for p in positions:
         result.append({
