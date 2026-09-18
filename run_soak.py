@@ -71,6 +71,14 @@ def get_resource_stats():
         stats["load_avg_5m"] = round(load5, 2)
     except Exception:
         pass
+    try:
+        with open("/proc/vmstat") as f:
+            for line in f:
+                k, _, v = line.partition(" ")
+                if k in ("pswpin", "pswpout"):
+                    stats[k] = int(v)
+    except Exception:
+        pass
     return stats
 
 
@@ -222,9 +230,27 @@ def main():
         logger.warning(f"LOW RAM: {ram_free}MB free — Ares may be affected")
         telegram.send_message(f"⚠️ HERMES — Low RAM: {ram_free}MB free, swap={swap_used}MB. Ares may be affected.")
 
-    if isinstance(swap_used, int) and swap_used > 200:
-        logger.warning(f"SWAP PRESSURE: {swap_used}MB used — Hermes is the largest consumer (~376MB)")
-        telegram.send_message(f"⚠️ HERMES — Swap climbing: {swap_used}MB used, RAM free={ram_free}MB. Consider capping IB Gateway heap or upgrading to 4GB.")
+    # Swap occupancy alone is not pressure: the kernel evicts idle anonymous
+    # pages (plentiful in headless Wine/MT5) even with GBs free, and swap never
+    # self-releases. Real pressure is eviction happening NOW against low free
+    # RAM, so require both a high-water mark and active swap-out.
+    prev = soak["cycles"][-2] if len(soak["cycles"]) >= 2 else None
+    prev_res = prev.get("resources", {}) if prev else {}
+    swapout_delta = None
+    if "pswpout" in resources and "pswpout" in prev_res:
+        swapout_delta = resources["pswpout"] - prev_res["pswpout"]
+
+    churning = swapout_delta is not None and swapout_delta > 25000  # ~100MB/cycle
+    starved = isinstance(ram_free, int) and ram_free < 400
+
+    if isinstance(swap_used, int) and swap_used > 200 and starved:
+        logger.warning(f"SWAP PRESSURE: {swap_used}MB swap with only {ram_free}MB free")
+        telegram.send_message(f"⚠️ HERMES — Real memory pressure: swap={swap_used}MB, RAM free={ram_free}MB. Consider capping IB Gateway heap (-Xmx512m) or upgrading to 4GB.")
+    elif churning:
+        logger.warning(f"SWAP THRASHING: {swapout_delta} pages out since last cycle (swap={swap_used}MB, free={ram_free}MB)")
+        telegram.send_message(f"⚠️ HERMES — Active swap thrashing: {swapout_delta} pages out in 15min, swap={swap_used}MB, RAM free={ram_free}MB.")
+    elif isinstance(swap_used, int) and swap_used > 200:
+        logger.info(f"Swap at {swap_used}MB but {ram_free}MB free and no active swap-out — benign idle page eviction, not alerting")
 
 
 if __name__ == "__main__":
