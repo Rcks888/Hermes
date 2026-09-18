@@ -79,6 +79,18 @@ def get_resource_stats():
                     stats[k] = int(v)
     except Exception:
         pass
+    # Pressure Stall Information. Cumulative since boot, so sampling every
+    # 15min still detects spikes that begin and end between cycles — which
+    # point-in-time MemAvailable readings structurally cannot.
+    try:
+        with open("/proc/pressure/memory") as f:
+            for line in f:
+                kind = line.split()[0]
+                for field in line.split():
+                    if field.startswith("total="):
+                        stats[f"psi_mem_{kind}_total"] = int(field.split("=")[1])
+    except Exception:
+        pass
     return stats
 
 
@@ -242,6 +254,21 @@ def main():
 
     churning = swapout_delta is not None and swapout_delta > 25000  # ~100MB/cycle
     starved = isinstance(ram_free, int) and ram_free < 400
+
+    # PSI full-stall delta: microseconds in which every task was blocked on
+    # memory reclaim. Non-zero means a real pressure event occurred in this
+    # window, even if free RAM looked healthy at both sample points.
+    psi_delta = None
+    if "psi_mem_full_total" in resources and "psi_mem_full_total" in prev_res:
+        psi_delta = resources["psi_mem_full_total"] - prev_res["psi_mem_full_total"]
+    if psi_delta is not None and psi_delta > 1_000_000:
+        logger.warning(f"MEMORY STALL: {psi_delta / 1e6:.2f}s of full stall since last cycle (swap={swap_used}MB, free={ram_free}MB)")
+        telegram.send_message(
+            f"⚠️ HERMES — Memory pressure event: {psi_delta / 1e6:.2f}s of full stall in the last 15min. "
+            f"swap={swap_used}MB, RAM free={ram_free}MB. A spike occurred even if current readings look healthy."
+        )
+    elif psi_delta is not None and psi_delta > 0:
+        logger.info(f"Minor memory stall: {psi_delta / 1e3:.1f}ms since last cycle — below alert threshold")
 
     if isinstance(swap_used, int) and swap_used > 200 and starved:
         logger.warning(f"SWAP PRESSURE: {swap_used}MB swap with only {ram_free}MB free")
