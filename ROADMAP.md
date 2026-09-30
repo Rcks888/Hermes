@@ -17,7 +17,7 @@ versions.
 GATE 0  infrastructure soak        ████████████████████  COMPLETE
         multi-session observation  ████████████████████  COMPLETE
         live alert-only deploy     ████████████████████  COMPLETE
-P0      prerequisites              ████░░░░░░░░░░░░░░░░  IN PROGRESS
+P0      prerequisites              ████████████████░░░░  5 of 6 — 0b blocked
 P1      replay engine + baseline   ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P0
 P2      independent risk control   ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P1
 P2b     event-risk filter          ░░░░░░░░░░░░░░░░░░░░  can run parallel to P2
@@ -178,6 +178,7 @@ the Hermes repo.
 | Sub-minimum lots rounded UP, silently over-risking small accounts | `495e078` |
 | Swap occupancy misread as memory pressure; replaced with PSI | earlier |
 | Cold-start reconnect reported as a real reconnection | earlier |
+| Alert throttling did not survive process exit; a two-week outage would have sent ~2,700 messages | `bcdb1d3` |
 
 ---
 
@@ -802,6 +803,65 @@ Performance metrics use **population C**. Gate diagnostics retain A and B.
 ```
 
 ---
+
+## Resume here
+
+Priority 0 is complete except 0b, which is blocked on one input.
+
+**The only thing outstanding is a GUI click.** MT5 reports 99,999 bars, which is
+`100,000 - 1`, the "Max bars in chart" config ceiling rather than the broker
+archive. Until that is raised, true archive depth is unknown, and depth sets
+segment count and holdout size in 0b. No success criteria can be preregistered
+without it.
+
+    MT5 -> Tools -> Options -> Charts -> Max bars in chart -> Unlimited
+
+    cd /root/Hermes && source venv/bin/activate && export DISPLAY=:99
+    python research/probe_data_feasibility.py
+    git add research/data_feasibility/ && git commit -m "Re-probe archive depth"
+
+Then, when convenient: export M15 history to CSV from the terminal, Wine-side.
+The replay engine needs local bar data and bulk history must not cross the rpyc
+bridge, where each row costs a network round trip.
+
+### Then, in order
+
+1. **0b** — preregister success criteria. Cost model is settled (TIER 3,
+   measured live session distributions). Needs depth for fold structure.
+2. **Replay engine** — purpose-built M15, estimated 3-5 days, reusing Athena's
+   `exit_policy`, `max_drawdown`, `summarise` and `reconcile`. Writes the 0d
+   schema. Athena itself is not reusable; see the section above.
+3. **Level 2 conformance** against the existing 749 events, then Level 3 against
+   events logged after `c6bfcc7`.
+4. **Rule-only baseline**, and only then the P1 decision gate.
+
+### Unattended state
+
+Hermes is alert-only with no capital at risk. Cron continues at
+`7,22,37,52` for soak and `8,23,38,53` for strategy. Every cycle now records
+full decision context, so time spent running is not wasted even with nobody
+watching.
+
+`events.jsonl` is deliberately unrotated. At roughly 1 KB per event that is
+100 KB/day, and rotating a research dataset risks deleting evidence for a
+saving that does not matter.
+
+### Known open items, none urgent
+
+- Four `cannot_evaluate` paths untested; needs real qualifying bars from replay
+- Risk-layer reasons are compound free-form strings (`"; ".join`), so a risk
+  block cannot be attributed to one cause in the funnel
+- `trend` derived over 200 bars against a 50-bar BOS window; measured via
+  `bars_since_last_bos`, deliberately unresolved until replay can quantify it
+- 18 swing highs and 19 swing lows per 200 bars at `swing_lookback: 3` may be
+  reading noise as structure. Same treatment: observe, do not tune
+- Two failed soak cycles with `init_latency` of 17.08s and 17.06s. Identical to
+  20ms two weeks apart is a timeout signature, not random failure. Not worth
+  chasing at this rate, but it is the clue if disconnects increase
+- Equity drawdown kill switch does not exist. Priority 2
+- `_is_pullback` returned a NumPy bool, coerced at the diag boundary. Other
+  boundary values may leak NumPy types into logs, where they serialise
+  inconsistently
 
 ## Standing principles
 
