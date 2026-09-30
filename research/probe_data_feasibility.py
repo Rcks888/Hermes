@@ -53,7 +53,7 @@ def main():
         "code_version": version.get_code_version(),
         "symbol": SYMBOL,
         "timeframe": "M15",
-        "requested_bar_count": REQUEST,
+        "request_ladder_sizes": REQUEST_LADDER,
     }
 
     ok, _ = mt5_connector.ensure_connected()
@@ -96,7 +96,11 @@ def main():
     times = [int(r[0]) for r in rates]
     vols = [int(r[5]) for r in rates]
     result["returned_bar_count"] = len(times)
-    result["depth_capped"] = len(times) < REQUEST
+    # Fewer bars than the accepted request means history ran out, so this is
+    # the true depth. Exactly the request size means the ceiling is the request,
+    # not the archive, and a larger ladder step might have returned more.
+    result["depth_capped_by_history"] = len(times) < result["successful_request_size"]
+    result["depth_may_exceed_probe"] = len(times) == result["successful_request_size"]
 
     first = datetime.fromtimestamp(times[0], tz=timezone.utc)
     last = datetime.fromtimestamp(times[-1], tz=timezone.utc)
@@ -181,7 +185,8 @@ def _summarise(r):
     print(f"  code_version      {r.get('code_version')}")
     print(f"  bars returned     {r.get('returned_bar_count'):,} "
           f"(request size {r.get('successful_request_size'):,})"
-          f"{'  (DEPTH CAPPED)' if r.get('depth_capped') else ''}")
+          f"{'  (history exhausted — true depth)' if r.get('depth_capped_by_history') else ''}"
+          f"{'  (WARNING: hit request ceiling, more may exist)' if r.get('depth_may_exceed_probe') else ''}")
     print(f"  earliest bar      {r.get('earliest_bar')}")
     print(f"  latest bar        {r.get('latest_completed_bar')}")
     print(f"  span              {r.get('calendar_span_days')} days "
