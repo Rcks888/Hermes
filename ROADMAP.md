@@ -17,7 +17,7 @@ versions.
 GATE 0  infrastructure soak        ████████████████████  COMPLETE
         multi-session observation  ████████████████████  COMPLETE
         live alert-only deploy     ████████████████████  COMPLETE
-P0      prerequisites              ████████████████░░░░  5 of 6 — 0b blocked
+P0      prerequisites              ████████████████░░░░  5 of 6 — 0b unblocked
 P1      replay engine + baseline   ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P0
 P2      independent risk control   ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P1
 P2b     event-risk filter          ░░░░░░░░░░░░░░░░░░░░  can run parallel to P2
@@ -179,6 +179,9 @@ the Hermes repo.
 | Swap occupancy misread as memory pressure; replaced with PSI | earlier |
 | Cold-start reconnect reported as a real reconnection | earlier |
 | Alert throttling did not survive process exit; a two-week outage would have sent ~2,700 messages | `bcdb1d3` |
+| Archive depth attributed to the broker when it was a client-side `MaxBars` cap; true floor 2022-06-23 | `018579f` |
+| Range probe passed `datetime` across rpyc, producing 23 uniform failures read as an archive result | `7bff1f3` |
+| Clamped boundary bars counted as twenty years of history | this commit |
 
 ---
 
@@ -806,28 +809,39 @@ Performance metrics use **population C**. Gate diagnostics retain A and B.
 
 ## Resume here
 
-Priority 0 is complete except 0b, which is blocked on one input.
+Priority 0 is complete except 0b, which is now unblocked. **No MT5
+configuration work is needed** -- the depth question is settled.
 
-**The only thing outstanding is a GUI click.** MT5 reports 99,999 bars, which is
-`100,000 - 1`, the "Max bars in chart" config ceiling rather than the broker
-archive. Until that is raised, true archive depth is unknown, and depth sets
-segment count and holdout size in 0b. No success criteria can be preregistered
-without it.
+### Archive depth is final at 4.25 years
 
-    MT5 -> Tools -> Options -> Charts -> Max bars in chart -> Unlimited
+`probe_archive_extent` sampled one week per year from 2026 back to 2004. Only
+2023-2026 returned bars from inside the window requested. The nineteen older
+requests each returned exactly one bar, all the same bar at **2022-06-23**, and
+the 2022 request asked for March and was handed June. Requests falling entirely
+before the archive clamp to the oldest bar held, so that shared timestamp is the
+server's floor.
 
-    cd /root/Hermes && source venv/bin/activate && export DISPLAY=:99
-    python research/probe_data_feasibility.py
-    git add research/data_feasibility/ && git commit -m "Re-probe archive depth"
+So `MaxBars=100000` truncates at 2022-06-29 while the archive itself begins
+2022-06-23. Raising the cap would gain **six days**, not years. Not worth
+editing a UTF-16 config that also holds account credentials and that the
+terminal rewrites on exit, with cron able to relaunch it mid-edit.
 
-Then, when convenient: export M15 history to CSV from the terminal, Wine-side.
-The replay engine needs local bar data and bulk history must not cross the rpyc
-bridge, where each row costs a network round trip.
+**Usable history: 2022-06-23 to present, roughly 4.25 years, about 100,000 M15
+bars.** Sufficient for a rule-only baseline and for the 100-setup gate. The
+binding limitation is regime coverage, not sample count: the window spans one
+gold bull run and one rate cycle, and excludes 2013's crash, the 2020 COVID
+spike, and 2008 entirely. That constraint belongs in 0b as a stated bound on
+what any robustness claim can support, not as a blocker.
+
+Still outstanding, and the only real gate on the replay engine: **export M15
+history to CSV** from the terminal, Wine-side. Bulk history must not cross the
+rpyc bridge, where each row costs a network round trip.
 
 ### Then, in order
 
 1. **0b** — preregister success criteria. Cost model is settled (TIER 3,
-   measured live session distributions). Needs depth for fold structure.
+   measured live session distributions) and depth is now known, so fold
+   structure can be fixed. Must record the regime-coverage bound above.
 2. **Replay engine** — purpose-built M15, estimated 3-5 days, reusing Athena's
    `exit_policy`, `max_drawdown`, `summarise` and `reconcile`. Writes the 0d
    schema. Athena itself is not reusable; see the section above.
@@ -867,6 +881,21 @@ saving that does not matter.
 
 **Absent evidence is never a pass.** A check that could not run has not
 succeeded.
+
+**A probe must prove it can detect a positive before its negatives mean
+anything.** Research infrastructure that returns confident wrong answers is more
+dangerous than infrastructure that fails loudly, because the wrong answer gets
+acted on. Four defects in one session came from probes whose own mechanism was
+untested: rows fetched one bridge round trip at a time, guessed broker field
+names silently becoming `null`, `datetime` objects rejected across rpyc, and a
+non-zero row count read as data when it was a clamped boundary bar. Every one
+assumed a local execution model for code crossing a network boundary. The
+countermeasure is a control case with a known answer, run first, with the sweep
+abandoned if the control fails.
+
+**A non-empty result is not a matching result.** Check that what came back
+answers the question actually asked -- inside the window, for the symbol
+requested, on the timeframe intended.
 
 **Alert on transitions and rates, not states.** Two false-positive alerts —
 cold-start reconnects and swap occupancy — shared this single root cause.

@@ -65,6 +65,9 @@ KNOWN_EARLIEST = "2022-06-29"
 # and any single holiday, so an empty result can only mean a broken call.
 CONTROL_DAYS = 10
 
+# Below this, deepening the archive is not worth editing the terminal config.
+MATERIAL_GAIN_DAYS = 90
+
 
 # Argument-passing methods for copy_rates_range, most likely first.
 #
@@ -160,42 +163,85 @@ def probe_year(mt5, year, method):
     return row
 
 
+def in_window(row):
+    """Did the request return a bar from the period actually asked for?
+
+    A non-zero bar count is not evidence of data. When the requested range
+    lies entirely before the archive begins, MT5 clamps to the oldest bar it
+    holds and returns that single bar instead of nothing. The first run of this
+    classifier read twenty such responses as twenty years of history: 2004
+    through 2022 each returned exactly 1 bar, all of them the same bar at
+    2022-06-23, and the 2022 probe asked for March but was handed June.
+
+    Presence therefore requires the returned bar to fall inside the window.
+    """
+    if row["bars"] <= 0 or not row["first"]:
+        return False
+    start, end = row["window"]
+    return start <= row["first"][:10] <= end
+
+
+def find_archive_floor(years):
+    """Oldest bar the server holds, inferred from the clamping signature.
+
+    Requests that fall entirely before the archive all clamp to the same bar.
+    Many years agreeing on one out-of-window timestamp is that boundary.
+    """
+    clamped = [r for r in years
+               if r["bars"] > 0 and r["first"] and not in_window(r)]
+    if len(clamped) < 2:
+        return None, clamped
+    stamps = {r["first"][:10] for r in clamped}
+    if len(stamps) != 1:
+        return None, clamped
+    return stamps.pop(), clamped
+
+
 def classify(years):
-    """Decide whether raising MaxBars can yield more history."""
-    with_data = [r for r in years if r["bars"] > 0]
+    """Decide whether raising MaxBars can yield materially more history."""
+    real = [r for r in years if in_window(r)]
     errored = [r for r in years if r["error"]]
+    floor, clamped = find_archive_floor(years)
 
-    if not with_data:
+    if not real:
         return ("INCONCLUSIVE",
-                "No year returned bars, including years known to exist. The "
-                "bridge or symbol selection is at fault, not the archive. Do "
-                "not touch the config on this result.")
+                "No year returned a bar from inside its requested window, "
+                "including years known to exist. The bridge or symbol "
+                "selection is at fault, not the archive. Do not touch the "
+                "config on this result.")
 
-    oldest = min(r["year"] for r in with_data)
+    oldest_real = min(r["year"] for r in real)
     known_year = int(KNOWN_EARLIEST[:4])
 
-    if oldest < known_year:
+    if oldest_real < known_year:
         return ("MORE_HISTORY_AVAILABLE",
-                f"Year {oldest} returned bars, older than the {KNOWN_EARLIEST} "
-                f"floor the capped probe reported. The archive extends past "
+                f"Year {oldest_real} returned bars from inside its own "
+                f"requested window, older than the {KNOWN_EARLIEST} floor the "
+                f"capped probe reported. The archive genuinely extends past "
                 f"what the terminal has downloaded, so raising MaxBars will "
                 f"deepen it. The config edit is justified.")
 
-    empty_older = [r["year"] for r in years
-                   if r["year"] < known_year and r["bars"] == 0 and not r["error"]]
-    if empty_older:
-        return ("ARCHIVE_STARTS_AT_KNOWN_FLOOR",
-                f"Every year before {known_year} returned zero bars with no "
-                f"error across {len(empty_older)} probes. The demo server "
-                f"appears not to hold XAUUSD before {KNOWN_EARLIEST}, so the "
-                f"MaxBars cap and the archive edge coincide. Raising MaxBars "
-                f"would gain nothing -- skip the config edit and accept 4.25 "
-                f"years as the real depth. Re-run once to confirm, since a "
-                f"year that failed to download also reads as zero.")
+    if floor:
+        gained = (datetime.fromisoformat(KNOWN_EARLIEST)
+                  - datetime.fromisoformat(floor)).days
+        verdict = ("ARCHIVE_FLOOR_CONFIRMED" if gained < MATERIAL_GAIN_DAYS
+                   else "MARGINAL_GAIN")
+        recommend = ("Not worth the risk of editing a UTF-16 config that also "
+                     "holds credentials and is rewritten by the terminal on "
+                     "exit. Skip the edit and record this depth as final."
+                     if gained < MATERIAL_GAIN_DAYS else
+                     "Large enough to justify the config edit if the extra "
+                     "period matters to fold structure.")
+        return (verdict,
+                f"{len(clamped)} requests older than the archive all clamped "
+                f"to the same bar at {floor}, which is the server's oldest "
+                f"XAUUSD bar. The MaxBars cap stops at {KNOWN_EARLIEST}, so "
+                f"raising it would gain {gained} days, not years. {recommend}")
 
     return ("UNDETERMINED",
-            f"Oldest year with data is {oldest}; {len(errored)} years errored. "
-            f"Not enough clean evidence either way.")
+            f"Oldest in-window year is {oldest_real}, {len(errored)} errored, "
+            f"and no consistent clamp boundary was found. Not enough clean "
+            f"evidence either way.")
 
 
 def main():
@@ -245,19 +291,25 @@ def main():
     for y in PROBE_YEARS:
         row = probe_year(mt5, y, method)
         years.append(row)
+        tag = "" if in_window(row) else "  CLAMPED, outside window"
         mark = f"{row['bars']:>5} bars" if row["bars"] else "    0 bars"
         note = f"  {row['error']}" if row["error"] else ""
         first = f"  first={row['first'][:10]}" if row["first"] else ""
-        print(f"  {y}  {mark}  {row['elapsed_s']:>6.2f}s{first}{note}")
+        print(f"  {y}  {mark}  {row['elapsed_s']:>6.2f}s{first}{note}{tag}")
     result["years"] = years
 
     verdict, detail = classify(years)
     result["verdict"] = verdict
     result["verdict_detail"] = detail
 
-    with_data = [r["year"] for r in years if r["bars"] > 0]
-    result["oldest_year_with_data"] = min(with_data) if with_data else None
-    result["years_with_data"] = sorted(with_data)
+    real_years = [r["year"] for r in years if in_window(r)]
+    floor, clamped = find_archive_floor(years)
+    result["oldest_year_with_data"] = min(real_years) if real_years else None
+    result["years_with_data"] = sorted(real_years)
+    result["archive_floor"] = floor
+    result["clamped_requests"] = len(clamped)
+    result["years_returning_bars_but_clamped"] = sorted(
+        r["year"] for r in clamped)
     result["total_bridge_seconds"] = round(
         sum(r["elapsed_s"] or 0 for r in years), 1)
 
@@ -270,8 +322,11 @@ def main():
     print("\n" + "=" * 66)
     print("ARCHIVE EXTENT")
     print("=" * 66)
-    print(f"  years with data    {result['years_with_data']}")
-    print(f"  oldest with data   {result['oldest_year_with_data']}")
+    print(f"  in-window years    {result['years_with_data']}")
+    print(f"  oldest genuine     {result['oldest_year_with_data']}")
+    print(f"  clamped requests   {result['clamped_requests']}"
+          f"  (returned a bar, but outside the window asked for)")
+    print(f"  archive floor      {result['archive_floor']}")
     print(f"  capped probe floor {KNOWN_EARLIEST}")
     print(f"  bridge time        {result['total_bridge_seconds']}s")
     print(f"\n  VERDICT  {verdict}")
