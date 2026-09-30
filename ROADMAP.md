@@ -39,7 +39,7 @@ effectiveness and regime robustness are all unknown.
 | 0b | Preregister success criteria | Blocked by 0a |
 | 0c | Deterministic regime classifier | Not started |
 | 0d | Research dataset schema | Not started |
-| 0e | Forward logging expansion | **DONE** `3c…` — 21 diagnostic fields, candle and config hash, block class |
+| 0e | Forward logging expansion | **DONE** `c6bfcc7` — 21 diagnostic fields, candle and config hash, block class |
 | 0f | Return-path and dead-branch catalogue | Count reconciled, artefact not written |
 
 ### Open 0a questions
