@@ -8,11 +8,20 @@ from engine import mt5_connector
 logger = logging.getLogger("hermes.data")
 
 
-def get_candles(symbol="XAUUSD", timeframe=None, count=200):
+def get_candles(symbol="XAUUSD", timeframe=None, count=200, closed_only=True):
+    """Fetch OHLCV bars.
+
+    closed_only=True starts at position 1, excluding the bar currently being
+    built. Position 0 is the forming bar: partway through its period it has
+    only a fraction of its final body and tick volume, so comparing it against
+    averages of completed bars makes momentum and volume tests fail almost
+    unconditionally. It also skews VWAP, ATR and the volume average.
+    """
     mt5 = mt5_connector.mt5
     if timeframe is None:
         timeframe = 15  # M15
-    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, count)
+    start_pos = 1 if closed_only else 0
+    rates = mt5.copy_rates_from_pos(symbol, timeframe, start_pos, count)
     if rates is None or len(rates) == 0:
         logger.error(f"Failed to get candles: {mt5.last_error()}")
         return None

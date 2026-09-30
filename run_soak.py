@@ -252,7 +252,6 @@ def main():
     if "pswpout" in resources and "pswpout" in prev_res:
         swapout_delta = resources["pswpout"] - prev_res["pswpout"]
 
-    churning = swapout_delta is not None and swapout_delta > 25000  # ~100MB/cycle
     starved = isinstance(ram_free, int) and ram_free < 400
 
     # PSI full-stall delta: microseconds in which every task was blocked on
@@ -261,6 +260,15 @@ def main():
     psi_delta = None
     if "psi_mem_full_total" in resources and "psi_mem_full_total" in prev_res:
         psi_delta = resources["psi_mem_full_total"] - prev_res["psi_mem_full_total"]
+
+    # Page-out volume alone is a poor predictor: an observed 150MB burst carried
+    # only 0.36s of stall, while the largest stall seen (0.67s) moved just 354
+    # pages. Require both a large burst and meaningful stall before alerting.
+    churning = (
+        swapout_delta is not None and swapout_delta > 25000
+        and psi_delta is not None and psi_delta > 500_000
+    )
+
     if psi_delta is not None and psi_delta > 1_000_000:
         logger.warning(f"MEMORY STALL: {psi_delta / 1e6:.2f}s of full stall since last cycle (swap={swap_used}MB, free={ram_free}MB)")
         telegram.send_message(
