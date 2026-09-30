@@ -61,8 +61,76 @@ SAMPLE_DAYS = 7
 # Established by mt5_m15_history_probe_20260930T065319Z.
 KNOWN_EARLIEST = "2022-06-29"
 
+# Control window for validating the call itself. Long enough to span a weekend
+# and any single holiday, so an empty result can only mean a broken call.
+CONTROL_DAYS = 10
 
-def probe_year(mt5, year):
+
+# Argument-passing methods for copy_rates_range, most likely first.
+#
+# The first version of this probe passed timezone-aware datetime objects and
+# every year failed in 0.01s with (-2, 'Invalid arguments') -- including years
+# known to hold data. datetime objects do not cross the rpyc bridge as
+# something the MT5 C extension will accept. Every call in data_feed.py that
+# works passes integers only.
+#
+# MT5 documents date_from/date_to as accepting either a datetime or a number of
+# seconds since 1970-01-01, so integers are both valid and unambiguous here.
+METHODS = ("int", "naive_datetime", "aware_datetime")
+
+
+def _as_args(start_dt, end_dt, method):
+    if method == "int":
+        return int(start_dt.timestamp()), int(end_dt.timestamp())
+    if method == "naive_datetime":
+        return start_dt.replace(tzinfo=None), end_dt.replace(tzinfo=None)
+    return start_dt, end_dt
+
+
+def _call_range(mt5, start_dt, end_dt, method):
+    """Single copy_rates_range call. Returns (rates_or_None, error, elapsed)."""
+    a, b = _as_args(start_dt, end_dt, method)
+    t0 = datetime.now(timezone.utc)
+    try:
+        rates = mt5.copy_rates_range(SYMBOL, mt5.TIMEFRAME_M15, a, b)
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}", _since(t0)
+    if rates is None:
+        try:
+            return None, f"none_returned: {mt5.last_error()}", _since(t0)
+        except Exception:
+            return None, "none_returned", _since(t0)
+    return rates, None, _since(t0)
+
+
+def _since(t0):
+    return round((datetime.now(timezone.utc) - t0).total_seconds(), 2)
+
+
+def detect_method(mt5):
+    """Find an argument form that returns bars for a window known to have them.
+
+    Sweeping 23 years with an unvalidated call is how the first run of this
+    probe produced 23 identical failures and no information. The control
+    window is recent and long enough to span a weekend, so zero bars from it
+    means the call is wrong, never that the data is missing.
+    """
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=CONTROL_DAYS)
+    attempts = []
+    for method in METHODS:
+        rates, error, elapsed = _call_range(mt5, start, end, method)
+        n = len(rates) if rates is not None else 0
+        attempts.append({"method": method, "bars": n,
+                         "error": error, "elapsed_s": elapsed})
+        print(f"  control {method:16} {n:>6} bars  {elapsed:>6.2f}s"
+              f"{'  ' + error if error else ''}")
+        if n > 0:
+            return method, attempts
+    return None, attempts
+
+
+def probe_year(mt5, year, method):
     """Request one week of M15 bars in the given year.
 
     Returns a dict rather than raising. A failed year must not abort the
@@ -70,28 +138,16 @@ def probe_year(mt5, year):
     return data and years that do not.
     """
     row = {"year": year, "bars": 0, "first": None, "last": None,
-           "elapsed_s": None, "error": None}
+           "elapsed_s": None, "error": None, "method": method}
 
     start = datetime(year, SAMPLE_MONTH, SAMPLE_DAY, tzinfo=timezone.utc)
     end = start + timedelta(days=SAMPLE_DAYS)
     row["window"] = [start.date().isoformat(), end.date().isoformat()]
 
-    t0 = datetime.now(timezone.utc)
-    try:
-        rates = mt5.copy_rates_range(SYMBOL, mt5.TIMEFRAME_M15, start, end)
-    except Exception as exc:
-        row["error"] = f"{type(exc).__name__}: {exc}"
-        row["elapsed_s"] = round((datetime.now(timezone.utc) - t0).total_seconds(), 2)
-        return row
-    row["elapsed_s"] = round((datetime.now(timezone.utc) - t0).total_seconds(), 2)
-
+    rates, error, elapsed = _call_range(mt5, start, end, method)
+    row["elapsed_s"] = elapsed
     if rates is None:
-        # Distinguish "no data" from "request rejected". Only the latter makes
-        # the year inconclusive.
-        try:
-            row["error"] = f"none_returned: {mt5.last_error()}"
-        except Exception:
-            row["error"] = "none_returned"
+        row["error"] = error
         return row
 
     # len() is a single bridge round trip. Iterating rows would be one trip
@@ -159,13 +215,35 @@ def main():
         return 1
     mt5 = mt5_connector.mt5
 
+    print(f"Validating the call against the last {CONTROL_DAYS} days, "
+          f"which must contain bars:")
+    method, attempts = detect_method(mt5)
+    result["control_attempts"] = attempts
+    result["method"] = method
+
+    if method is None:
+        result["verdict"] = "PROBE_DEFECT"
+        result["verdict_detail"] = (
+            "No argument form returned bars for a window known to contain "
+            "them, so copy_rates_range could not be called successfully at "
+            "all. This says nothing about archive depth. Fix the call before "
+            "drawing any conclusion, and do not touch the config.")
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        out = OUT_DIR / f"archive_extent_{stamp}.json"
+        out.write_text(json.dumps(result, indent=2))
+        print(f"\nWritten: {out}")
+        print(f"\n  VERDICT  PROBE_DEFECT\n  {result['verdict_detail']}")
+        return 1
+
+    print(f"\n  using method: {method}\n")
     print(f"Sweeping {PROBE_YEARS[-1]}..{PROBE_YEARS[0]}, "
           f"{SAMPLE_DAYS}d sample each. Older years may pause while the "
           f"terminal attempts a download.\n")
 
     years = []
     for y in PROBE_YEARS:
-        row = probe_year(mt5, y)
+        row = probe_year(mt5, y, method)
         years.append(row)
         mark = f"{row['bars']:>5} bars" if row["bars"] else "    0 bars"
         note = f"  {row['error']}" if row["error"] else ""
