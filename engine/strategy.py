@@ -42,6 +42,24 @@ def evaluate(df, structure, zones, params, diag=None):
     d["swing_low_count"] = len(structure.get("swing_lows") or [])
     d["sr_zone_count"] = len(zones or [])
 
+    # Trend and its confirmation are measured over different windows.
+    # market_structure.detect_structure walks every swing in the supplied frame
+    # and `trend` is the terminal state of that walk, so it reflects the last
+    # structural flip anywhere in the frame. recent_bos_up/down count only the
+    # trailing 50 bars (market_structure.py:77-78, hardcoded). A trend set 150
+    # bars ago can therefore be reported alongside a nearly balanced recent BOS
+    # count, which is how trend=DOWN appears with bos_up=1, bos_down=1.
+    #
+    # These fields make that staleness measurable instead of inferred. No
+    # judgement is made here about whether the mismatch is a defect; that is
+    # for the replay to quantify against a baseline.
+    _bos = structure.get("bos") or []
+    d["bos_total"] = len(_bos)
+    d["last_bos_direction"] = _bos[-1]["direction"] if _bos else None
+    d["bars_since_last_bos"] = (len(df) - 1 - _bos[-1]["index"]) if _bos else None
+    d["trend_scope_bars"] = len(df)
+    d["bos_window_bars"] = 50
+
     if not trend_confirmed:
         return None, f"trend_not_confirmed (trend={trend}, bos_up={structure['recent_bos_up']}, bos_down={structure['recent_bos_down']})"
 
