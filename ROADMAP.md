@@ -40,7 +40,7 @@ effectiveness and regime robustness are all unknown.
 | 0c | Deterministic regime classifier | **DONE** — two axes, frozen at `regime-1.0`, 13 tests |
 | 0d | Research dataset schema | **DONE** — 69 evaluation + 42 setup fields, validators, 11 tests |
 | 0e | Forward logging expansion | **DONE** `c6bfcc7` — 21 diagnostic fields, candle and config hash, block class |
-| 0f | Return-path and dead-branch catalogue | Count reconciled, artefact not written |
+| 0f | Return-path and dead-branch catalogue | **DONE** — 28 paths AST-verified, 2 unreachable, 11 gaps named |
 
 ### Open 0a questions
 

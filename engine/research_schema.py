@@ -159,6 +159,8 @@ EVALUATIONS_FIELDS = (
     ("risk_result", "str", False, "approved / rejected / not_reached"),
     ("risk_reason", "str", False, ""),
     ("position_size", "float", False, "Lots. 0.0 with a reason is a rejection"),
+    ("risk_amount", "float", False, "Intended cash risk. Audits sizing independently of lots"),
+    ("daily_losses", "int", False, "Losing trades counted today when the decision was made"),
     ("balance", "float", False, ""),
     ("equity", "float", False, ""),
     ("contract_size", "float", False, ""),
