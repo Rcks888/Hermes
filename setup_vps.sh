@@ -2,7 +2,7 @@
 # ============================================================
 # Hermes VPS Setup — Step 0
 # Installs Wine, Xvfb, MT5, and Python dependencies
-# Run on: Ubuntu 24.04 VPS (134.209.103.20)
+# Run on: Ubuntu 24.04 VPS (see HERMES_BRIEF.md for host)
 # ============================================================
 
 set -e

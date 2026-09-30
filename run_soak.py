@@ -25,6 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from engine import mt5_connector
 from engine import data_feed
+from engine import version
 from alerts import telegram
 
 SOAK_LOG = PROJECT_ROOT / "logs" / "soak.json"
@@ -148,6 +149,7 @@ def main():
 
     cycle = {
         "timestamp": now.isoformat(),
+        "code_version": version.get_code_version(),
         "session": get_session_tag(now.hour),
         "connected": False,
         "candle_pull": False,

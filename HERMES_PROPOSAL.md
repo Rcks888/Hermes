@@ -19,7 +19,7 @@ For programmatic trading, MT5 is the only option.
 | TradingView | ❌ View only | No programmatic execution available |
 
 **VPS consideration:** The `MetaTrader5` Python package is Windows-native.
-On our Ubuntu VPS (134.209.103.20), we run MT5 headless via **Wine + Xvfb**.
+On our Ubuntu VPS, we run MT5 headless via **Wine + Xvfb**.
 If this proves unstable, fallback is a small Windows VPS (~$10-15/month).
 
 ## Gate 0: MT5 Infrastructure Stability
@@ -490,5 +490,5 @@ Build in this exact sequence. Each step must be stable before the next begins.
 1. Download MT5 from OANDA Global
 2. Create a **demo account** in MT5 (File → Open an Account → choose demo)
 3. Provide MT5 credentials: **login ID**, **password**, **server name** (e.g. `OandaGlobal-Demo`)
-4. Build and deploy Hermes on VPS (134.209.103.20)
+4. Build and deploy Hermes on the shared VPS
 5. Start Phase 1: Alert-only mode on XAU/USD

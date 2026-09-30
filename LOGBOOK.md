@@ -5,7 +5,7 @@
 ### What was done
 - Created Hermes project: proposal, brief, architecture
 - Chose MT5 + Python (Wine + rpyc bridge) after confirming OANDA Global has no REST API
-- Set up VPS (134.209.103.20, Ubuntu 24.04):
+- Set up VPS (DigitalOcean Singapore, Ubuntu 24.04):
   - Installed Wine 9.0, Xvfb, Python 3.12 (Wine + native)
   - Installed MT5 via Wine, logged into MetaQuotes-Demo ($100k demo)
   - Built rpyc bridge: Wine Python (MT5 + rpyc server) ↔ Linux Python (Hermes engine)

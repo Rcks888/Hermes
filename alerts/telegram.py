@@ -43,7 +43,7 @@ def alert_disconnected(consecutive_failures=1):
         send_message(
             f"🚨 HERMES CRITICAL HALT — MT5 down for {consecutive_failures} "
             f"consecutive cycles. rpyc bridge or MT5 may need manual restart.\n"
-            f"Run: ssh root@134.209.103.20 'pkill -f python.exe; sleep 2; "
+            f"Run on the VPS: 'pkill -f python.exe; sleep 2; "
             f"cd ~/Hermes && DISPLAY=:99 venv/bin/python run_soak.py'"
         )
 

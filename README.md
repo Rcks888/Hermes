@@ -10,10 +10,10 @@ Before any strategy code runs, we must prove MT5 connectivity is stable on Ubunt
 
 ```bash
 # 1. Clone/copy to VPS
-scp -r ~/Olympus/Hermes user@134.209.103.20:~/Olympus/Hermes
+scp -r ~/Olympus/Hermes user@<VPS_HOST>:~/Olympus/Hermes
 
 # 2. Run setup
-ssh user@134.209.103.20
+ssh user@<VPS_HOST>
 cd ~/Olympus/Hermes
 chmod +x setup_vps.sh
 ./setup_vps.sh

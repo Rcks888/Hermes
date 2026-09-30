@@ -10,7 +10,7 @@ Hermes is part of **Project Olympus** — a multi-system automated trading platf
 - **Hermes** (`~/Olympus/Hermes/`) — Forex day trading (NEW, OANDA)
 
 Owner: Rickson Kang (beginner trader, Malaysia UTC+8, paper trading phase)
-VPS: 134.209.103.20 (DigitalOcean Singapore, Ubuntu 24.04)
+VPS: <VPS_HOST> (DigitalOcean Singapore, Ubuntu 24.04)
 GitHub: github.com/Rcks888/Hermes (to be created, public)
 
 ## Why Hermes?
@@ -133,7 +133,7 @@ Volume:    Traps breakout traders → creates momentum for reversal
 - Volume from OANDA tick volume
 
 ## Deployment
-- Same VPS as Ares (134.209.103.20)
+- Same VPS as Ares
 - Separate cron jobs, separate Telegram messages
 - Same bot token, same chat ID (prefix messages with 🔱 HERMES)
 

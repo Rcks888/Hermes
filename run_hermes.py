@@ -21,6 +21,7 @@ from engine import market_structure
 from engine import indicators
 from engine import strategy
 from engine import risk_manager
+from engine import version
 from alerts import telegram
 
 TRADES_LOG = PROJECT_ROOT / "logs" / "trades.json"
@@ -41,7 +42,10 @@ logger = logging.getLogger("hermes.main")
 def log_event(payload):
     """Append-only audit trail. One JSON object per line, never rewritten,
     so a crash mid-write cannot truncate prior history."""
-    record = {"ts": datetime.now(timezone.utc).isoformat()}
+    record = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "code_version": version.get_code_version(),
+    }
     record.update(payload)
     try:
         with open(EVENTS_LOG, "a") as f:
