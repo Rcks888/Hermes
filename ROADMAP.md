@@ -79,6 +79,37 @@ factor applied to bar spread. Direct measurement beats a correction coefficient.
 Note: LONDON p50 is **28**, superseding the earlier 22 figure from a smaller
 window. The 1,206-pair sample is authoritative.
 
+## Minimum viable capital — hard gate before Phase 4
+
+A consequence of `contract_size` 100 with `volume_min` 0.01: the smallest
+tradeable position is 1 oz, so **min-lot risk in dollars equals the SL distance
+numerically**.
+
+```
+min-lot risk = sl_distance x 100 x 0.01 = sl_distance x $1.00
+balance required for 1% risk = sl_distance x 100
+```
+
+With `min_atr` 3.0, stops between 0.5x and 2.5x ATR, and observed ATR ~6.5:
+
+| SL distance | Min-lot risk | Balance for 1% |
+|---|---|---|
+| 1.5 (absolute floor) | $1.50 | $150 |
+| 3.3 (0.5x observed ATR) | $3.30 | $330 |
+| 6.5 (1x observed ATR) | $6.50 | **$650** |
+| 16.3 (2.5x observed ATR) | $16.30 | **$1,630** |
+
+**A $100 account cannot express 1% risk on any realistic stop** and will reject
+every signal with `position_size_below_minimum`. That is correct behaviour, not a
+fault — expect zero executed trades and do not debug it as one.
+
+Thresholds: **~$650** to trade typical signals, **~$1,650** to trade all valid
+signals including wide stops.
+
+Permitted responses: fund adequately, or record an explicit higher-risk decision
+for small capital. Rounding up to the broker minimum is **prohibited** — that is
+the defect fixed in `495e078`, and it converts a stated 1% into an actual 6.5%.
+
 ## Known defects and hazards
 
 | # | Item | Severity | State |
