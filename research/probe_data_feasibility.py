@@ -32,8 +32,45 @@ M15 = 15
 # (-2, 'Terminal: Invalid params') rather than returning what it has, so a
 # single large request cannot discover the ceiling. Step down until one
 # succeeds; the first success is the usable depth.
-REQUEST_LADDER = [200_000, 100_000, 50_000, 20_000, 10_000, 5_000, 1_000]
+# mt5 is a remote object across the rpyc bridge, so copy_rates_from_pos returns
+# a netref. Iterating it pulls one row per network round trip, which makes bulk
+# transfer unusable: 200k bars is 200k round trips. Depth is therefore found by
+# binary search on bar position using single-row requests, and statistics come
+# from a bounded sample.
+SAMPLE_BARS = 3_000
+POSITION_CEILING = 2 ** 22  # ~4.2M bars, far beyond any broker archive
 OUT_DIR = PROJECT_ROOT / "research" / "data_feasibility"
+
+
+def _bar_exists(mt5, pos):
+    """Does a bar exist at this position? One row, one round trip."""
+    r = mt5.copy_rates_from_pos(SYMBOL, M15, pos, 1)
+    return r is not None and len(r) > 0
+
+
+def find_depth(mt5):
+    """Largest valid bar position, via exponential bracket then binary search.
+
+    Roughly 2*log2(depth) round trips -- about 40 for a million bars, versus
+    one per bar for a bulk transfer.
+    """
+    if not _bar_exists(mt5, 1):
+        return 0, 0
+
+    lo = 1
+    hi = 2
+    while hi < POSITION_CEILING and _bar_exists(mt5, hi):
+        lo = hi
+        hi *= 2
+    probes = 0
+    while lo + 1 < hi:
+        mid = (lo + hi) // 2
+        probes += 1
+        if _bar_exists(mt5, mid):
+            lo = mid
+        else:
+            hi = mid
+    return lo, probes
 
 
 def classify_span(days):
@@ -53,7 +90,7 @@ def main():
         "code_version": version.get_code_version(),
         "symbol": SYMBOL,
         "timeframe": "M15",
-        "request_ladder_sizes": REQUEST_LADDER,
+        "stats_sample_target": SAMPLE_BARS,
     }
 
     ok, _ = mt5_connector.ensure_connected()
@@ -75,35 +112,40 @@ def main():
                   "volume_min", "volume_step", "volume_max", "spread", "trade_mode"):
             result[k] = info.get(k)
 
-    rates = None
-    attempts = []
-    for want in REQUEST_LADDER:
-        r = mt5.copy_rates_from_pos(SYMBOL, M15, 1, want)
-        got = 0 if r is None else len(r)
-        attempts.append({"requested": want, "returned": got,
-                         "error": None if got else str(mt5.last_error())})
-        if got:
-            rates = r
-            result["successful_request_size"] = want
-            break
-    result["request_ladder"] = attempts
+    print(f"Searching history depth for {SYMBOL} M15 ...")
+    depth, probes = find_depth(mt5)
+    result["total_bar_count"] = depth
+    result["depth_search_probes"] = probes
+    result["depth_hit_ceiling"] = depth >= POSITION_CEILING - 1
 
-    if rates is None:
-        result["error"] = "no bars returned at any request size"
+    if depth == 0:
+        result["error"] = f"no bars at position 1: {mt5.last_error()}"
         _write(result)
         return 1
+    print(f"  depth = {depth:,} bars ({probes} probes)")
+
+    oldest = mt5.copy_rates_from_pos(SYMBOL, M15, depth, 1)
+    newest = mt5.copy_rates_from_pos(SYMBOL, M15, 1, 1)
+    first_ts = int(oldest[0][0])
+    last_ts = int(newest[0][0])
+
+    # Statistics from a bounded recent sample. Full-history stats would need one
+    # round trip per bar, so they are deliberately not attempted here.
+    n_sample = min(SAMPLE_BARS, depth)
+    print(f"  sampling {n_sample:,} most recent bars for quality stats ...")
+    sample = mt5.copy_rates_from_pos(SYMBOL, M15, 1, n_sample)
+    rates = [tuple(row) for row in sample]  # single pass, then fully local
+    result["sample_bar_count"] = len(rates)
+    result["stats_basis"] = (
+        f"quality statistics computed on the {len(rates)} most recent bars, "
+        f"not the full {depth} bar archive"
+    )
 
     times = [int(r[0]) for r in rates]
     vols = [int(r[5]) for r in rates]
-    result["returned_bar_count"] = len(times)
-    # Fewer bars than the accepted request means history ran out, so this is
-    # the true depth. Exactly the request size means the ceiling is the request,
-    # not the archive, and a larger ladder step might have returned more.
-    result["depth_capped_by_history"] = len(times) < result["successful_request_size"]
-    result["depth_may_exceed_probe"] = len(times) == result["successful_request_size"]
 
-    first = datetime.fromtimestamp(times[0], tz=timezone.utc)
-    last = datetime.fromtimestamp(times[-1], tz=timezone.utc)
+    first = datetime.fromtimestamp(first_ts, tz=timezone.utc)
+    last = datetime.fromtimestamp(last_ts, tz=timezone.utc)
     result["earliest_bar"] = first.isoformat()
     result["latest_completed_bar"] = last.isoformat()
     result["note_on_timestamps"] = (
@@ -116,12 +158,14 @@ def main():
     result["calendar_span_days"] = round(span_days, 1)
     result["calendar_span_years"] = round(span_days / 365.25, 2)
 
-    # Forex trades ~5 of 7 days; 96 M15 bars per 24h.
+    # Forex trades ~5 of 7 days; 96 M15 bars per 24h. Compared against the full
+    # archive count, not the sample, since span covers the whole archive.
     result["expected_m15_bars_estimate"] = int(span_days * (5 / 7) * 96)
-    result["missing_bar_estimate"] = result["expected_m15_bars_estimate"] - len(times)
+    result["missing_bar_estimate"] = result["expected_m15_bars_estimate"] - depth
 
-    result["duplicate_timestamps"] = len(times) - len(set(times))
-    result["zero_volume_bars"] = sum(1 for v in vols if v == 0)
+    # Sample-scoped, not archive-wide.
+    result["sample_duplicate_timestamps"] = len(times) - len(set(times))
+    result["sample_zero_volume_bars"] = sum(1 for v in vols if v == 0)
 
     gaps = [(times[i + 1] - times[i]) for i in range(len(times) - 1)]
     if gaps:
@@ -130,7 +174,7 @@ def main():
         result["largest_gap_hours"] = round(largest / 3600, 1)
         result["largest_gap_starts"] = datetime.fromtimestamp(times[idx], tz=timezone.utc).isoformat()
         # A clean weekend break is ~48-50h; anything materially larger is a hole.
-        result["gaps_over_60h"] = sum(1 for g in gaps if g > 60 * 3600)
+        result["sample_gaps_over_60h"] = sum(1 for g in gaps if g > 60 * 3600)
 
     tier, guidance = classify_span(span_days)
     result["data_tier"] = tier
@@ -183,20 +227,19 @@ def _summarise(r):
     print("=" * 62)
     print(f"  broker            {r.get('broker_server')}")
     print(f"  code_version      {r.get('code_version')}")
-    print(f"  bars returned     {r.get('returned_bar_count'):,} "
-          f"(request size {r.get('successful_request_size'):,})"
-          f"{'  (history exhausted — true depth)' if r.get('depth_capped_by_history') else ''}"
-          f"{'  (WARNING: hit request ceiling, more may exist)' if r.get('depth_may_exceed_probe') else ''}")
+    print(f"  total bars        {r.get('total_bar_count'):,} "
+          f"(found in {r.get('depth_search_probes')} probes)")
+    print(f"  stats sample      {r.get('sample_bar_count'):,} most recent bars")
     print(f"  earliest bar      {r.get('earliest_bar')}")
     print(f"  latest bar        {r.get('latest_completed_bar')}")
     print(f"  span              {r.get('calendar_span_days')} days "
           f"({r.get('calendar_span_years')} years)")
     print(f"  missing estimate  {r.get('missing_bar_estimate'):,} bars")
-    print(f"  duplicates        {r.get('duplicate_timestamps')}")
-    print(f"  zero-volume bars  {r.get('zero_volume_bars'):,}")
+    print(f"  dupes (sample)    {r.get('sample_duplicate_timestamps')}")
+    print(f"  zero-vol (sample) {r.get('sample_zero_volume_bars'):,}")
     print(f"  largest gap       {r.get('largest_gap_hours')}h "
           f"starting {r.get('largest_gap_starts')}")
-    print(f"  gaps over 60h     {r.get('gaps_over_60h')}  (weekends are ~48-50h)")
+    print(f"  gaps >60h (samp)  {r.get('sample_gaps_over_60h')}  (weekends are ~48-50h)")
     print(f"\n  min lot           {r.get('volume_min')}  step {r.get('volume_step')}")
     print(f"  contract size     {r.get('contract_size')}")
     print(f"  tick value        {r.get('tick_value')}  tick size {r.get('tick_size')}")
