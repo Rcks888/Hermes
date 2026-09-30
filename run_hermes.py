@@ -25,6 +25,7 @@ from engine import indicators
 from engine import strategy
 from engine import risk_manager
 from engine import version
+from engine import research_schema
 from alerts import telegram
 
 TRADES_LOG = PROJECT_ROOT / "logs" / "trades.json"
@@ -42,30 +43,15 @@ logging.basicConfig(
 logger = logging.getLogger("hermes.main")
 
 
-RULE_GATES = (
-    "trend_not_confirmed", "no_pullback", "no_candle_confirmation",
-    "vwap_misaligned", "volume_too_low", "atr_invalid", "atr_too_low",
-    "sl_too_tight", "sl_too_wide", "sl_distance_invalid",
-)
-
-
-def classify_block(reason):
+def classify_block(reason, layer="strategy"):
     """Separate missing evidence from a genuinely failed condition.
 
-    Absent evidence is not a pass and must never be counted as one. The reason
-    string is already written for humans; this gives replay and the gate funnel
-    a stable machine-readable class so neither has to parse prose.
+    Absent evidence is not a pass and must never be counted as one. Delegates
+    to research_schema so the live path and the research dataset share one
+    implementation: two copies of this logic would drift, and the drift would
+    show up as a phantom replay mismatch rather than as an obvious bug.
     """
-    if reason is None:
-        return None
-    if reason == "OK":
-        return "ok"
-    if reason.startswith("cannot_evaluate"):
-        return "cannot_evaluate"
-    for gate in RULE_GATES:
-        if reason.startswith(gate):
-            return "rule_violation"
-    return "risk_block"
+    return research_schema.classify_blocked_at(reason, layer=layer)[0]
 
 
 def config_fingerprint(params):
@@ -319,7 +305,7 @@ def main():
         "event": "SIGNAL_APPROVED" if approved else "SIGNAL_REJECTED",
         "session": session,
         "reason": risk_reason,
-        "blocked_class": None if approved else classify_block(risk_reason),
+        "blocked_class": None if approved else classify_block(risk_reason, layer="risk"),
         "direction": signal["direction"],
         "entry": signal["entry"],
         "sl": signal["sl"],
