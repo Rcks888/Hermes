@@ -27,3 +27,6 @@ python-*-amd64.exe
 
 # Research probe outputs are committed as evidence, not ignored.
 # Listed here only to document the deliberate choice.
+
+# Cross-process alert throttle state (runtime, not evidence)
+logs/alert_state.json

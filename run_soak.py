@@ -240,9 +240,16 @@ def main():
     load1 = resources.get("load_avg_1m", "?")
     logger.info(f"Soak cycle #{total}: uptime={uptime_pct:.1f}% ({success}/{total}) init={init_latency}s RAM_free={ram_free}MB swap={swap_used}MB load={load1}")
 
+    if isinstance(ram_free, int) and ram_free >= 400:
+        telegram.clear_alert("low_ram")
+        telegram.clear_alert("swap_pressure")
+
     if isinstance(ram_free, int) and ram_free < 300:
         logger.warning(f"LOW RAM: {ram_free}MB free — Ares may be affected")
-        telegram.send_message(f"⚠️ HERMES — Low RAM: {ram_free}MB free, swap={swap_used}MB. Ares may be affected.")
+        telegram.send_throttled(
+            "low_ram",
+            f"⚠️ HERMES — Low RAM: {ram_free}MB free, swap={swap_used}MB. "
+            f"Ares may be affected.")
 
     # Swap occupancy alone is not pressure: the kernel evicts idle anonymous
     # pages (plentiful in headless Wine/MT5) even with GBs free, and swap never
@@ -273,7 +280,8 @@ def main():
 
     if psi_delta is not None and psi_delta > 1_000_000:
         logger.warning(f"MEMORY STALL: {psi_delta / 1e6:.2f}s of full stall since last cycle (swap={swap_used}MB, free={ram_free}MB)")
-        telegram.send_message(
+        telegram.send_throttled(
+            "memory_stall",
             f"⚠️ HERMES — Memory pressure event: {psi_delta / 1e6:.2f}s of full stall in the last 15min. "
             f"swap={swap_used}MB, RAM free={ram_free}MB. A spike occurred even if current readings look healthy."
         )
@@ -282,10 +290,17 @@ def main():
 
     if isinstance(swap_used, int) and swap_used > 200 and starved:
         logger.warning(f"SWAP PRESSURE: {swap_used}MB swap with only {ram_free}MB free")
-        telegram.send_message(f"⚠️ HERMES — Real memory pressure: swap={swap_used}MB, RAM free={ram_free}MB. Consider capping IB Gateway heap (-Xmx512m) or upgrading to 4GB.")
+        telegram.send_throttled(
+            "swap_pressure",
+            f"⚠️ HERMES — Real memory pressure: swap={swap_used}MB, "
+            f"RAM free={ram_free}MB. Consider capping IB Gateway heap "
+            f"(-Xmx512m) or upgrading to 4GB.")
     elif churning:
         logger.warning(f"SWAP THRASHING: {swapout_delta} pages out since last cycle (swap={swap_used}MB, free={ram_free}MB)")
-        telegram.send_message(f"⚠️ HERMES — Active swap thrashing: {swapout_delta} pages out in 15min, swap={swap_used}MB, RAM free={ram_free}MB.")
+        telegram.send_throttled(
+            "swap_thrashing",
+            f"⚠️ HERMES — Active swap thrashing: {swapout_delta} pages out in "
+            f"15min, swap={swap_used}MB, RAM free={ram_free}MB.")
     elif isinstance(swap_used, int) and swap_used > 200:
         logger.info(f"Swap at {swap_used}MB but {ram_free}MB free and no active swap-out — benign idle page eviction, not alerting")
 
