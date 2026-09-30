@@ -66,31 +66,67 @@ def check_no_trade_filters(signal, spread_points, params, session):
     return reasons
 
 
-def calculate_position_size(signal, account_balance, params):
+def calculate_position_size(signal, account_balance, params, symbol_info=None):
+    """Return (lot_size, reason). reason is None on success, a string on reject.
+
+    One return shape on every path so callers cannot mistake a rejection for a
+    size of zero.
+    """
     risk_pct = params.get("risk_pct", 0.01)
     risk_amount = account_balance * risk_pct
     sl_distance = signal["sl_distance"]
     if sl_distance <= 0:
-        return 0.0
+        return 0.0, "sl_distance not positive"
 
-    tick_value = params.get("tick_value", 0.1)
-    tick_size = params.get("tick_size", 0.01)
+    # Value of a 1.00 price move for 1.00 lot equals contract_size, verified
+    # against the terminal: order_calc_profit returned $100.00 for a $1.00 move
+    # on 1.00 lot with contract_size 100.
+    #
+    # Do NOT use the broker's trade_tick_value. MetaQuotes-Demo reports 0.1 per
+    # 0.01 tick, which predicts $10.00 for the same move -- ten times low, and
+    # contradicted by the terminal's own profit calculation. The previous
+    # hardcoded default of 0.1 therefore oversized every position by 10x.
+    contract_size = None
+    if symbol_info and symbol_info.get("contract_size"):
+        contract_size = float(symbol_info["contract_size"])
+    elif params.get("contract_size"):
+        contract_size = float(params["contract_size"])
+    if not contract_size or contract_size <= 0:
+        return 0.0, ("cannot_evaluate: contract_size unavailable — failing "
+                     "closed rather than assuming a value")
 
-    ticks = sl_distance / tick_size
-    if ticks <= 0:
-        return 0.0
+    loss_per_lot = sl_distance * contract_size
+    if loss_per_lot <= 0:
+        return 0.0, "loss_per_lot not positive"
+    raw_lots = risk_amount / loss_per_lot
 
-    lot_size = risk_amount / (ticks * tick_value)
+    lot_min = float((symbol_info or {}).get("volume_min") or params.get("lot_min", 0.01))
+    lot_step = float((symbol_info or {}).get("volume_step") or params.get("lot_step", 0.01))
+    lot_max = float((symbol_info or {}).get("volume_max") or params.get("lot_max", 100.0))
 
-    lot_min = params.get("lot_min", 0.01)
-    lot_step = params.get("lot_step", 0.01)
-    lot_size = max(lot_min, round(lot_size / lot_step) * lot_step)
+    # Round DOWN to a step so the realised risk never exceeds the budget.
+    lot_size = int(raw_lots / lot_step) * lot_step
     lot_size = round(lot_size, 2)
 
-    return lot_size
+    # Below the minimum tradeable size the account cannot express this risk.
+    # Rounding up to lot_min would silently exceed the intended risk -- on a
+    # $100 account at 1%, a 6.53 stop needs 0.0015 lots, so lot_min 0.01 would
+    # risk 6.5% instead of 1%. Reject instead.
+    if lot_size < lot_min:
+        implied = lot_min * loss_per_lot
+        return 0.0, (
+            f"position_size_below_minimum (need {raw_lots:.4f} lots for "
+            f"{risk_pct * 100:.1f}% risk, broker minimum {lot_min}; taking the "
+            f"minimum would risk {implied:.2f} = "
+            f"{100 * implied / account_balance:.2f}% of balance)")
+
+    if lot_size > lot_max:
+        return 0.0, f"position_size_above_maximum ({lot_size} > {lot_max})"
+
+    return lot_size, None
 
 
-def approve(signal, account, spread_points, session, params):
+def approve(signal, account, spread_points, session, params, symbol_info=None):
     trades = _load_trades()
 
     daily_losses = _daily_loss_count(trades)
@@ -115,7 +151,11 @@ def approve(signal, account, spread_points, session, params):
         return False, "; ".join(filter_reasons), {}
 
     balance = account.get("balance", 0)
-    lot_size = calculate_position_size(signal, balance, params)
+    lot_size, size_reason = calculate_position_size(
+        signal, balance, params, symbol_info)
+    if size_reason:
+        logger.warning(f"Position sizing rejected: {size_reason}")
+        return False, size_reason, {}
     risk_amount = balance * params.get("risk_pct", 0.01)
 
     details = {

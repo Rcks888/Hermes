@@ -242,7 +242,7 @@ def main():
         sym_params["lot_step"] = sym_info.get("volume_step", 0.01)
 
     approved, risk_reason, risk_details = risk_manager.approve(
-        signal, account, spread_points, session, sym_params
+        signal, account, spread_points, session, sym_params, sym_info
     )
 
     log_trade(signal, approved, risk_reason, risk_details, spread_points, session)

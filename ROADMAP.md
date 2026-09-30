@@ -35,7 +35,7 @@ effectiveness and regime robustness are all unknown.
 
 | Item | Description | Status |
 |---|---|---|
-| 0a | Historical data feasibility | **Partial** — 4.25y found, depth config-capped, 2 discrepancies open |
+| 0a | Historical data feasibility | **Near complete** — 4.25y, both discrepancies resolved; depth still config-capped |
 | 0b | Preregister success criteria | Blocked by 0a |
 | 0c | Deterministic regime classifier | Not started |
 | 0d | Research dataset schema | Not started |
@@ -49,18 +49,41 @@ effectiveness and regime robustness are all unknown.
 | M15 archive depth | 99,999 bars = **config cap**, not archive. Raise "Max bars in chart" and re-probe |
 | Span at current cap | 2022-06-29 → 2026-09-30, **4.25 years, TIER_B** |
 | Data quality | Clean: 0 dupes, 0 zero-volume, no gap beyond a 50.2h weekend |
-| Bar-recorded spread usable? | **DISPUTED** — bar p50 8 vs live p50 22–41. `probe_spread_reconciliation.py` pending |
-| Position sizing correct? | **DISPUTED** — `contract_size` and `tick_value` disagree 10x. `probe_position_sizing.py` pending |
+| Bar-recorded spread usable? | **NO — RESOLVED.** 1206 paired samples: bar understates live by 3.5x median, in 100% of pairs. **TIER 3** |
+| Position sizing correct? | **NO — RESOLVED & FIXED.** Terminal confirmed 10x oversize. See `f0e1a2c` |
 | Athena XAU/USD ingestion | **Unverified.** Must not use the rpyc bridge — one round trip per row |
 
 ---
+
+## Cost model — decided (0a)
+
+**Execution data tier: TIER 3.** Broker bar-recorded spread is rejected.
+
+Paired against 1,206 soak measurements, bar spread understates live spread by
+**3.5x at the median and in 100% of pairs** — systematic, not distributional.
+
+| Session | n | live p50 | bar p50 | ratio |
+|---|---|---|---|---|
+| ASIA | 437 | 42 | 10 | 4.2x |
+| LONDON | 278 | 28 | 8 | 3.5x |
+| NY | 447 | 30 | 8 | 3.75x |
+| OFF | 44 | 51 | 13 | 3.92x |
+
+Decisive: at `max_spread_points: 50`, the filter blocks **101 bars on live
+spread and 0 on bar spread**. Replay would under-cost every trade *and*
+over-count eligible opportunities.
+
+Athena uses the measured live session distributions above, not a calibration
+factor applied to bar spread. Direct measurement beats a correction coefficient.
+
+Note: LONDON p50 is **28**, superseding the earlier 22 figure from a smaller
+window. The 1,206-pair sample is authoritative.
 
 ## Known defects and hazards
 
 | # | Item | Severity | State |
 |---|---|---|---|
-| 1 | Sizing may be 10x oversized; `tick_value` hardcoded, never read from live spec | **Blocks Phase 3** | Probe written |
-| 2 | Bar spread may understate cost 3–5x; `max_spread_points` 50 would never fire in replay | **Blocks 0b cost model** | Probe written |
+| 2 | Soak spread samples are 4/hour instantaneous reads, not time-weighted. Cost model inherits any intra-bar bias | Medium | Accepted limitation, documented in 0b |
 | 3 | Duplicate disconnect alerts — soak and strategy call `ensure_connected()` in separate processes | Low | Flagged |
 | 4 | `ram_free < 300` is a state check, re-fires every cycle during a dip | Low | Flagged |
 | 5 | `alerts.telegram.alert_soak_status()` orphaned after periodic summary removal | Cosmetic | Deliberate — re-wire hook |
@@ -80,6 +103,8 @@ effectiveness and regime robustness are all unknown.
 | No code version on events — `cf4e3d4` created an unattributable epoch boundary | `ecc3eff` |
 | VPS IP embedded in Telegram CRITICAL alert body | `ecc3eff` |
 | `min_rr_ratio` structurally unreachable; renamed `tp_rr_multiple`, dead check removed | `17e05e8` |
+| Sizing 10x oversized — hardcoded `tick_value` 0.1 vs terminal-verified $1.00/point | `f0e1a2c` |
+| Sub-minimum lots rounded UP, silently over-risking small accounts | `f0e1a2c` |
 | Swap occupancy misread as memory pressure; replaced with PSI | earlier |
 | Cold-start reconnect reported as a real reconnection | earlier |
 
