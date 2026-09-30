@@ -24,6 +24,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from engine import mt5_connector
+from engine import data_feed
 from engine import version
 
 SYMBOL = "XAUUSD"
@@ -37,7 +38,11 @@ M15 = 15
 # transfer unusable: 200k bars is 200k round trips. Depth is therefore found by
 # binary search on bar position using single-row requests, and statistics come
 # from a bounded sample.
-SAMPLE_BARS = 3_000
+# Each netref row costs a round trip, and tuple(row) costs one more per field.
+# 200 matches what data_feed already pulls every live cycle, so it is known-fast.
+# Archive-wide quality analysis must not use this bridge at all -- see
+# BULK_INGESTION_NOTE below.
+SAMPLE_BARS = 200
 POSITION_CEILING = 2 ** 22  # ~4.2M bars, far beyond any broker archive
 OUT_DIR = PROJECT_ROOT / "research" / "data_feasibility"
 
@@ -117,6 +122,18 @@ def main():
     result["total_bar_count"] = depth
     result["depth_search_probes"] = probes
     result["depth_hit_ceiling"] = depth >= POSITION_CEILING - 1
+    # A depth landing on a round number is the terminal's "Max bars in chart"
+    # setting, not the broker archive. Default is commonly 100000.
+    result["depth_looks_like_config_cap"] = depth + 1 in (
+        1000, 5000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000, 1_000_000
+    ) or depth in (
+        1000, 5000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000, 1_000_000
+    )
+    result["BULK_INGESTION_NOTE"] = (
+        "Historical bulk data must NOT be pulled through the rpyc bridge: each "
+        "row costs a network round trip. For Athena, export history from the "
+        "MT5 terminal to CSV on the Wine side and read the file locally."
+    )
 
     if depth == 0:
         result["error"] = f"no bars at position 1: {mt5.last_error()}"
@@ -133,8 +150,18 @@ def main():
     # round trip per bar, so they are deliberately not attempted here.
     n_sample = min(SAMPLE_BARS, depth)
     print(f"  sampling {n_sample:,} most recent bars for quality stats ...")
-    sample = mt5.copy_rates_from_pos(SYMBOL, M15, 1, n_sample)
-    rates = [tuple(row) for row in sample]  # single pass, then fully local
+    # Reuse the production fetch path rather than reimplementing it: it returns
+    # a local DataFrame and is exercised every live cycle.
+    sdf = data_feed.get_candles(SYMBOL, count=n_sample)
+    if sdf is None:
+        result["error"] = "sample fetch failed"
+        _write(result)
+        return 1
+    rates = list(zip(
+        (int(t.timestamp()) for t in sdf["datetime"]),
+        sdf["open"], sdf["high"], sdf["low"], sdf["close"],
+        sdf["volume"], sdf["spread"],
+    ))
     result["sample_bar_count"] = len(rates)
     result["stats_basis"] = (
         f"quality statistics computed on the {len(rates)} most recent bars, "
@@ -246,6 +273,11 @@ def _summarise(r):
     print(f"\n  bar spread        p50 {r.get('bar_spread_p50')}  p95 {r.get('bar_spread_p95')}  "
           f"max {r.get('bar_spread_max')}  ({r.get('bar_spread_distinct_values')} distinct)")
     print(f"  {r.get('execution_data_tier')}")
+    if r.get("depth_looks_like_config_cap"):
+        print(f"\n  !! depth {r.get('total_bar_count'):,} is a round number -- this is the")
+        print("     terminal's 'Max bars in chart' limit, NOT the broker archive.")
+        print("     Raise it: MT5 > Tools > Options > Charts > Max bars in chart")
+        print("     then re-run. True available history may be far greater.")
     print(f"\n  DATA TIER         {r.get('data_tier')}")
     print(f"  {r.get('validation_guidance')}")
     print("=" * 62)
