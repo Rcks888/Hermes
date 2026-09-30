@@ -112,7 +112,7 @@ def log_trade(signal, approved, reject_reason, risk_details, spread, session):
         "entry": signal["entry"],
         "sl": signal["sl"],
         "tp": signal["tp"],
-        "rr_ratio": signal["rr_ratio"],
+        "tp_rr_multiple": signal["tp_rr_multiple"],
         "atr": signal["atr"],
         "trend": signal["trend"],
         "bos_count": signal["bos_count"],
@@ -148,7 +148,7 @@ def send_signal_alert(signal, risk_details, spread, session):
         f"Entry: {signal['entry']}\n"
         f"Stop Loss: {signal['sl']} ({signal['sl_distance']:+.2f})\n"
         f"Take Profit: {signal['tp']} ({signal['tp_distance']:+.2f})\n"
-        f"R:R: {signal['rr_ratio']}:1\n"
+        f"Target: {signal['tp_rr_multiple']}R (fixed-R exit policy)\n"
         f"Risk: {risk_details.get('risk_amount', 'N/A')}\n"
         f"Position Size: {risk_details.get('position_size', 'N/A')} lots\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
@@ -256,7 +256,7 @@ def main():
         "entry": signal["entry"],
         "sl": signal["sl"],
         "tp": signal["tp"],
-        "rr_ratio": signal["rr_ratio"],
+        "tp_rr_multiple": signal["tp_rr_multiple"],
         "atr": signal["atr"],
         "volume": signal["volume"],
         "vol_avg": signal["vol_avg"],

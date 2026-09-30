@@ -109,12 +109,6 @@ def approve(signal, account, spread_points, session, params):
         logger.warning(f"Max open trades reached: {len(positions)}/{max_open}")
         return False, "Max open trades reached", {}
 
-    rr = signal.get("rr_ratio", 0)
-    min_rr = params.get("min_rr_ratio", 2.0)
-    if rr < min_rr:
-        logger.warning(f"RR too low: {rr} < {min_rr}")
-        return False, f"RR too low: {rr}", {}
-
     filter_reasons = check_no_trade_filters(signal, spread_points, params, session)
     if filter_reasons:
         logger.warning(f"No-trade filter: {'; '.join(filter_reasons)}")

@@ -114,8 +114,13 @@ def evaluate(df, structure, zones, params):
     if sl_distance <= 0:
         return None, f"sl_distance_invalid ({sl_distance:.2f} — SL on wrong side of entry)"
 
-    min_rr = params.get("min_rr_ratio", 2.0)
-    tp_distance = sl_distance * min_rr
+    # Fixed-R exit policy: the target is placed mechanically at a multiple of
+    # the initial risk distance. This is a target-placement parameter, not an
+    # eligibility threshold — Hermes does not measure available reward and
+    # reject setups below it. An S/R-derived target, which would make a genuine
+    # minimum-RR filter meaningful, is a Priority 3 candidate policy.
+    tp_rr_multiple = params.get("tp_rr_multiple", 2.0)
+    tp_distance = sl_distance * tp_rr_multiple
 
     if direction == "LONG":
         tp_price = entry + tp_distance
@@ -133,8 +138,6 @@ def evaluate(df, structure, zones, params):
     if sl_distance > atr * sl_atr_high:
         return None, f"sl_too_wide ({sl_distance:.2f} > {sl_atr_high}x atr {atr:.2f} = {atr * sl_atr_high:.2f})"
 
-    rr_ratio = tp_distance / sl_distance if sl_distance > 0 else 0
-
     signal = {
         "strategy": "PULLBACK",
         "direction": direction,
@@ -143,7 +146,7 @@ def evaluate(df, structure, zones, params):
         "tp": round(tp_price, 2),
         "sl_distance": round(sl_distance, 2),
         "tp_distance": round(tp_distance, 2),
-        "rr_ratio": round(rr_ratio, 2),
+        "tp_rr_multiple": tp_rr_multiple,
         "atr": round(atr, 2),
         "trend": trend,
         "bos_count": structure["recent_bos_up"] if trend == "UP" else structure["recent_bos_down"],
@@ -163,5 +166,5 @@ def evaluate(df, structure, zones, params):
     if reaction_dir:
         signal["candle_pattern"].append(f"REACTION_{reaction_dir}")
 
-    logger.info(f"SIGNAL: {direction} @ {entry} SL={sl_price} TP={tp_price} RR={rr_ratio:.1f}")
+    logger.info(f"SIGNAL: {direction} @ {entry} SL={sl_price} TP={tp_price} target={tp_rr_multiple:.1f}R")
     return signal, "OK"
