@@ -1,0 +1,292 @@
+{
+  "probe_ts": "2026-09-30T14:10:37.402411+00:00",
+  "code_version": "018579f",
+  "symbol": "XAUUSD",
+  "timeframe": "M15",
+  "known_earliest_from_capped_probe": "2022-06-29",
+  "max_bars_setting": 100000,
+  "sample_window_days": 7,
+  "years": [
+    {
+      "year": 2026,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2026-03-10",
+        "2026-03-17"
+      ]
+    },
+    {
+      "year": 2025,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2025-03-10",
+        "2025-03-17"
+      ]
+    },
+    {
+      "year": 2024,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2024-03-10",
+        "2024-03-17"
+      ]
+    },
+    {
+      "year": 2023,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2023-03-10",
+        "2023-03-17"
+      ]
+    },
+    {
+      "year": 2022,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.02,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2022-03-10",
+        "2022-03-17"
+      ]
+    },
+    {
+      "year": 2021,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.02,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2021-03-10",
+        "2021-03-17"
+      ]
+    },
+    {
+      "year": 2020,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.02,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2020-03-10",
+        "2020-03-17"
+      ]
+    },
+    {
+      "year": 2019,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2019-03-10",
+        "2019-03-17"
+      ]
+    },
+    {
+      "year": 2018,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2018-03-10",
+        "2018-03-17"
+      ]
+    },
+    {
+      "year": 2017,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2017-03-10",
+        "2017-03-17"
+      ]
+    },
+    {
+      "year": 2016,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2016-03-10",
+        "2016-03-17"
+      ]
+    },
+    {
+      "year": 2015,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2015-03-10",
+        "2015-03-17"
+      ]
+    },
+    {
+      "year": 2014,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2014-03-10",
+        "2014-03-17"
+      ]
+    },
+    {
+      "year": 2013,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2013-03-10",
+        "2013-03-17"
+      ]
+    },
+    {
+      "year": 2012,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.02,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2012-03-10",
+        "2012-03-17"
+      ]
+    },
+    {
+      "year": 2011,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2011-03-10",
+        "2011-03-17"
+      ]
+    },
+    {
+      "year": 2010,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2010-03-10",
+        "2010-03-17"
+      ]
+    },
+    {
+      "year": 2009,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2009-03-10",
+        "2009-03-17"
+      ]
+    },
+    {
+      "year": 2008,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2008-03-10",
+        "2008-03-17"
+      ]
+    },
+    {
+      "year": 2007,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.01,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2007-03-10",
+        "2007-03-17"
+      ]
+    },
+    {
+      "year": 2006,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.02,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2006-03-10",
+        "2006-03-17"
+      ]
+    },
+    {
+      "year": 2005,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.02,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2005-03-10",
+        "2005-03-17"
+      ]
+    },
+    {
+      "year": 2004,
+      "bars": 0,
+      "first": null,
+      "last": null,
+      "elapsed_s": 0.02,
+      "error": "none_returned: (-2, 'Invalid arguments')",
+      "window": [
+        "2004-03-10",
+        "2004-03-17"
+      ]
+    }
+  ],
+  "verdict": "INCONCLUSIVE",
+  "verdict_detail": "No year returned bars, including years known to exist. The bridge or symbol selection is at fault, not the archive. Do not touch the config on this result.",
+  "oldest_year_with_data": null,
+  "years_with_data": [],
+  "total_bridge_seconds": 0.3
+}

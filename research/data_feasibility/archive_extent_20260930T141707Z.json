@@ -1,0 +1,348 @@
+{
+  "probe_ts": "2026-09-30T14:17:03.435446+00:00",
+  "code_version": "7bff1f3-dirty",
+  "symbol": "XAUUSD",
+  "timeframe": "M15",
+  "known_earliest_from_capped_probe": "2022-06-29",
+  "max_bars_setting": 100000,
+  "sample_window_days": 7,
+  "control_attempts": [
+    {
+      "method": "int",
+      "bars": 670,
+      "error": null,
+      "elapsed_s": 0.02
+    }
+  ],
+  "method": "int",
+  "years": [
+    {
+      "year": 2026,
+      "bars": 454,
+      "first": "2026-03-10T01:00:00+00:00",
+      "last": "2026-03-17T00:00:00+00:00",
+      "elapsed_s": 0.01,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2026-03-10",
+        "2026-03-17"
+      ]
+    },
+    {
+      "year": 2025,
+      "bars": 461,
+      "first": "2025-03-10T00:00:00+00:00",
+      "last": "2025-03-17T00:00:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2025-03-10",
+        "2025-03-17"
+      ]
+    },
+    {
+      "year": 2024,
+      "bars": 460,
+      "first": "2024-03-11T00:00:00+00:00",
+      "last": "2024-03-15T22:45:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2024-03-10",
+        "2024-03-17"
+      ]
+    },
+    {
+      "year": 2023,
+      "bars": 461,
+      "first": "2023-03-10T01:00:00+00:00",
+      "last": "2023-03-17T00:00:00+00:00",
+      "elapsed_s": 0.05,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2023-03-10",
+        "2023-03-17"
+      ]
+    },
+    {
+      "year": 2022,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.05,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2022-03-10",
+        "2022-03-17"
+      ]
+    },
+    {
+      "year": 2021,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2021-03-10",
+        "2021-03-17"
+      ]
+    },
+    {
+      "year": 2020,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2020-03-10",
+        "2020-03-17"
+      ]
+    },
+    {
+      "year": 2019,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.07,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2019-03-10",
+        "2019-03-17"
+      ]
+    },
+    {
+      "year": 2018,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.07,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2018-03-10",
+        "2018-03-17"
+      ]
+    },
+    {
+      "year": 2017,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.07,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2017-03-10",
+        "2017-03-17"
+      ]
+    },
+    {
+      "year": 2016,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.07,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2016-03-10",
+        "2016-03-17"
+      ]
+    },
+    {
+      "year": 2015,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.07,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2015-03-10",
+        "2015-03-17"
+      ]
+    },
+    {
+      "year": 2014,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2014-03-10",
+        "2014-03-17"
+      ]
+    },
+    {
+      "year": 2013,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2013-03-10",
+        "2013-03-17"
+      ]
+    },
+    {
+      "year": 2012,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2012-03-10",
+        "2012-03-17"
+      ]
+    },
+    {
+      "year": 2011,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.07,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2011-03-10",
+        "2011-03-17"
+      ]
+    },
+    {
+      "year": 2010,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.07,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2010-03-10",
+        "2010-03-17"
+      ]
+    },
+    {
+      "year": 2009,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2009-03-10",
+        "2009-03-17"
+      ]
+    },
+    {
+      "year": 2008,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2008-03-10",
+        "2008-03-17"
+      ]
+    },
+    {
+      "year": 2007,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.05,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2007-03-10",
+        "2007-03-17"
+      ]
+    },
+    {
+      "year": 2006,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.05,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2006-03-10",
+        "2006-03-17"
+      ]
+    },
+    {
+      "year": 2005,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.05,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2005-03-10",
+        "2005-03-17"
+      ]
+    },
+    {
+      "year": 2004,
+      "bars": 1,
+      "first": "2022-06-23T01:00:00+00:00",
+      "last": "2022-06-23T01:00:00+00:00",
+      "elapsed_s": 0.06,
+      "error": null,
+      "method": "int",
+      "window": [
+        "2004-03-10",
+        "2004-03-17"
+      ]
+    }
+  ],
+  "verdict": "MORE_HISTORY_AVAILABLE",
+  "verdict_detail": "Year 2004 returned bars, older than the 2022-06-29 floor the capped probe reported. The archive extends past what the terminal has downloaded, so raising MaxBars will deepen it. The config edit is justified.",
+  "oldest_year_with_data": 2004,
+  "years_with_data": [
+    2004,
+    2005,
+    2006,
+    2007,
+    2008,
+    2009,
+    2010,
+    2011,
+    2012,
+    2013,
+    2014,
+    2015,
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "total_bridge_seconds": 1.4
+}
