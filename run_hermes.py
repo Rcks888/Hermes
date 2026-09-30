@@ -25,6 +25,7 @@ from engine import indicators
 from engine import strategy
 from engine import risk_manager
 from engine import version
+from engine import regime as regime_mod
 from engine import research_schema
 from alerts import telegram
 
@@ -256,6 +257,17 @@ def main():
         "bar_spread": (int(last["spread"]) if last.get("spread") is not None
                        and not pd.isna(last.get("spread")) else None),
     }
+    # Advisory regime context. Deterministic, logged, and deliberately not
+    # consulted by any gate: a classifier that blocks before it has been
+    # measured against a rule-only baseline destroys that baseline.
+    try:
+        regime_ctx = regime_mod.classify(candles)
+    except Exception as exc:
+        logger.warning(f"Regime classification failed: {exc}")
+        regime_ctx = {"structure_regime": "UNCERTAIN",
+                      "volatility_regime": "UNCERTAIN",
+                      "error": str(exc)}
+
     candle_hash = hashlib.sha256(
         f"{last['datetime']}|{ohlc['open']}|{ohlc['high']}|"
         f"{ohlc['low']}|{ohlc['close']}|{ohlc['tick_volume']}".encode()
@@ -276,6 +288,7 @@ def main():
             "spread_points": spread_points,
             "ohlc": ohlc,
             "diag": diag,
+            "regime": regime_ctx,
         })
         return
 
@@ -322,6 +335,7 @@ def main():
         "bar_count": len(candles),
         "ohlc": ohlc,
         "diag": diag,
+        "regime": regime_ctx,
         "balance": round(float(account.get("balance", 0)), 2),
         "equity": round(float(account.get("equity", 0)), 2),
         "contract_size": (sym_info or {}).get("contract_size"),
