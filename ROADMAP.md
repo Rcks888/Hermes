@@ -50,7 +50,7 @@ effectiveness and regime robustness are all unknown.
 | Span at current cap | 2022-06-29 → 2026-09-30, **4.25 years, TIER_B** |
 | Data quality | Clean: 0 dupes, 0 zero-volume, no gap beyond a 50.2h weekend |
 | Bar-recorded spread usable? | **NO — RESOLVED.** 1206 paired samples: bar understates live by 3.5x median, in 100% of pairs. **TIER 3** |
-| Position sizing correct? | **NO — RESOLVED & FIXED.** Terminal confirmed 10x oversize. See `f0e1a2c` |
+| Position sizing correct? | **NO — RESOLVED & FIXED.** Terminal confirmed 10x oversize. Fixed in `495e078` |
 | Athena XAU/USD ingestion | **Unverified.** Must not use the rpyc bridge — one round trip per row |
 
 ---
@@ -103,8 +103,8 @@ window. The 1,206-pair sample is authoritative.
 | No code version on events — `cf4e3d4` created an unattributable epoch boundary | `ecc3eff` |
 | VPS IP embedded in Telegram CRITICAL alert body | `ecc3eff` |
 | `min_rr_ratio` structurally unreachable; renamed `tp_rr_multiple`, dead check removed | `17e05e8` |
-| Sizing 10x oversized — hardcoded `tick_value` 0.1 vs terminal-verified $1.00/point | `f0e1a2c` |
-| Sub-minimum lots rounded UP, silently over-risking small accounts | `f0e1a2c` |
+| Sizing 10x oversized — hardcoded `tick_value` 0.1 vs terminal-verified $1.00/point | `495e078` |
+| Sub-minimum lots rounded UP, silently over-risking small accounts | `495e078` |
 | Swap occupancy misread as memory pressure; replaced with PSI | earlier |
 | Cold-start reconnect reported as a real reconnection | earlier |
 
