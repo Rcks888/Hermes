@@ -28,7 +28,11 @@ from engine import version
 
 SYMBOL = "XAUUSD"
 M15 = 15
-REQUEST = 500_000  # deliberately far beyond any plausible depth
+# copy_rates_from_pos rejects oversized counts outright with
+# (-2, 'Terminal: Invalid params') rather than returning what it has, so a
+# single large request cannot discover the ceiling. Step down until one
+# succeeds; the first success is the usable depth.
+REQUEST_LADDER = [200_000, 100_000, 50_000, 20_000, 10_000, 5_000, 1_000]
 OUT_DIR = PROJECT_ROOT / "research" / "data_feasibility"
 
 
@@ -64,15 +68,28 @@ def main():
     acct = mt5_connector.get_account_info()
     result["broker_server"] = acct.get("server") if acct else None
 
+    # get_symbol_info() returns wrapper key names, not raw MT5 attribute names.
     info = mt5_connector.get_symbol_info(SYMBOL)
     if info:
-        for k in ("digits", "point", "trade_tick_size", "trade_tick_value",
-                  "volume_min", "volume_step", "volume_max", "trade_contract_size", "spread"):
+        for k in ("digits", "point", "tick_size", "tick_value", "contract_size",
+                  "volume_min", "volume_step", "volume_max", "spread", "trade_mode"):
             result[k] = info.get(k)
 
-    rates = mt5.copy_rates_from_pos(SYMBOL, M15, 1, REQUEST)
-    if rates is None or len(rates) == 0:
-        result["error"] = f"no bars returned: {mt5.last_error()}"
+    rates = None
+    attempts = []
+    for want in REQUEST_LADDER:
+        r = mt5.copy_rates_from_pos(SYMBOL, M15, 1, want)
+        got = 0 if r is None else len(r)
+        attempts.append({"requested": want, "returned": got,
+                         "error": None if got else str(mt5.last_error())})
+        if got:
+            rates = r
+            result["successful_request_size"] = want
+            break
+    result["request_ladder"] = attempts
+
+    if rates is None:
+        result["error"] = "no bars returned at any request size"
         _write(result)
         return 1
 
@@ -114,11 +131,33 @@ def main():
     tier, guidance = classify_span(span_days)
     result["data_tier"] = tier
     result["validation_guidance"] = guidance
-    result["execution_data_tier"] = (
-        "TIER_3_EXPECTED — mid-price OHLC plus session-conditioned spread "
-        "assumptions anchored to live soak percentiles. Upgrade only if the "
-        "broker is confirmed to serve historical bid/ask."
-    )
+
+    # Bar field 6 is the broker's recorded spread. If it varies across bars it
+    # is a genuine historical spread series, which lifts the execution-data
+    # tier from 3 (assumed distributions) to 2 (measured per bar). If it is
+    # constant or zero it carries no information and must not be used.
+    spreads = sorted(int(r[6]) for r in rates)
+    n = len(spreads)
+    uniq = len(set(spreads))
+    result["bar_spread_distinct_values"] = uniq
+    result["bar_spread_all_zero"] = all(s == 0 for s in spreads)
+    if n:
+        result["bar_spread_min"] = spreads[0]
+        result["bar_spread_p50"] = spreads[n // 2]
+        result["bar_spread_p95"] = spreads[int(n * 0.95)]
+        result["bar_spread_max"] = spreads[-1]
+
+    if uniq > 10 and not result["bar_spread_all_zero"]:
+        result["execution_data_tier"] = (
+            "TIER_2 — historical per-bar spread series available from the "
+            "broker. Use measured spread rather than assumed distributions."
+        )
+    else:
+        result["execution_data_tier"] = (
+            "TIER_3 — bar spread field carries no usable variation. Use "
+            "mid-price OHLC plus session-conditioned spread assumptions "
+            "anchored to live soak percentiles."
+        )
 
     _write(result)
     _summarise(result)
@@ -140,7 +179,8 @@ def _summarise(r):
     print("=" * 62)
     print(f"  broker            {r.get('broker_server')}")
     print(f"  code_version      {r.get('code_version')}")
-    print(f"  bars returned     {r.get('returned_bar_count'):,}"
+    print(f"  bars returned     {r.get('returned_bar_count'):,} "
+          f"(request size {r.get('successful_request_size'):,})"
           f"{'  (DEPTH CAPPED)' if r.get('depth_capped') else ''}")
     print(f"  earliest bar      {r.get('earliest_bar')}")
     print(f"  latest bar        {r.get('latest_completed_bar')}")
@@ -153,8 +193,11 @@ def _summarise(r):
           f"starting {r.get('largest_gap_starts')}")
     print(f"  gaps over 60h     {r.get('gaps_over_60h')}  (weekends are ~48-50h)")
     print(f"\n  min lot           {r.get('volume_min')}  step {r.get('volume_step')}")
-    print(f"  contract size     {r.get('trade_contract_size')}")
-    print(f"  tick value        {r.get('trade_tick_value')}  tick size {r.get('trade_tick_size')}")
+    print(f"  contract size     {r.get('contract_size')}")
+    print(f"  tick value        {r.get('tick_value')}  tick size {r.get('tick_size')}")
+    print(f"\n  bar spread        p50 {r.get('bar_spread_p50')}  p95 {r.get('bar_spread_p95')}  "
+          f"max {r.get('bar_spread_max')}  ({r.get('bar_spread_distinct_values')} distinct)")
+    print(f"  {r.get('execution_data_tier')}")
     print(f"\n  DATA TIER         {r.get('data_tier')}")
     print(f"  {r.get('validation_guidance')}")
     print("=" * 62)
