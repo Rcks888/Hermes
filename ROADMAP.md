@@ -18,7 +18,7 @@ GATE 0  infrastructure soak        ███████████████
         multi-session observation  ████████████████████  COMPLETE
         live alert-only deploy     ████████████████████  COMPLETE
 P0      prerequisites              ████░░░░░░░░░░░░░░░░  IN PROGRESS
-P1      Athena replay + baseline   ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P0
+P1      replay engine + baseline   ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P0
 P2      independent risk control   ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P1
 P2b     event-risk filter          ░░░░░░░░░░░░░░░░░░░░  can run parallel to P2
 P3      exit-policy validation     ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P1
@@ -39,7 +39,7 @@ effectiveness and regime robustness are all unknown.
 | 0b | Preregister success criteria | Blocked by 0a |
 | 0c | Deterministic regime classifier | Not started |
 | 0d | Research dataset schema | Not started |
-| 0e | Forward logging expansion | **Not started — accruing cost every cycle** |
+| 0e | Forward logging expansion | **DONE** `3c…` — 21 diagnostic fields, candle and config hash, block class |
 | 0f | Return-path and dead-branch catalogue | Count reconciled, artefact not written |
 
 ### Open 0a questions
@@ -109,6 +109,46 @@ signals including wide stops.
 Permitted responses: fund adequately, or record an explicit higher-risk decision
 for small capital. Rounding up to the broker minimum is **prohibited** — that is
 the defect fixed in `495e078`, and it converts a stated 1% into an actual 6.5%.
+
+## Replay engine — Athena is not reusable (0a)
+
+Surveyed at `/home/ricksonkang/Olympus/Athena`. **Verdict: PARTIAL_REUSE_ONLY.**
+
+The blocker is architectural, not configurable. Athena destroys intraday
+timestamps at ingestion — `engine/data_feed.py:87` calls `.normalize()`,
+collapsing every bar to a midnight date, then `data_feed.py:89` drops
+duplicates keeping the last. **96 M15 bars per day reduce to one.**
+
+Day-granularity is then assumed throughout: `trading_days` as a date set
+(`portfolio_sim_v6.py:250`), ageing by `.days` (315, 470), date strings as
+position identity (272-273), `holding_days` (611), Sharpe annualised at
+`sqrt(252)` (711).
+
+Other couplings: yfinance-only source with no generic CSV loader; share-based
+fractional sizing `shares = stake / buy` (`portfolio_sim_v6.py:358`) with no
+`contract_size` or `point`; **no spread field at all** — only
+`slippage_pct` plus flat commission, and no hook for a session-conditioned
+spread distribution, which is exactly what TIER 3 requires. The strategy is not
+pluggable: `evaluate_entry` is called inline at `portfolio_sim_v6.py:443`.
+No walk-forward machinery exists.
+
+**Decision: build a purpose-built M15 replay engine.** Estimated 3-5 days
+against 1-2 weeks adapting Athena, and adaptation would mean inheriting equity
+scaffolding that must be continually disabled.
+
+Reuse these instrument-agnostic parts rather than rewriting them:
+
+| Component | Source |
+|---|---|
+| `exit_policy.py` | price-source-agnostic by design |
+| `max_drawdown()` | `portfolio_sim_v6.py:663` |
+| `summarise()`, `yearly_table()`, `exit_reason_table()` | `portfolio_sim_v6.py:679-853` |
+| `reconcile()` P&L identity check | `portfolio_sim_v6.py:639-661` |
+| `indicators.py` | pure OHLCV |
+| Snapshot-manifest reproducibility pattern | `snapshot_data.py` |
+
+Athena stays untouched and keeps running Ares work. The new engine lives in
+the Hermes repo.
 
 ## Known defects and hazards
 
@@ -381,7 +421,8 @@ Performance metrics use **population C**. Gate diagnostics retain A and B.
             │
             ▼
     ╔═══════════════════════════════════════════════════════╗
-    ║  PRIORITY 1: ATHENA HISTORICAL REPLAY                  ║
+    ║  PRIORITY 1: HISTORICAL REPLAY                         ║
+    ║  Purpose-built M15 engine — Athena is not reusable      ║
     ╚═══════════════════════════════════════════════════════╝
             │
             ▼

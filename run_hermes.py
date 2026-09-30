@@ -6,11 +6,14 @@ Runs every 15 minutes via cron. Detects pullback setups on XAU/USD M15
 and sends Telegram alerts. No auto-execution in V1.
 """
 
+import hashlib
 import json
 import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+import pandas as pd
 
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -37,6 +40,45 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("hermes.main")
+
+
+RULE_GATES = (
+    "trend_not_confirmed", "no_pullback", "no_candle_confirmation",
+    "vwap_misaligned", "volume_too_low", "atr_invalid", "atr_too_low",
+    "sl_too_tight", "sl_too_wide", "sl_distance_invalid",
+)
+
+
+def classify_block(reason):
+    """Separate missing evidence from a genuinely failed condition.
+
+    Absent evidence is not a pass and must never be counted as one. The reason
+    string is already written for humans; this gives replay and the gate funnel
+    a stable machine-readable class so neither has to parse prose.
+    """
+    if reason is None:
+        return None
+    if reason == "OK":
+        return "ok"
+    if reason.startswith("cannot_evaluate"):
+        return "cannot_evaluate"
+    for gate in RULE_GATES:
+        if reason.startswith(gate):
+            return "rule_violation"
+    return "risk_block"
+
+
+def config_fingerprint(params):
+    """Stable hash of the effective strategy configuration.
+
+    Identical code under different parameters is not the same system, so
+    conformance must pin configuration as well as code version.
+    """
+    try:
+        blob = json.dumps(params, sort_keys=True, default=str)
+        return hashlib.sha256(blob.encode()).hexdigest()[:12]
+    except Exception:
+        return "unknown"
 
 
 def log_event(payload):
@@ -167,6 +209,7 @@ def send_signal_alert(signal, risk_details, spread, session):
 
 def main():
     params = load_params()
+    config_hash = config_fingerprint(params)
     settings = load_settings()
     now = datetime.now(timezone.utc)
     session = get_session_tag(now.hour)
@@ -212,7 +255,25 @@ def main():
         params.get("sr_min_touches", 2),
     )
 
-    signal, reason = strategy.evaluate(candles, structure, zones, params)
+    diag = {}
+    signal, reason = strategy.evaluate(candles, structure, zones, params, diag)
+
+    # Bar identity and raw inputs. A candle hash lets replay prove it read the
+    # same bar rather than merely a bar with the same timestamp.
+    last = candles.iloc[-1]
+    ohlc = {
+        "open": round(float(last["open"]), 2),
+        "high": round(float(last["high"]), 2),
+        "low": round(float(last["low"]), 2),
+        "close": round(float(last["close"]), 2),
+        "tick_volume": float(last.get("volume") or 0),
+        "bar_spread": (int(last["spread"]) if last.get("spread") is not None
+                       and not pd.isna(last.get("spread")) else None),
+    }
+    candle_hash = hashlib.sha256(
+        f"{last['datetime']}|{ohlc['open']}|{ohlc['high']}|"
+        f"{ohlc['low']}|{ohlc['close']}|{ohlc['tick_volume']}".encode()
+    ).hexdigest()[:16]
 
     if signal is None:
         logger.info(f"No signal | session={session} | blocked_at={reason}")
@@ -220,11 +281,15 @@ def main():
             "event": "NO_SIGNAL",
             "session": session,
             "blocked_at": reason,
-            "trend": structure["trend"],
-            "trend_confirmed": structure["trend_confirmed"],
-            "bar_time": str(candles.iloc[-1]["datetime"]),
-            "close": round(float(candles.iloc[-1]["close"]), 2),
+            "blocked_class": classify_block(reason),
+            "bar_time": str(last["datetime"]),
+            "candle_hash": candle_hash,
+            "config_hash": config_hash,
+            "bar_count": len(candles),
+            "close": ohlc["close"],
             "spread_points": spread_points,
+            "ohlc": ohlc,
+            "diag": diag,
         })
         return
 
@@ -235,9 +300,11 @@ def main():
 
     sym_params = {}
     sym_params.update(params)
+    # tick_value and tick_size are deliberately NOT propagated. MetaQuotes-Demo
+    # reports trade_tick_value 0.1 where the terminal's own order_calc_profit
+    # gives $1.00 per point, and trusting it oversized every position 10x.
+    # Sizing reads contract_size from sym_info directly. See 495e078.
     if sym_info:
-        sym_params["tick_value"] = sym_info.get("tick_value", 0.1)
-        sym_params["tick_size"] = sym_info.get("tick_size", 0.01)
         sym_params["lot_min"] = sym_info.get("volume_min", 0.01)
         sym_params["lot_step"] = sym_info.get("volume_step", 0.01)
 
@@ -252,6 +319,7 @@ def main():
         "event": "SIGNAL_APPROVED" if approved else "SIGNAL_REJECTED",
         "session": session,
         "reason": risk_reason,
+        "blocked_class": None if approved else classify_block(risk_reason),
         "direction": signal["direction"],
         "entry": signal["entry"],
         "sl": signal["sl"],
@@ -263,6 +331,15 @@ def main():
         "spread_points": spread_points,
         "position_size": risk_details.get("position_size"),
         "bar_time": signal["signal_bar_time"],
+        "candle_hash": candle_hash,
+        "config_hash": config_hash,
+        "bar_count": len(candles),
+        "ohlc": ohlc,
+        "diag": diag,
+        "balance": round(float(account.get("balance", 0)), 2),
+        "equity": round(float(account.get("equity", 0)), 2),
+        "contract_size": (sym_info or {}).get("contract_size"),
+        "volume_min": (sym_info or {}).get("volume_min"),
     })
 
     if approved:
