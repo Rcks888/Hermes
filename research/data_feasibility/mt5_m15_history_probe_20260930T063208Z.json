@@ -1,0 +1,19 @@
+{
+  "probe_ts": "2026-09-30T06:32:06.906040+00:00",
+  "code_version": "17e05e8",
+  "symbol": "XAUUSD",
+  "timeframe": "M15",
+  "requested_bar_count": 500000,
+  "terminal_connected": true,
+  "broker_server": "MetaQuotes-Demo",
+  "digits": 2,
+  "point": 0.01,
+  "trade_tick_size": null,
+  "trade_tick_value": null,
+  "volume_min": 0.01,
+  "volume_step": 0.01,
+  "volume_max": 100.0,
+  "trade_contract_size": null,
+  "spread": 39,
+  "error": "no bars returned: (-2, 'Terminal: Invalid params')"
+}

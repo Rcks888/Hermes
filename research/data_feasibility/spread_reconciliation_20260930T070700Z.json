@@ -1,0 +1,48 @@
+{
+  "probe_ts": "2026-09-30T07:06:58.683711+00:00",
+  "code_version": "516fb2d-dirty",
+  "symbol": "XAUUSD",
+  "soak_cycles_with_spread": 1341,
+  "server_offset_seconds": 10799.221379,
+  "server_offset_hours": 3.0,
+  "matched_pairs": 1206,
+  "unmatched_cycles": 135,
+  "live_spread_p50": 33.0,
+  "bar_spread_p50": 8.0,
+  "live_spread_mean": 34.24,
+  "bar_spread_mean": 9.69,
+  "ratio_live_over_bar_p50": 3.5,
+  "ratio_live_over_bar_mean": 3.63,
+  "bar_ge_live_count": 0,
+  "bar_understates_pct": 100.0,
+  "by_session": {
+    "ASIA": {
+      "n": 437,
+      "live_p50": 42,
+      "bar_p50": 10,
+      "ratio_p50": 4.2
+    },
+    "LONDON": {
+      "n": 278,
+      "live_p50": 28.0,
+      "bar_p50": 8.0,
+      "ratio_p50": 3.5
+    },
+    "NY": {
+      "n": 447,
+      "live_p50": 30,
+      "bar_p50": 8,
+      "ratio_p50": 3.75
+    },
+    "OFF": {
+      "n": 44,
+      "live_p50": 51.0,
+      "bar_p50": 13.0,
+      "ratio_p50": 3.92
+    }
+  },
+  "filter_threshold": 50,
+  "would_block_on_live": 101,
+  "would_block_on_bar": 0,
+  "verdict": "REJECT TIER 2 as-is. Bar spread understates live by 3.5x at the median. Use Tier 3 with soak-anchored session distributions, or apply a calibration factor with the residual documented."
+}
