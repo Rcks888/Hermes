@@ -874,6 +874,150 @@ replay's entry assumption rather than merely annotating it.
 
 ---
 
+## PRIORITY 0g: ENTRY TIMING AND EXECUTION CONTRACT          [NOW]
+
+**Purpose.** Prevent the replay engine from filling at a historical bar close
+that live Hermes cannot execute.
+
+0g sits ahead of the replay execution model. It is *not* the last prerequisite:
+data coverage, price basis, logging depth and replay conformance each still
+need their own closure evidence.
+
+### Current evidence
+
+October 2 signal:
+- Completed-bar volume gate passed (1.35x, against 0 of 11 before the fix)
+- Contract-size-aware sizing produced the corrected 1.39 lots
+- Bar-close counterfactual reached TP
+- **Actual executable entry and outcome remain unverified**
+
+Observed scheduling: the decision cycle begins roughly **eight minutes** after
+the reference M15 bar closes (`:08` against `:00`, `:23` against `:15`).
+
+### Cron timing and live-tick entry are complementary, not alternatives
+
+An earlier schedule reduces scheduling delay. It cannot make the preceding
+bar's close an available entry. The two measures address different failures and
+the design takes both:
+
+> Confirm the setup on completed bars. Then obtain a fresh executable quote and
+> revalidate entry-dependent risk before proposing execution.
+
+### 0g-1. Freeze timestamp and price definitions
+
+Record `signal_bar_open_time`, `signal_bar_close_time`, `evaluation_start_time`,
+`evaluation_end_time`, `quote_time`, `alert_time`, `hypothetical_order_time`,
+`signal_close`, `quote_bid`, `quote_ask`, historical price basis.
+
+Scheduling delay must be separable from connection, evaluation, quote retrieval
+and alert latency. **Has a cost clock** -- like 0e, every cycle logged without
+these fields is permanently unrecoverable.
+
+Frozen already, in `research/probe_entry_timing.py`:
+
+- MT5 bar timestamps identify the bar **open**. An M15 bar stamped T spans
+  `[T, T+900)` and closes at `T+900`.
+- The price at instant X is the **open** of the M1 bar stamped X. The close of
+  that bar is an observation of `X+60`. Reading it is the classic one-minute
+  error and produces a plausible wrong number with no symptom.
+- All comparisons are server clock to server clock. `data_feed` labels server
+  time as UTC via `utc=True`, which is wrong at UTC+3; the probe is unaffected
+  because it converts nothing, but cross-source joins will trip on it.
+
+### 0g-2. Verify M1 data feasibility
+
+Actual span, gaps, duplicates, timezone and **price basis** -- determined from
+tick data, not assumed. M1 coverage must not be assumed to match the M15 span.
+No forward-filling across missing minutes or closures; excluded observations
+are reported with reasons.
+
+### 0g-3. Control tests first  — **COMPLETE, 9/9 passing**
+
+Constant series, known offset, adverse signs both directions, missing minute
+unavailable rather than fabricated, timestamp boundary, and target-touched-
+before-entry not counted as a win. The boundary control distinguishes all three
+candidate readings (10.0 / 20.0 / 30.0), so an indexing error cannot pass.
+
+### 0g-4. Historical timing probe
+
+Preregistered delays: ~1 minute, the current ~8-minute schedule, and observed
+end-to-end latency once 0g-1 lands. Delays are fixed before inspecting any
+result so the comparison cannot be chosen to flatter an option.
+
+Measured: signed drift, absolute drift, direction-adjusted adverse drift,
+drift/ATR, drift/actual initial stop where available, drift/fixed reference
+stop (diagnostic only). Reported as median, P90, P95, P99, max and n, split by
+session and chronological period.
+
+**All-bar results describe timing exposure. Qualified-setup results describe
+strategy exposure. These populations are not interchangeable** and are reported
+in separate blocks. With one qualified setup on record, only the former is
+meaningfully computable.
+
+### 0g-5. Freeze live entry policy
+
+Confirm on completed bars, obtain a fresh quote, then specify: maximum quote
+age, maximum decision age, maximum adverse displacement, spread limit, whether
+SL/TP remain fixed, whether target placement moves with entry, recomputed
+executable stop distance and sizing, and rejection behaviour when the entry is
+no longer valid.
+
+**Changing target placement is a policy change, not an execution correction**,
+and consumes a preregistered strategy-change attempt.
+
+### 0g-6. Freeze the Athena execution contract
+
+Entry occurs at the simulated decision/quote time, never automatically at the
+signal-bar close. Spread and slippage applied consistently and **not charged
+twice**. Exits evaluated only after entry. Where SL/TP ordering is unresolved:
+apply the registered conservative rule, flag `AMBIGUOUS`, and report ambiguity
+count and sensitivity separately rather than folding them into the headline.
+
+### Exit condition
+
+Timestamp conventions, delayed-entry assumptions, cost accounting and
+live/replay correspondence documented, tested and versioned.
+
+**Until then: bar-close outcomes are diagnostic only, and
+executable-performance claims are prohibited.**
+
+### Accounting convention for the 1.856R figure
+
+Stated explicitly so the same cost cannot be counted twice. **Conditional on
+the 0g-2 basis verdict returning BID**; if it returns ASK, AMBIGUOUS or
+UNDETERMINED, this convention is void and must be rewritten.
+
+Assuming bid-based bars:
+
+| Quantity | Value | Note |
+|---|---|---|
+| Quoted entry | 4180.89 | bid-based bar close |
+| Spread | 36 pts = 0.36 | |
+| Fill entry | 4181.25 | long fills at ask; **spread charged here, once** |
+| SL / TP prices | 4173.74 / 4195.19 | bid levels, **unchanged** |
+| Stop distance | 7.15 -> **7.51** | grows |
+| Target distance | 14.30 -> **13.94** | shrinks |
+| Realised | 13.94 / 7.51 = **1.856R** | |
+
+Spread moves the **entry price only**. The exit sells at bid, which is the bar
+basis, so there is no second charge. Cash P&L derives from the adjusted
+distances: `1.39 lots x 13.94 x 100 = $1937.66` against a risk of
+`1.39 x 7.51 x 100 = $1043.89`, whose ratio is 1.856 as required.
+
+A side effect worth recording: sizing used the *quoted* 7.15 stop, so realised
+risk is **1.044%**, not the intended 1.000%. Small here, and it scales with
+spread.
+
+### Correction to an earlier claim
+
+The rejected public repository's failure mechanism was **not** optimistic
+intrabar ordering. Its inspected backtest assigned fixed monetary wins and
+losses from forward-return direction. Optimistic intrabar ordering is a hazard
+this codebase guards against in its own resolver; it was never established as
+the cause of that repository's headline return.
+
+---
+
 ## Resume here
 
 Priority 0 is complete except 0b, which is now unblocked. **No MT5
