@@ -1097,6 +1097,69 @@ money at a 50% win rate is arithmetic, not evidence. The win/loss distribution
 and costs of low-RR setups are unmeasured, and they may not be the losing
 ones.
 
+### Drift is variance, not a tax — correcting an earlier claim
+
+Signed versus absolute drift, pinned 10-day window, n=654:
+
+| Delay | signed p50 | abs p50 | signed mean | % of 7.15 stop (abs p50) |
+|---|---|---|---|---|
+| 1 min | −0.12 | 0.81 | −0.061 | 11.33% |
+| 2 min | −0.19 | 1.13 | −0.099 | 15.80% |
+| 3 min | −0.18 | 1.29 | −0.123 | 18.04% |
+| 5 min | −0.07 | 1.83 | +0.002 | 25.59% |
+| 8 min | −0.22 | 2.17 | −0.185 | 30.35% |
+
+The signed median is roughly a tenth of the displacement and about 3% of the
+stop distance. **Delay adds variance, not systematic cost.**
+
+This retires the claim recorded earlier in this document that "18% of nominal R
+disappears before any strategy question is asked." That came from a single
+delay on a single signal. Four of the five delays on that same signal were
+*favourable*, and the 5-minute one improved RR to 2.265.
+
+Expected cost is not derivable from drift statistics at all. RR is convex in
+entry price, so symmetric entry noise raises mean RR (2.000 to 2.060 for a
++/-1.00 perturbation here) while simultaneously lowering the probability of
+reaching TP. The two effects oppose and only the replay, measuring hit rates,
+can resolve which dominates.
+
+**Consequence for the cron decision.** Moving the schedule is a
+research-quality measure, not a profitability one: lower entry noise narrows
+the realised-RR distribution and reduces the sample size needed to measure the
+strategy. At 1.6 signals per week that matters more than any expectancy
+argument.
+
+### Ares contention: measured, and the earlier analysis was too coarse
+
+Six consecutive IB Gateway restarts, all at 13:00 UTC, completed in **32-34
+seconds** (`13:00:01` to `13:00:33/34`). At 16:00 and 17:25 the script logs
+`IB Gateway is running` and exits immediately without restarting.
+
+Ares' busy windows are therefore tens of seconds, not minutes, and the
+minute-level collision analysis recorded earlier was at the wrong resolution.
+Re-evaluated against measured durations:
+
+| Hermes slot | Nearest Ares work | Ends | Margin |
+|---|---|---|---|
+| `:02` | gateway restart 13:00:01 | 13:00:34 | 86s |
+| `:17` | monitor 16:10 | seconds | ~7 min |
+| `:32` | run_ares 13:30:00 | ~13:31 | ~60s |
+| `:47` | none | — | clear |
+
+`:02/:17/:32/:47` is clear with at least 60 seconds' margin and delivers a 48%
+reduction in median drift against the current slot, where the previously
+proposed `:05` delivers only 16%. **`:05` is withdrawn**: it was chosen to
+clear a contention window that measurement shows does not exist at that scale.
+
+Remaining unmeasured: `run_ares.sh` duration, inferred as roughly 60 seconds
+from output file mtimes (`trades_report.csv` written at 21:01 for a 21:00 run)
+but not directly timed. It bounds only the `:32` and `:02` margins.
+
+Recommended change is to the **Hermes line only**, leaving soak at
+`:07/:22/:37/:52`. That is a single line edit, and decoupling soak from the
+strategy run is a side benefit given both call `ensure_connected()` and have
+produced duplicate disconnect alerts.
+
 ### Known mislabel in committed evidence
 
 `entry_timing_20261007T091930Z.json`, `...092303Z.json` and `...093014Z.json`
