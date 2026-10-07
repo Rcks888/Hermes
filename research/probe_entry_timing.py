@@ -53,7 +53,17 @@ M15_SECONDS = 900
 
 # Preregistered delays, seconds after the M15 bar closes. Fixed before looking
 # at any result so that the comparison cannot be chosen to flatter an option.
-DELAYS = {"d1_min": 60, "d8_min_current_schedule": 480}
+DELAYS = {
+    "d1_min": 60,
+    # 2 and 3 minute slots are preregistered here BEFORE being measured. They
+    # exist because :01 and :02 collide with Ares' IBKR gateway restarts at
+    # 13:00 and 16:00 and its runs at 13:30 and 21:00 on the shared droplet.
+    # The question is how much RR a safe offset costs, and fixing the delays in
+    # advance stops the answer being chosen to justify a slot already picked.
+    "d2_min": 120,
+    "d3_min": 180,
+    "d8_min_current_schedule": 480,
+}
 
 # Diagnostic reference stop only. The 2 October signal's stop was 7.15; using
 # it to normalise all bars would imply every setup has that stop, which is why
