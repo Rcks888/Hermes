@@ -98,6 +98,44 @@ class Stopwatch:
         return dict(self._marks)
 
 
+def scheduling_delay_seconds(bar_close_server, eval_start_utc, server_offset_hours):
+    """Seconds between a bar closing and Hermes beginning to evaluate it.
+
+    This is the quantity 0g is about, and it is the one cross-source join in
+    Hermes where the clock mislabel actually bites.
+
+    Bar timestamps carry a `+00:00` suffix but hold the SERVER clock, which runs
+    UTC+3 on MetaQuotes-Demo. `eval_start_utc` is genuine UTC. Subtracting them
+    naively yields roughly 10,800 seconds of pure artefact -- a three-hour
+    "delay" that would swamp the real one and, worse, look like a plausible
+    broker-side lag. The offset is therefore applied explicitly and recorded
+    alongside the result.
+
+    Returns (seconds, note). A negative delay means the clock assumptions are
+    wrong, so it is surfaced rather than clamped to zero.
+    """
+    try:
+        from datetime import timedelta
+        import pandas as pd
+        close_server = pd.Timestamp(str(bar_close_server))
+        if close_server.tzinfo is None:
+            close_server = close_server.tz_localize("UTC")
+        close_true_utc = close_server - timedelta(hours=float(server_offset_hours))
+        started = pd.Timestamp(str(eval_start_utc))
+        if started.tzinfo is None:
+            started = started.tz_localize("UTC")
+        delay = (started - close_true_utc).total_seconds()
+    except Exception as e:  # noqa: BLE001
+        return None, f"uncomputable: {type(e).__name__}: {e}"
+    if delay < 0:
+        return round(delay, 3), ("negative: bar close appears after evaluation "
+                                 "start; server offset or bar timestamp is wrong")
+    if delay > 3600:
+        return round(delay, 3), ("implausible: exceeds one hour; likely an "
+                                 "unapplied server-clock offset")
+    return round(delay, 3), None
+
+
 def capture_quote(mt5, symbol="XAUUSD", stopwatch=None):
     """Read one executable quote, recording the broker's clock and ours apart.
 

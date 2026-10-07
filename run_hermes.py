@@ -127,7 +127,7 @@ def record_signal_key(signal_key):
         json.dump(keys, f)
 
 
-def signal_bar_close_time(signal, params):
+def bar_close_time(bar_time, params):
     """When the evaluated bar actually closed.
 
     MT5 timestamps identify the bar OPEN, so the close is open + one period.
@@ -135,7 +135,7 @@ def signal_bar_close_time(signal, params):
     impossible to reconstruct after the fact.
     """
     try:
-        bt = pd.Timestamp(str(signal.get("signal_bar_time")))
+        bt = pd.Timestamp(str(bar_time))
         minutes = int(params.get("timeframe_minutes", 15))
         return str(bt + pd.Timedelta(minutes=minutes))
     except Exception:  # noqa: BLE001 - never break a cycle over a log field
@@ -280,6 +280,16 @@ def main():
         "bar_spread": (int(last["spread"]) if last.get("spread") is not None
                        and not pd.isna(last.get("spread")) else None),
     }
+    # 0g-1. Scheduling delay needs the server offset applied explicitly: bar
+    # timestamps carry a +00:00 suffix but hold the server clock, so a naive
+    # subtraction yields ~10800s of pure artefact.
+    closed_at = bar_close_time(last["datetime"], params)
+    server_offset = mt5_connector.get_server_time_offset()
+    sched_delay, sched_note = entry_observation.scheduling_delay_seconds(
+        closed_at, sw.stamp("evaluation_start_time"), server_offset or 0)
+    if sched_note:
+        logger.warning(f"scheduling delay suspect: {sched_delay}s ({sched_note})")
+
     # Advisory regime context. Deterministic, logged, and deliberately not
     # consulted by any gate: a classifier that blocks before it has been
     # measured against a rule-only baseline destroys that baseline.
@@ -312,6 +322,19 @@ def main():
             "ohlc": ohlc,
             "diag": diag,
             "regime": regime_ctx,
+            # 0g-1 on every cycle. Scheduling delay is the core 0g quantity and
+            # is directly observable here; sampling it only on signal cycles
+            # would take a year to characterise at 1.6 signals per week. No
+            # exec_observation: there is no entry to propose without a signal.
+            "signal_bar_close_time": closed_at,
+            "timing": sw.all_stamps(),
+            "evaluation_ms": sw.elapsed_ms("evaluation_start_time",
+                                           "evaluation_end_time"),
+            "scheduling_delay_seconds": sched_delay,
+            "scheduling_delay_note": sched_note,
+            "server_offset_hours": server_offset,
+            "quote": entry_observation.capture_quote(
+                mt5_connector.mt5, instrument, sw),
         })
         return
 
@@ -377,10 +400,13 @@ def main():
         # 0g-1 observation block. Unrecoverable if not captured now: quote
         # latency and the decision-time spread are properties of this process,
         # not of the bar data.
-        "signal_bar_close_time": signal_bar_close_time(signal, params),
+        "signal_bar_close_time": closed_at,
         "timing": sw.all_stamps(),
         "evaluation_ms": sw.elapsed_ms("evaluation_start_time",
                                        "evaluation_end_time"),
+        "scheduling_delay_seconds": sched_delay,
+        "scheduling_delay_note": sched_note,
+        "server_offset_hours": server_offset,
         "quote": quote,
         "exec_observation": exec_obs,
     })
