@@ -1,0 +1,403 @@
+{
+  "probe": "entry_timing_0g",
+  "label": "M1_PRICE_PROXY",
+  "generated_utc": "2026-10-07T09:23:03.406482+00:00",
+  "code_version": "0804f6d-dirty",
+  "conventions": {
+    "bar_timestamp_means": "bar open",
+    "observation_at_instant_X": "open of M1 bar stamped X",
+    "clock": "server clock, integer unix seconds",
+    "server_offset_hours": 10799.821567,
+    "known_defect": "data_feed labels server time as UTC via utc=True; comparisons here are server-to-server so unaffected, but cross-source joins are not",
+    "forward_fill": "never; missing minutes are excluded",
+    "session_classifier": "probe-local, not the engine's"
+  },
+  "preregistered_delays_seconds": {
+    "d1_min": 60,
+    "d8_min_current_schedule": 480
+  },
+  "reference_stop": 7.15,
+  "m1_quality": {
+    "bars": 14400,
+    "duplicates": 0,
+    "first": "2026-09-22T14:19:00+00:00",
+    "last": "2026-10-07T12:22:00+00:00",
+    "span_days": 14.92,
+    "expected_if_continuous": 21484,
+    "gap_count": 12,
+    "missing_minutes": 7084,
+    "largest_gaps_hours": [
+      {
+        "from": "2026-09-25T22:59:00+00:00",
+        "hours": 50.02
+      },
+      {
+        "from": "2026-10-02T22:59:00+00:00",
+        "hours": 50.02
+      },
+      {
+        "from": "2026-09-22T22:59:00+00:00",
+        "hours": 2.02
+      },
+      {
+        "from": "2026-09-23T22:59:00+00:00",
+        "hours": 2.02
+      },
+      {
+        "from": "2026-09-24T22:59:00+00:00",
+        "hours": 2.02
+      }
+    ],
+    "non_60s_steps": 12
+  },
+  "price_basis": {
+    "verdict": "BID",
+    "reason": null,
+    "evidence": {
+      "bar_high": 4122.03,
+      "bar_low": 4120.63,
+      "tick_count": 346,
+      "bid_high": 4122.03,
+      "bid_low": 4120.63,
+      "ask_high": 4122.26,
+      "ask_low": 4120.92,
+      "residual_vs_bid": 0.0,
+      "residual_vs_ask": 0.52
+    }
+  },
+  "excluded_observations": {
+    "m1_minute_unavailable": 151
+  },
+  "all_bar_summary": {
+    "d1_min": {
+      "available": 948,
+      "unavailable": 76,
+      "absolute": {
+        "n": 948,
+        "min": 0.0,
+        "max": 28.67,
+        "mean": 1.1997,
+        "p50": 0.83,
+        "p90": 2.52,
+        "p95": 3.24,
+        "p99": 5.12
+      },
+      "signed": {
+        "n": 948,
+        "min": -8.06,
+        "max": 28.67,
+        "mean": -0.0026,
+        "p50": -0.05,
+        "p90": 1.74,
+        "p95": 2.43,
+        "p99": 4.55
+      },
+      "adverse_if_long": {
+        "n": 948,
+        "min": -8.06,
+        "max": 28.67,
+        "mean": -0.0026,
+        "p50": -0.05,
+        "p90": 1.74,
+        "p95": 2.43,
+        "p99": 4.55
+      },
+      "adverse_if_short": {
+        "n": 948,
+        "min": -28.67,
+        "max": 8.06,
+        "mean": 0.0026,
+        "p50": 0.05,
+        "p90": 1.86,
+        "p95": 2.61,
+        "p99": 4.17
+      },
+      "vs_reference_stop_pct": {
+        "n": 948,
+        "min": 0.0,
+        "max": 400.98,
+        "mean": 16.7784,
+        "p50": 11.61,
+        "p90": 35.24,
+        "p95": 45.31,
+        "p99": 71.61
+      },
+      "vs_atr_pct": {
+        "n": 948,
+        "min": 0.0,
+        "max": 358.33,
+        "mean": 15.1362,
+        "p50": 10.77,
+        "p90": 32.5,
+        "p95": 40.64,
+        "p99": 64.1
+      },
+      "by_session": {
+        "ASIA": {
+          "n": 352,
+          "min": 0.01,
+          "max": 4.94,
+          "mean": 1.0994,
+          "p50": 0.85,
+          "p90": 2.31,
+          "p95": 3.03,
+          "p99": 3.93
+        },
+        "LONDON": {
+          "n": 211,
+          "min": 0.0,
+          "max": 28.67,
+          "mean": 1.2682,
+          "p50": 0.79,
+          "p90": 2.76,
+          "p95": 3.27,
+          "p99": 7.0
+        },
+        "NY": {
+          "n": 308,
+          "min": 0.0,
+          "max": 13.54,
+          "mean": 1.3819,
+          "p50": 0.98,
+          "p90": 2.95,
+          "p95": 3.99,
+          "p99": 7.82
+        },
+        "OFF": {
+          "n": 77,
+          "min": 0.01,
+          "max": 3.38,
+          "mean": 0.7412,
+          "p50": 0.54,
+          "p90": 1.59,
+          "p95": 1.99,
+          "p99": 2.46
+        }
+      },
+      "by_period": {
+        "first_half": {
+          "n": 442,
+          "min": 0.0,
+          "max": 10.56,
+          "mean": 1.2179,
+          "p50": 0.92,
+          "p90": 2.84,
+          "p95": 3.31,
+          "p99": 4.83
+        },
+        "second_half": {
+          "n": 506,
+          "min": 0.0,
+          "max": 28.67,
+          "mean": 1.1838,
+          "p50": 0.78,
+          "p90": 2.38,
+          "p95": 3.06,
+          "p99": 5.37
+        }
+      }
+    },
+    "d8_min_current_schedule": {
+      "available": 949,
+      "unavailable": 75,
+      "absolute": {
+        "n": 949,
+        "min": 0.0,
+        "max": 36.7,
+        "mean": 2.8672,
+        "p50": 2.21,
+        "p90": 6.02,
+        "p95": 7.7,
+        "p99": 13.47
+      },
+      "signed": {
+        "n": 949,
+        "min": -13.59,
+        "max": 36.7,
+        "mean": -0.1518,
+        "p50": -0.22,
+        "p90": 4.21,
+        "p95": 5.66,
+        "p99": 13.04
+      },
+      "adverse_if_long": {
+        "n": 949,
+        "min": -13.59,
+        "max": 36.7,
+        "mean": -0.1518,
+        "p50": -0.22,
+        "p90": 4.21,
+        "p95": 5.66,
+        "p99": 13.04
+      },
+      "adverse_if_short": {
+        "n": 949,
+        "min": -36.7,
+        "max": 13.59,
+        "mean": 0.1518,
+        "p50": 0.22,
+        "p90": 4.58,
+        "p95": 6.38,
+        "p99": 9.53
+      },
+      "vs_reference_stop_pct": {
+        "n": 949,
+        "min": 0.0,
+        "max": 513.29,
+        "mean": 40.1006,
+        "p50": 30.91,
+        "p90": 84.2,
+        "p95": 107.69,
+        "p99": 188.39
+      },
+      "vs_atr_pct": {
+        "n": 949,
+        "min": 0.0,
+        "max": 458.7,
+        "mean": 36.3466,
+        "p50": 27.64,
+        "p90": 76.73,
+        "p95": 94.89,
+        "p99": 150.42
+      },
+      "by_session": {
+        "ASIA": {
+          "n": 352,
+          "min": 0.01,
+          "max": 13.65,
+          "mean": 2.7395,
+          "p50": 2.28,
+          "p90": 5.81,
+          "p95": 6.67,
+          "p99": 8.8
+        },
+        "LONDON": {
+          "n": 212,
+          "min": 0.01,
+          "max": 36.7,
+          "mean": 2.9872,
+          "p50": 2.18,
+          "p90": 5.91,
+          "p95": 7.74,
+          "p99": 16.94
+        },
+        "NY": {
+          "n": 308,
+          "min": 0.0,
+          "max": 15.6,
+          "mean": 3.2157,
+          "p50": 2.41,
+          "p90": 7.03,
+          "p95": 8.97,
+          "p99": 13.47
+        },
+        "OFF": {
+          "n": 77,
+          "min": 0.03,
+          "max": 6.19,
+          "mean": 1.7264,
+          "p50": 1.42,
+          "p90": 3.44,
+          "p95": 4.21,
+          "p99": 5.86
+        }
+      },
+      "by_period": {
+        "first_half": {
+          "n": 444,
+          "min": 0.01,
+          "max": 16.94,
+          "mean": 2.9277,
+          "p50": 2.35,
+          "p90": 6.15,
+          "p95": 7.24,
+          "p99": 13.71
+        },
+        "second_half": {
+          "n": 505,
+          "min": 0.0,
+          "max": 36.7,
+          "mean": 2.814,
+          "p50": 2.07,
+          "p90": 5.9,
+          "p95": 7.86,
+          "p99": 12.05
+        }
+      }
+    }
+  },
+  "qualified_setups": [
+    {
+      "ts": "2026-10-02T07:08:04.668342+00:00",
+      "bar_time": "2026-10-02 09:45:00+00:00",
+      "direction": "LONG",
+      "quoted_entry": 4180.89,
+      "sl": 4173.74,
+      "tp": 4195.19,
+      "quoted_sl_distance": 7.15,
+      "session": "LONDON",
+      "spread_points": 36,
+      "delays": {
+        "d1_min": {
+          "signed": 0.64,
+          "absolute": 0.64,
+          "adverse": 0.64,
+          "available": true,
+          "delayed_entry": 4181.53,
+          "delayed_sl_distance": 7.79,
+          "delayed_rr": 1.754,
+          "spread_points": 36,
+          "fill_with_spread": 4181.89,
+          "fill_sl_distance": 8.15,
+          "rr_delay_and_spread": 1.632,
+          "outcome": {
+            "outcome": "TP_HIT",
+            "bars_to_resolve": 68,
+            "resolved_at": 1790939280,
+            "ambiguous": false,
+            "mfe": 14.81,
+            "mae": 3.86,
+            "pre_entry_touch": {
+              "sl_touched": false,
+              "tp_touched": false
+            },
+            "pre_entry_tp_discarded": false,
+            "pre_entry_sl_discarded": false
+          }
+        },
+        "d8_min_current_schedule": {
+          "signed": -0.35,
+          "absolute": 0.35,
+          "adverse": -0.35,
+          "available": true,
+          "delayed_entry": 4180.54,
+          "delayed_sl_distance": 6.8,
+          "delayed_rr": 2.154,
+          "spread_points": 36,
+          "fill_with_spread": 4180.9,
+          "fill_sl_distance": 7.16,
+          "rr_delay_and_spread": 1.996,
+          "outcome": {
+            "outcome": "TP_HIT",
+            "bars_to_resolve": 61,
+            "resolved_at": 1790939280,
+            "ambiguous": false,
+            "mfe": 15.8,
+            "mae": 0.83,
+            "pre_entry_touch": {
+              "sl_touched": false,
+              "tp_touched": false
+            },
+            "pre_entry_tp_discarded": false,
+            "pre_entry_sl_discarded": false
+          }
+        }
+      }
+    }
+  ],
+  "caveats": [
+    "M1 OHLC is not an executable quote. This is a price proxy, not measured slippage.",
+    "All-bar figures describe timing exposure; qualified-setup figures describe strategy exposure. The two populations are not interchangeable.",
+    "Delays are preregistered, not selected after inspecting results."
+  ]
+}
