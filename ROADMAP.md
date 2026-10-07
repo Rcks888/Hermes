@@ -807,6 +807,73 @@ Performance metrics use **population C**. Gate diagnostics retain A and B.
 
 ---
 
+## First signal — 2 October 2026
+
+After nineteen days of silence Hermes produced one signal, and it resolved to
+target. The outcome matters far less than what the funnel around it proves.
+
+    LONG XAUUSD @ 4180.89   SL 4173.74 (7.15)   TP 4195.19   1.39 lots
+    bar 2026-10-02 09:45 server, LONDON, regime TRANSITION/LOW
+    TP_HIT after 5 bars    MFE 15.45    MAE 3.22
+    nominal 2.000R -> realised 1.856R after a 36 point spread
+
+Three fixes are confirmed in production by this one event:
+
+| Fix | Evidence |
+|---|---|
+| Closed-bar evaluation `cf4e3d4` | volume 3805/2811.75 = 1.35x passed a gate that had blocked 11 of 11 at 0.00x |
+| Sizing from `contract_size` | 1000/(7.15x100) = 1.3986 -> 1.39 lots; the old path would have sized 13.99 and risked 10% |
+| Spread is a real cost | 36 points is 5.0% of the stop, cutting 2.000R to 1.856R |
+
+### The funnel reconciles exactly
+
+418 `NO_SIGNAL` plus 1 signal over 1-7 October, every evaluation accounted for:
+
+| Gate | Blocked | Survivors |
+|---|---|---|
+| trend_not_confirmed | 322 | 97 |
+| no_pullback | 16 | 81 |
+| no_candle_confirmation | 66 | 15 |
+| vwap_misaligned | 6 | 9 |
+| volume_too_low | 6 | 3 |
+| sl_too_wide | 2 | 1 -> signal |
+
+`volume_too_low` now passes 3 of 9 where it previously passed 0 of 11. That
+single change is why a signal exists. Candle confirmation remains the dominant
+filter after trend, killing 66 of 81 survivors, consistent with the 87% seen
+before the fix.
+
+**Throughput: roughly 1 signal per 4.4 days, about 1.6 per week.** The 100
+qualified setups the AI gate requires are therefore about fourteen months of
+forward collection away. This is the quantitative case for the replay engine
+being the critical path, not a preference.
+
+### What the win does not establish
+
+n = 1. It supports no claim about edge, win rate or expectancy, and no
+parameter may move on it. The regime was TRANSITION/LOW, a single context. The
+exit captured 15.45 of a possible 15.45 excursion, which says nothing about
+fixed-2R as a policy at this sample size.
+
+### What the win does expose: entry-price staleness is now measurable
+
+Entry 4180.89 is the close of the bar ending 07:00 UTC. Cron fires at `:08`.
+The decision was therefore taken **eight minutes after the price it recorded**,
+and this is systematic -- `:08` against `:00`, `:23` against `:15`, every cycle.
+Against a 7.15 stop that drift is material, and it makes this counterfactual
+optimistic by an unmeasured amount on top of the known 5.0% spread cost.
+
+Previously a design concern; now a measurable quantity. M1 bars over the
+available history give the distribution of `|price(close + 8 min) - close|`
+against typical stop distance. Until that is known, no replay result can be
+costed honestly, because the replay will assume a fill at the close that live
+execution never gets.
+
+This promotes to **0g**, ahead of the replay engine, since it changes the
+replay's entry assumption rather than merely annotating it.
+
+---
+
 ## Resume here
 
 Priority 0 is complete except 0b, which is now unblocked. **No MT5
