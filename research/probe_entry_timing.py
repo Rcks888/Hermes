@@ -374,6 +374,46 @@ def m1_quality(m1_df):
 
 # ------------------------------------------------------- fetch and 0g-4 probe
 
+def validate_range_mechanism(mt5):
+    """Prove copy_rates_range works before relying on it.
+
+    The archive probe returned (-2, 'Invalid arguments') for every year,
+    including years known to hold data, because timezone-aware datetimes do
+    not survive the rpyc boundary. Integers do. A sweep that has not first
+    confirmed its own call mechanism against a window known to contain bars
+    cannot distinguish an empty archive from a broken call, so this runs first
+    and aborts on failure.
+    """
+    import pandas as pd
+    pos = mt5.copy_rates_from_pos(SYMBOL, TF_M15, 1, 1)
+    if pos is None or len(pos) == 0:
+        return None, f"control_from_pos_failed: {mt5.last_error()}"
+    anchor = int(pd.DataFrame(pos)["time"].iloc[-1])
+    probe = mt5.copy_rates_range(SYMBOL, TF_M15, anchor - 10 * 86400, anchor)
+    if probe is None or len(probe) == 0:
+        return None, f"control_range_failed: {mt5.last_error()}"
+    return anchor, None
+
+
+def fetch_range(mt5, timeframe, start_epoch, end_epoch):
+    """Pinned fetch over an explicit server-clock epoch range.
+
+    copy_rates_from_pos is relative to the present, so the sampled window
+    slides with wall-clock time and two runs are not reconcilable. Earlier runs
+    of this probe differed in availability counts for that reason alone. An
+    explicit range makes a result reproducible and therefore citable as frozen
+    evidence.
+    """
+    import pandas as pd
+    rates = mt5.copy_rates_range(SYMBOL, timeframe, int(start_epoch),
+                                 int(end_epoch))
+    if rates is None or len(rates) == 0:
+        return None, f"no_bars: {mt5.last_error()}"
+    df = pd.DataFrame(rates)
+    df = df.rename(columns={"time": "epoch", "tick_volume": "volume"})
+    return df, None
+
+
 def fetch(mt5, timeframe, count):
     """Bulk fetch keeping the raw server-clock epoch.
 
@@ -552,9 +592,12 @@ def qualified_setups(m1_by_time, m1_rows):
 
 def main():
     days = 10
+    anchor_arg = None
     for a in sys.argv[1:]:
         if a.startswith("--days="):
             days = int(a.split("=", 1)[1])
+        elif a.startswith("--anchor="):
+            anchor_arg = int(a.split("=", 1)[1])
 
     print("0g-3  Control tests (these gate every number below):")
     if not controls():
@@ -572,14 +615,30 @@ def main():
     mt5 = mt5_connector.mt5
     offset_seconds = mt5_connector.get_server_time_offset()
 
-    m1_count, m15_count = days * 1440, days * 96 + 64
-    print(f"\n0g-2  Fetching {m1_count} M1 and {m15_count} M15 bars "
-          f"({days}d). M1 is the slow leg over the bridge.")
-    m1_df, err = fetch(mt5, TF_M1, m1_count)
+    print("\n0g-2  Validating copy_rates_range against a window known to "
+          "hold bars:")
+    detected_anchor, mech_err = validate_range_mechanism(mt5)
+    if mech_err:
+        print(f"  ABORT  {mech_err}")
+        print("  A zero-bar result from an unvalidated call mechanism is "
+              "inconclusive, not evidence about the data.")
+        return 1
+    print(f"  range mechanism OK, latest closed M15 bar epoch "
+          f"{detected_anchor}")
+
+    anchor = anchor_arg if anchor_arg is not None else detected_anchor
+    anchor_source = ("explicit --anchor" if anchor_arg is not None
+                     else "latest closed M15 bar")
+    start = anchor - days * 86400
+    print(f"\n0g-2  Pinned window [{start}, {anchor}] ({days}d), "
+          f"anchor from {anchor_source}.")
+    print("  Rerunning with --anchor=%d reproduces this sample exactly."
+          % anchor)
+    m1_df, err = fetch_range(mt5, TF_M1, start, anchor)
     if err:
         print(f"  M1 fetch failed: {err}")
         return 1
-    m15_df, err = fetch(mt5, TF_M15, m15_count)
+    m15_df, err = fetch_range(mt5, TF_M15, start, anchor)
     if err:
         print(f"  M15 fetch failed: {err}")
         return 1
@@ -661,6 +720,17 @@ def main():
                              "so unaffected, but cross-source joins are not"),
             "forward_fill": "never; missing minutes are excluded",
             "session_classifier": "probe-local, not the engine's",
+        },
+        "sample_pinning": {
+            "anchor_epoch_server_clock": anchor,
+            "anchor_source": anchor_source,
+            "window_start_epoch": start,
+            "window_days": days,
+            "reproduce_with": f"--anchor={anchor} --days={days}",
+            "note": ("copy_rates_range over an explicit epoch window. Earlier "
+                     "runs used copy_rates_from_pos, whose window slides with "
+                     "wall-clock time; their availability counts differed for "
+                     "that reason alone and they are not reconcilable."),
         },
         "preregistered_delays_seconds": DELAYS,
         "reference_stop": REFERENCE_STOP,
