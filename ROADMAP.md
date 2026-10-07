@@ -1027,7 +1027,97 @@ two runs are not directly reconcilable. The absolute range is recorded in
 `m1_quality`, so results remain interpretable, but archival evidence should be
 pinned to an explicit epoch range. Required before 0g-6 freeze.
 
-### 0g-5. Freeze live entry policy
+### 0g-5 FROZEN — BASELINE ENTRY POLICY
+
+**Research policy. NOT authorisation for live execution.**
+
+    Setup confirmation uses completed M15 bars.
+    Original structure-derived SL remains fixed.
+    Original signal-time TP remains fixed.
+    Proposed entry uses the contemporaneous executable quote.
+    Volume is recalculated from that entry to the original SL,
+    subject to existing risk and broker constraints.
+    No adverse-displacement threshold is introduced.
+    No minimum-available-RR threshold is introduced.
+    TP is not moved to restore nominal 2R.
+    Invalid or non-executable opportunities are recorded separately.
+    No pre-entry stop or target touch counts as a trade outcome.
+
+    Displacement filters, minimum-RR filters, and recomputed targets
+    remain separately preregistered candidate policies.
+
+| Decision | Frozen | Classification |
+|---|---|---|
+| SL | Preserve original structure-derived price | Execution correction |
+| TP | Preserve original signal-time target price | Preserves fixed-price baseline |
+| Sizing | Recalculate from executable entry to original SL | Execution correction |
+| Displacement / RR rejection | **Not introduced** | New eligibility policy, deferred |
+| TP recomputation to restore 2R | **Deferred** | Strategy-policy change |
+
+Fixed TP is the cleanest control. Recomputing it would change the target at
+the same time as the entry, making it impossible to attribute any improvement
+to corrected execution rather than altered exits.
+
+### Resizing does not mean "take everything"
+
+Execution-validity failures are catalogued in their own namespace, verified
+disjoint from the strategy and risk vocabularies by test. An unexecutable
+opportunity is **not** evidence that a degraded-RR setup is unprofitable, and
+conflating the two corrupts both populations.
+
+`executable`, `quote_unavailable`, `quote_unusable`,
+`original_sl_already_crossed`, `original_tp_already_crossed`,
+`entry_outside_sl_tp_band`, `volume_below_broker_minimum`,
+`volume_above_broker_maximum`, `contract_size_unavailable`,
+`sl_distance_not_positive`, `margin_not_checked`.
+
+Broker `volume_min`, `volume_step`, `volume_max` and `contract_size` are read
+from MT5 symbol properties. Volume rounds **down** only; rounding up to reach
+the broker minimum to force a trade is rejected as
+`volume_below_broker_minimum` with the breach stated.
+
+### Risk wording
+
+**1% means planned stop-loss risk, not guaranteed maximum loss.** It is the
+loss if the stop fills exactly at its price. Gaps, slippage and adverse fills
+can exceed it, and spread alone already pushes realised risk slightly above
+plan on a clean fill -- 1.044% on the October 2 signal. The field is named
+`planned_stop_loss_cash` for that reason.
+
+### Two interpretation safeguards
+
+**The 5% and 30% rejection figures describe cycles, not qualified signals.** I
+previously quoted them as signal-throughput reductions, which is wrong: they
+come from the all-bar distribution, and the roadmap already records that the
+all-bar and qualified-setup populations are not interchangeable. No
+throughput claim is available until the replay measures that population.
+
+**Low RR alone does not establish negative expectancy.** RR below 1.0 losing
+money at a 50% win rate is arithmetic, not evidence. The win/loss distribution
+and costs of low-RR setups are unmeasured, and they may not be the losing
+ones.
+
+### 0g-1 STARTED — observational logging landed
+
+Isolated to Hermes, purely additive, decision outputs bit-identical. Verified
+by test that `exec_observation` and `quote` are written and never read by any
+decision path, and that `propose_execution` does not mutate the signal.
+
+Recorded per cycle: `signal_bar_close_time`, `evaluation_start_time`,
+`evaluation_end_time`, `quote_request_start_time`, `quote_received_time`,
+`quote_time_msc`, `quote_broker_time`, `quote_bid`, `quote_ask`,
+`quote_latency_ms`, `alert_sent_time`, `signal_close`, `original_sl`,
+`original_tp`, `proposed_executable_entry`, `proposed_volume`,
+`planned_stop_loss_cash`, `execution_validity_status`, `code_version`,
+`config_hash`.
+
+The broker's own quote timestamp (`time_msc`) is recorded separately from the
+instant the process received it; the gap is bridge and terminal latency, and
+collapsing the two would hide the delay 0g exists to measure. Durations use a
+monotonic clock so an NTP correction cannot masquerade as bridge latency;
+cross-system joins use UTC.
+
+### 0g-5 superseded draft: freeze live entry policy
 
 Confirm on completed bars, obtain a fresh quote, then specify: maximum quote
 age, maximum decision age, maximum adverse displacement, spread limit, whether

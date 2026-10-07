@@ -27,6 +27,7 @@ from engine import risk_manager
 from engine import version
 from engine import regime as regime_mod
 from engine import research_schema
+from engine import entry_observation
 from alerts import telegram
 
 TRADES_LOG = PROJECT_ROOT / "logs" / "trades.json"
@@ -124,6 +125,21 @@ def record_signal_key(signal_key):
     keys = keys[-500:]
     with open(SIGNAL_KEYS_FILE, "w") as f:
         json.dump(keys, f)
+
+
+def signal_bar_close_time(signal, params):
+    """When the evaluated bar actually closed.
+
+    MT5 timestamps identify the bar OPEN, so the close is open + one period.
+    Recording it explicitly removes the ambiguity that makes scheduling delay
+    impossible to reconstruct after the fact.
+    """
+    try:
+        bt = pd.Timestamp(str(signal.get("signal_bar_time")))
+        minutes = int(params.get("timeframe_minutes", 15))
+        return str(bt + pd.Timedelta(minutes=minutes))
+    except Exception:  # noqa: BLE001 - never break a cycle over a log field
+        return None
 
 
 def log_trade(signal, approved, reject_reason, risk_details, spread, session):
@@ -242,8 +258,15 @@ def main():
         params.get("sr_min_touches", 2),
     )
 
+    # 0g-1. Observational timing only. The stopwatch records; it decides
+    # nothing. Durations come from a monotonic clock so an NTP correction
+    # cannot masquerade as bridge latency.
+    sw = entry_observation.Stopwatch()
+    sw.mark("evaluation_start_time")
+
     diag = {}
     signal, reason = strategy.evaluate(candles, structure, zones, params, diag)
+    sw.mark("evaluation_end_time")
 
     # Bar identity and raw inputs. A candle hash lets replay prove it read the
     # same bar rather than merely a bar with the same timestamp.
@@ -311,6 +334,17 @@ def main():
         signal, account, spread_points, session, sym_params, sym_info
     )
 
+    # 0g-1. Capture a contemporaneous quote and record what execution WOULD
+    # look like under the frozen baseline policy. Purely additive: nothing
+    # below reads exec_obs, so approval, entry, SL, TP, sizing and the alert
+    # are bit-identical to the previous revision. Switching the live decision
+    # onto these figures is 0g-5 and is not done here.
+    quote = entry_observation.capture_quote(mt5_connector.mt5, instrument, sw)
+    exec_obs = entry_observation.propose_execution(
+        signal, quote, account.get("balance", 0), sym_params, sym_info,
+        mt5=mt5_connector.mt5,
+    )
+
     log_trade(signal, approved, risk_reason, risk_details, spread_points, session)
     record_signal_key(signal_key)
 
@@ -340,10 +374,30 @@ def main():
         "equity": round(float(account.get("equity", 0)), 2),
         "contract_size": (sym_info or {}).get("contract_size"),
         "volume_min": (sym_info or {}).get("volume_min"),
+        # 0g-1 observation block. Unrecoverable if not captured now: quote
+        # latency and the decision-time spread are properties of this process,
+        # not of the bar data.
+        "signal_bar_close_time": signal_bar_close_time(signal, params),
+        "timing": sw.all_stamps(),
+        "evaluation_ms": sw.elapsed_ms("evaluation_start_time",
+                                       "evaluation_end_time"),
+        "quote": quote,
+        "exec_observation": exec_obs,
     })
 
     if approved:
         send_signal_alert(signal, risk_details, spread_points, session)
+        sw.mark("alert_sent_time")
+        log_event({
+            "event": "ALERT_SENT",
+            "bar_time": signal["signal_bar_time"],
+            "candle_hash": candle_hash,
+            "alert_sent_time": sw.stamp("alert_sent_time"),
+            "decision_to_alert_ms": sw.elapsed_ms("evaluation_start_time",
+                                                  "alert_sent_time"),
+            "quote_to_alert_ms": sw.elapsed_ms("quote_received_time",
+                                               "alert_sent_time"),
+        })
         logger.info(f"SIGNAL SENT: {signal['direction']} @ {signal['entry']}")
     else:
         logger.info(f"Signal rejected: {risk_reason}")
