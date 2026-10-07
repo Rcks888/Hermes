@@ -1,0 +1,44 @@
+{
+  "probe": "signal_outcome",
+  "generated_utc": "2026-10-07T08:42:35.000866+00:00",
+  "code_version": "7550659",
+  "note": "Counterfactual. Hermes placed no orders. Same-bar target/stop collisions resolve to the stop because M15 OHLC cannot order intrabar events.",
+  "signals": [
+    {
+      "ts": "2026-10-02T07:08:04.668342+00:00",
+      "bar_time": "2026-10-02 09:45:00+00:00",
+      "direction": "LONG",
+      "entry": 4180.89,
+      "sl": 4173.74,
+      "tp": 4195.19,
+      "session": "LONDON",
+      "spread_points": 36,
+      "lots": null,
+      "code_version": "e451fc9",
+      "candle_hash": "be1702a6e0f7facf",
+      "regime": "TRANSITION",
+      "vol_regime": "LOW",
+      "bars_available_after": 270,
+      "sl_distance": 7.15,
+      "nominal_rr": 2.0,
+      "spread_cost_pct_of_risk": 5.0,
+      "realised_rr_after_spread": 1.856,
+      "raw": {
+        "outcome": "TP_HIT",
+        "bars_to_resolve": 5,
+        "resolved_at": "2026-10-02 11:00:00+00:00",
+        "ambiguous": false,
+        "mfe": 15.45,
+        "mae": 3.22
+      },
+      "spread_adjusted": {
+        "outcome": "TP_HIT",
+        "bars_to_resolve": 5,
+        "resolved_at": "2026-10-02 11:00:00+00:00",
+        "ambiguous": false,
+        "mfe": 15.09,
+        "mae": 3.58
+      }
+    }
+  ]
+}
