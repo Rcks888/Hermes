@@ -954,6 +954,79 @@ strategy exposure. These populations are not interchangeable** and are reported
 in separate blocks. With one qualified setup on record, only the former is
 meaningfully computable.
 
+### 0g-4 RESULTS  — **COMPLETE**, `entry_timing_20261007T092303Z.json`
+
+Price basis determined empirically: **BID**. The 1.856R accounting convention
+therefore stands on evidence rather than assumption.
+
+All-bar timing exposure, n=948/949 of 1024 M15 closes, 10-day window:
+
+| Delay | p50 | p90 | p95 | p99 | max |
+|---|---|---|---|---|---|
+| +1 min, pts | 0.83 | 2.52 | 3.24 | 5.12 | 28.67 |
+| +1 min, % of 7.15 ref stop | 11.6% | 35.2% | 45.3% | 71.6% | |
+| **+8 min (current), pts** | 2.21 | 6.02 | 7.70 | 13.47 | 36.70 |
+| **+8 min, % of ref stop** | **30.9%** | **84.2%** | **107.7%** | **188.4%** | |
+
+**At the current schedule the P95 drift exceeds the entire stop distance.** One
+cycle in twenty, price has moved further than the whole risk budget before
+Hermes can act. That is not a repriced trade, it is a different trade. P99 is
+nearly double the stop.
+
+Both remedies are therefore justified, and neither is sufficient alone:
+
+- Moving the schedule to +1 min cuts median drift 2.7x and P95 from 107.7% to
+  45.3%.
+- Even at +1 min, P95 remains 45% of the stop, so an unvalidated close-price
+  entry stays indefensible. Fresh-quote revalidation is required regardless of
+  schedule.
+
+Session ordering is consistent: NY widest (p95 3.99 / 8.97), OFF narrowest
+(1.99 / 4.21). Probe-local classifier, so indicative pending 0g-6
+reconciliation.
+
+**Sanity check.** Drift grows 2.66x for an 8x time increase against a
+diffusive expectation of sqrt(8) = 2.83. Near-diffusive scaling is what real
+price data should produce, which argues against an indexing artifact.
+
+**Stability.** Two runs 3.5 minutes apart, on windows slid by that amount,
+returned identical p50 0.83 and p95 3.24. The finding is not a window artifact.
+
+### Composed cost on the October 2 signal
+
+| Basis | Stop distance | RR |
+|---|---|---|
+| Nominal, quoted close | 7.15 | 2.000R |
+| + spread (BID basis, long fills at ask) | 7.51 | 1.856R |
+| + spread + 1 min delay | 8.15 | **1.632R** |
+| + spread + 8 min delay | 7.16 | 1.996R |
+
+**18% of nominal R disappears before any strategy question is asked.** That is
+the figure 0g-6 must carry into the replay.
+
+The 8-minute row is *favourable* here, at n=1, and directly contradicts the
+949-sample all-bar result. It must not be cited as evidence the current
+schedule is acceptable.
+
+### Two data findings from 0g-2
+
+**M1 has isolated intra-session holes, not only structural gaps.** At one M15
+close the `+60s` minute is missing while `+480s` is present, inside an active
+LONDON session: `d1_min` reports 948/76 against `d8_min` 949/75. An earlier
+reading of these gaps as purely weekend-and-daily-break was wrong. The
+no-forward-fill rule is doing real work; filling that hole would have invented
+a price in exactly the conditions where execution is worst.
+
+Structural gaps do dominate the total: 12 gaps, 7,084 missing minutes over
+14.92 days, consistent with 2 weekends plus ~10 daily breaks. Confirm against
+`largest_gaps_hours` rather than that arithmetic.
+
+**Reproducibility defect.** The probe fetches by relative position
+(`copy_rates_from_pos`), so the sampled window slides with wall-clock time and
+two runs are not directly reconcilable. The absolute range is recorded in
+`m1_quality`, so results remain interpretable, but archival evidence should be
+pinned to an explicit epoch range. Required before 0g-6 freeze.
+
 ### 0g-5. Freeze live entry policy
 
 Confirm on completed bars, obtain a fresh quote, then specify: maximum quote
