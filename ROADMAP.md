@@ -1129,7 +1129,58 @@ the realised-RR distribution and reduces the sample size needed to measure the
 strategy. At 1.6 signals per week that matters more than any expectancy
 argument.
 
-### Ares contention: measured, and the earlier analysis was too coarse
+### Cron change: DEFERRED. The contention premise was wrong.
+
+Final measurements close this question.
+
+`run_ares.sh` at 13:30 completes between **13:32:32 and 13:33:07** across three
+observations, so it occupies roughly 2.5 to 3.1 minutes, variable because the
+git push retries on rebase. The 21:00 run is assumed similar.
+
+`Hermes` occupies about **5 seconds**: evaluation 0.022 ms, quote latency 6 ms,
+plus a 2 s reconnect backoff. This is the number that settles it, and it was
+measured only after 0g-1 landed.
+
+Checking the **current** slot against real durations:
+
+| Current | Nearest Ares work | Overlap |
+|---|---|---|
+| `:08` -> 13:08 | gateway ends 13:00:34 | none |
+| `:23` -> 17:23 | gateway starts 17:25:00 | none |
+| `:38` -> 13:38 | run_ares ends ~13:33 | none |
+| `:53` | none | none |
+
+**The current schedule has no collision with Ares.** The contention concern was
+mine and it was unfounded: "two minutes before an Ares start" is not a conflict
+for a process that finishes in five seconds.
+
+Candidate slots, now fully priced:
+
+| Slot | p50 drift | vs current | Safe? |
+|---|---|---|---|
+| `:02/:17/:32/:47` | 15.80% | −48% | **No** — `:32` inside 13:30 run, `:02` inside 21:00 run |
+| `:05/:20/:35/:50` | 25.59% | −16% | Yes |
+| `:08/:23/:38/:53` | 30.35% | — | Yes (current) |
+
+**Decision: no change.** `:05` buys 4.76 percentage points of median drift.
+`:02` buys three times that but requires hour-split crontab lines in hours 13
+and 21, both inside the tradeable NY window, on a shared crontab where a
+mistake breaks Ares' evidence collection with no gate to catch it.
+
+The benefit is variance reduction whose value is unquantified until the replay
+prices it. Taking operational risk for an unpriced gain inverts the discipline
+applied everywhere else in this document. Revisit once the replay reports
+expectancy sensitivity across the five preregistered delays.
+
+**Process note.** This decision reversed three times — `:01`, then `:05`, then
+`:02`, then no change — and every reversal followed a measurement that should
+have preceded the recommendation. The sequence was: assume minute-level
+granularity, assume gateway duration, assume run_ares duration, and finally
+measure Hermes' own runtime, which was available from 0g-1 all along. The
+pattern is recommending before measuring, and it is the same failure as the
+offset units and the pre-entry scan boundary.
+
+### Superseded: Ares contention analysis at the wrong resolution
 
 Six consecutive IB Gateway restarts, all at 13:00 UTC, completed in **32-34
 seconds** (`13:00:01` to `13:00:33/34`). At 16:00 and 17:25 the script logs
