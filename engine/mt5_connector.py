@@ -196,6 +196,14 @@ def ensure_connected():
 
 
 def get_server_time_offset():
+    """Server clock minus VPS clock, in SECONDS.
+
+    The unit is documented because it has already caused a defect. A caller
+    fed this value to timedelta(hours=...) and produced a 38,867,525 second
+    scheduling delay from a true one of roughly three hours: 10799 seconds is
+    UTC+3, and it reads as an entirely plausible number of hours. Use
+    get_server_time_offset_hours() where hours are wanted.
+    """
     info = mt5.symbol_info_tick("XAUUSD")
     if info is None:
         return None
@@ -203,6 +211,12 @@ def get_server_time_offset():
     vps_time = datetime.now(timezone.utc)
     offset = (server_time - vps_time).total_seconds()
     return offset
+
+
+def get_server_time_offset_hours():
+    """Server clock minus VPS clock, in hours. None when unavailable."""
+    secs = get_server_time_offset()
+    return None if secs is None else secs / 3600.0
 
 
 def get_symbol_info(symbol="XAUUSD"):

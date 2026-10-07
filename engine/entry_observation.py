@@ -98,7 +98,8 @@ class Stopwatch:
         return dict(self._marks)
 
 
-def scheduling_delay_seconds(bar_close_server, eval_start_utc, server_offset_hours):
+def scheduling_delay_seconds(bar_close_server, eval_start_utc,
+                             server_offset_seconds):
     """Seconds between a bar closing and Hermes beginning to evaluate it.
 
     This is the quantity 0g is about, and it is the one cross-source join in
@@ -111,16 +112,28 @@ def scheduling_delay_seconds(bar_close_server, eval_start_utc, server_offset_hou
     broker-side lag. The offset is therefore applied explicitly and recorded
     alongside the result.
 
+    The offset argument is in SECONDS, matching the units of
+    mt5_connector.get_server_time_offset(). An earlier revision named it hours
+    and passed it to timedelta(hours=...), which turned a three-hour offset
+    into 10799 hours and produced a 38.8 million second delay on the first
+    live cycle. The magnitude guard below exists precisely because 10799 reads
+    as a plausible count of hours.
+
     Returns (seconds, note). A negative delay means the clock assumptions are
     wrong, so it is surfaced rather than clamped to zero.
     """
     try:
         from datetime import timedelta
         import pandas as pd
+        off = float(server_offset_seconds)
+        if abs(off) > 14 * 3600:
+            return None, ("offset_unit_suspect: " + str(off) + " exceeds "
+                          "14h expressed in seconds, so a unit confusion is "
+                          "more likely than a real venue offset")
         close_server = pd.Timestamp(str(bar_close_server))
         if close_server.tzinfo is None:
             close_server = close_server.tz_localize("UTC")
-        close_true_utc = close_server - timedelta(hours=float(server_offset_hours))
+        close_true_utc = close_server - timedelta(seconds=off)
         started = pd.Timestamp(str(eval_start_utc))
         if started.tzinfo is None:
             started = started.tz_localize("UTC")

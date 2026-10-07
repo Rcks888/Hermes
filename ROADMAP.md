@@ -1097,6 +1097,30 @@ money at a 50% win rate is arithmetic, not evidence. The win/loss distribution
 and costs of low-RR setups are unmeasured, and they may not be the losing
 ones.
 
+### Known mislabel in committed evidence
+
+`entry_timing_20261007T091930Z.json`, `...092303Z.json` and `...093014Z.json`
+record `conventions.server_offset_hours: 10799.49`. **The field name is wrong;
+the value is seconds** (10799.49 s = UTC+3). The probe's results are unaffected
+because every comparison in it is server-clock to server-clock and the offset
+is recorded but never applied. The files are left as written rather than
+edited, because evidence that gets quietly corrected is no longer evidence.
+Later probe runs emit `server_offset_seconds`.
+
+The same confusion caused a real defect in 0g-1 and was caught on the first
+live cycle: `get_server_time_offset()` returns seconds, the value was passed to
+`timedelta(hours=...)`, and the result was a 38,867,525 second scheduling delay
+against a true one of 153 s. It logged as
+`implausible: exceeds one hour` rather than as a plausible number, which is the
+whole purpose of the guard. 10799 is dangerous precisely because it reads as a
+credible count of hours.
+
+Fixed at source: `get_server_time_offset()` now documents its unit, a
+`get_server_time_offset_hours()` companion exists, the parameter is named
+`server_offset_seconds`, and a magnitude guard rejects any offset beyond
+±14 hours expressed in seconds. Two other callers, `run_soak.py` and
+`probe_spread_reconciliation.py`, were already correct.
+
 ### 0g-1 STARTED — observational logging landed
 
 Isolated to Hermes, purely additive, decision outputs bit-identical. Verified

@@ -284,9 +284,12 @@ def main():
     # timestamps carry a +00:00 suffix but hold the server clock, so a naive
     # subtraction yields ~10800s of pure artefact.
     closed_at = bar_close_time(last["datetime"], params)
-    server_offset = mt5_connector.get_server_time_offset()
+    # SECONDS. Feeding this to timedelta(hours=...) produced a 38.8 million
+    # second delay on the first live cycle; the guard caught it, the field name
+    # now states the unit.
+    server_offset_s = mt5_connector.get_server_time_offset()
     sched_delay, sched_note = entry_observation.scheduling_delay_seconds(
-        closed_at, sw.stamp("evaluation_start_time"), server_offset or 0)
+        closed_at, sw.stamp("evaluation_start_time"), server_offset_s or 0)
     if sched_note:
         logger.warning(f"scheduling delay suspect: {sched_delay}s ({sched_note})")
 
@@ -332,7 +335,7 @@ def main():
                                            "evaluation_end_time"),
             "scheduling_delay_seconds": sched_delay,
             "scheduling_delay_note": sched_note,
-            "server_offset_hours": server_offset,
+            "server_offset_seconds": server_offset_s,
             "quote": entry_observation.capture_quote(
                 mt5_connector.mt5, instrument, sw),
         })
@@ -406,7 +409,7 @@ def main():
                                        "evaluation_end_time"),
         "scheduling_delay_seconds": sched_delay,
         "scheduling_delay_note": sched_note,
-        "server_offset_hours": server_offset,
+        "server_offset_seconds": server_offset_s,
         "quote": quote,
         "exec_observation": exec_obs,
     })

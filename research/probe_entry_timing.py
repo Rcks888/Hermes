@@ -570,7 +570,7 @@ def main():
         print("\n  MT5 unavailable.")
         return 1
     mt5 = mt5_connector.mt5
-    offset_h = mt5_connector.get_server_time_offset()
+    offset_seconds = mt5_connector.get_server_time_offset()
 
     m1_count, m15_count = days * 1440, days * 96 + 64
     print(f"\n0g-2  Fetching {m1_count} M1 and {m15_count} M15 bars "
@@ -655,7 +655,7 @@ def main():
             "bar_timestamp_means": "bar open",
             "observation_at_instant_X": "open of M1 bar stamped X",
             "clock": "server clock, integer unix seconds",
-            "server_offset_hours": offset_h,
+            "server_offset_seconds": offset_seconds,
             "known_defect": ("data_feed labels server time as UTC via "
                              "utc=True; comparisons here are server-to-server "
                              "so unaffected, but cross-source joins are not"),

@@ -120,7 +120,7 @@ def test_stopwatch_uses_monotonic_for_durations():
 def test_scheduling_delay_applies_the_server_offset():
     """Bar close 10:00 server (= 07:00 UTC), evaluated 07:01 UTC -> 60s."""
     d, note = eo.scheduling_delay_seconds("2026-10-07 10:00:00+00:00",
-                                          "2026-10-07T07:01:00+00:00", 3.0)
+                                          "2026-10-07T07:01:00+00:00", 10800)
     assert d == 60.0 and note is None, (d, note)
 
 
@@ -132,7 +132,7 @@ def test_unapplied_offset_is_caught_as_negative():
     not a large positive one. It is caught, but by the negative guard.
     """
     d, note = eo.scheduling_delay_seconds("2026-10-07 10:00:00+00:00",
-                                          "2026-10-07T07:01:00+00:00", 0.0)
+                                          "2026-10-07T07:01:00+00:00", 0)
     assert d < -10000, d
     assert note is not None and "negative" in note
 
@@ -145,26 +145,26 @@ def test_double_corrected_offset_is_caught_as_implausible():
     past an hour. This is what the implausible guard exists for.
     """
     d, note = eo.scheduling_delay_seconds("2026-10-07 07:00:00+00:00",
-                                          "2026-10-07T07:08:00+00:00", 3.0)
+                                          "2026-10-07T07:08:00+00:00", 10800)
     assert d > 10000, d
     assert note is not None and "implausible" in note
 
 
 def test_scheduling_delay_negative_is_surfaced_not_clamped():
     d, note = eo.scheduling_delay_seconds("2026-10-07 10:00:00+00:00",
-                                          "2026-10-07T06:00:00+00:00", 3.0)
+                                          "2026-10-07T06:00:00+00:00", 10800)
     assert d < 0 and "negative" in note
 
 
 def test_scheduling_delay_matches_the_current_cron_slot():
     """Cron :08 against a bar closing on the hour should read ~480s."""
     d, note = eo.scheduling_delay_seconds("2026-10-07 10:00:00+00:00",
-                                          "2026-10-07T07:08:00+00:00", 3.0)
+                                          "2026-10-07T07:08:00+00:00", 10800)
     assert d == 480.0 and note is None
 
 
 def test_scheduling_delay_bad_input_does_not_raise():
-    d, note = eo.scheduling_delay_seconds("not a time", "also not", 3.0)
+    d, note = eo.scheduling_delay_seconds("not a time", "also not", 10800)
     assert d is None and "uncomputable" in note
 
 
