@@ -96,13 +96,19 @@ def drift(signal_close, delayed_price, direction=None):
     return out
 
 
-def resolve_from_delayed_entry(direction, entry, sl, tp, bars, entry_time):
+def resolve_from_delayed_entry(direction, entry, sl, tp, bars, entry_time,
+                               signal_close_time):
     """Outcome of a trade entered at `entry_time`, not at the signal close.
 
     Three rules that a naive replay gets wrong:
 
     1. Only bars at or after entry_time can resolve the trade. A target touched
        while Hermes was still deciding was never available to it.
+    1b. The pre-entry window is bounded BELOW by signal_close_time as well as
+       above by entry_time. Scanning all supplied bars instead reports touches
+       from before the setup existed: on a 10-day M1 series gold crosses almost
+       any level eventually, so every signal is flagged as touching both. This
+       bound is not optional and an earlier revision of this file omitted it.
     2. A pre-entry touch of either level is reported, because it tells us the
        delay changed the trade rather than merely repriced it.
     3. A bar whose range spans both levels cannot be ordered at this
@@ -115,6 +121,8 @@ def resolve_from_delayed_entry(direction, entry, sl, tp, bars, entry_time):
     for t, high, low in bars:
         if t >= entry_time:
             break
+        if t < signal_close_time:
+            continue
         if (low <= sl) if long else (high >= sl):
             pre["sl_touched"] = True
         if (high >= tp) if long else (low <= tp):
@@ -225,20 +233,47 @@ def controls():
 
     # A target touched before the delayed entry is not a win.
     bars = [(0, 111.0, 99.0), (60, 102.0, 94.0)]
-    r = resolve_from_delayed_entry("LONG", 100.0, 95.0, 110.0, bars, entry_time=60)
+    r = resolve_from_delayed_entry("LONG", 100.0, 95.0, 110.0, bars,
+                                   entry_time=60, signal_close_time=0)
     check("pre_entry_tp_not_a_win", (r["outcome"], r["pre_entry_tp_discarded"]),
           ("SL_HIT", True))
 
     # And the same trade entered at the signal bar would have won, which is
     # precisely the overstatement 0g exists to prevent.
-    r0 = resolve_from_delayed_entry("LONG", 100.0, 95.0, 110.0, bars, entry_time=0)
+    r0 = resolve_from_delayed_entry("LONG", 100.0, 95.0, 110.0, bars,
+                                    entry_time=0, signal_close_time=0)
     check("same_trade_wins_without_delay", r0["outcome"], "TP_HIT")
 
     # Ambiguity must survive the delayed-entry path too.
     r2 = resolve_from_delayed_entry("LONG", 100.0, 95.0, 110.0,
-                                    [(60, 111.0, 94.0)], entry_time=60)
+                                    [(60, 111.0, 94.0)], entry_time=60,
+                                    signal_close_time=60)
     check("ambiguous_resolves_to_stop", (r2["outcome"], r2["ambiguous"]),
           ("SL_HIT", True))
+
+    # REGRESSION. History predating the setup must not register as a pre-entry
+    # touch. The first run of this probe reported both levels touched within
+    # one minute on the only signal on record -- a 21.45 point range in 60
+    # seconds -- because the scan was unbounded below and reached back ten
+    # days. The earlier controls all passed because their synthetic bars began
+    # at the signal, exercising the upper bound and never the lower one.
+    history = [(-864000, 200.0, 50.0),      # ten days earlier, spans everything
+               (-432000, 199.0, 51.0),
+               (0, 100.5, 99.5),            # signal bar close, quiet
+               (60, 100.4, 99.6)]
+    r3 = resolve_from_delayed_entry("LONG", 100.0, 95.0, 110.0, history,
+                                    entry_time=60, signal_close_time=0)
+    check("history_before_signal_is_not_a_pre_entry_touch",
+          (r3["pre_entry_tp_discarded"], r3["pre_entry_sl_discarded"]),
+          (False, False))
+
+    # The same series WITH the window opened early must flag, proving the
+    # control discriminates rather than passing for an unrelated reason.
+    r4 = resolve_from_delayed_entry("LONG", 100.0, 95.0, 110.0, history,
+                                    entry_time=60, signal_close_time=-864000)
+    check("control_discriminates_touch_detection_still_works",
+          (r4["pre_entry_tp_discarded"], r4["pre_entry_sl_discarded"]),
+          (True, True))
 
     all_ok = True
     for name, ok, got, want in results:
@@ -471,12 +506,24 @@ def qualified_setups(m1_by_time, m1_rows):
                 dr = drift(entry_q, price, direction)
                 sl_dist = abs(price - sl)
                 res = resolve_from_delayed_entry(direction, price, sl, tp,
-                                                 m1_rows, close_time + d)
+                                                 m1_rows, close_time + d,
+                                                 signal_close_time=close_time)
+                # Delay and spread compose; reporting either alone understates
+                # the cost. Basis is BID, so a long fills one spread above the
+                # delayed bid while SL and TP stay put.
+                sp = float(ev.get("spread_points") or 0) * 0.01
+                fill = price + sp if direction == "LONG" else price - sp
+                f_sl = abs(fill - sl)
                 dr.update({
                     "available": True, "delayed_entry": price,
                     "delayed_sl_distance": round(sl_dist, 2),
                     "delayed_rr": (round(abs(tp - price) / sl_dist, 3)
                                    if sl_dist else None),
+                    "spread_points": ev.get("spread_points"),
+                    "fill_with_spread": round(fill, 2),
+                    "fill_sl_distance": round(f_sl, 2),
+                    "rr_delay_and_spread": (round(abs(tp - fill) / f_sl, 3)
+                                            if f_sl else None),
                     "outcome": res,
                 })
                 rec["delays"][name] = dr
@@ -574,6 +621,9 @@ def main():
             print(f"    {name:28} entry {d['delayed_entry']}  "
                   f"adverse {d['adverse']:+.2f}  "
                   f"sl_dist {d['delayed_sl_distance']}  rr {d['delayed_rr']}")
+            print(f"    {'':28} +spread -> fill {d['fill_with_spread']}  "
+                  f"sl_dist {d['fill_sl_distance']}  "
+                  f"rr {d['rr_delay_and_spread']}")
             print(f"    {'':28} -> {o['outcome']}"
                   f"{' AMBIGUOUS' if o['ambiguous'] else ''}"
                   f"  pre-entry tp {o['pre_entry_tp_discarded']}"
