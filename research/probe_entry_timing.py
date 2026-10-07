@@ -62,6 +62,13 @@ DELAYS = {
     # advance stops the answer being chosen to justify a slot already picked.
     "d2_min": 120,
     "d3_min": 180,
+    # 5 minutes is preregistered before measurement, and its provenance matters.
+    # It was NOT chosen because it looked good in the drift data. Ares only ever
+    # starts at :00, :10, :25 and :30 on the shared droplet, and :05 is the
+    # first 15-minute-spaced offset clearing every one of those by at least five
+    # minutes. The slot was selected from the contention constraint alone; this
+    # entry exists to price it afterwards, not to justify it.
+    "d5_min_ares_safe_slot": 300,
     "d8_min_current_schedule": 480,
 }
 
