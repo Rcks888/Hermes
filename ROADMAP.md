@@ -874,11 +874,68 @@ replay's entry assumption rather than merely annotating it.
 
 ---
 
-## Second signal — first SHORT (week of 13 October 2026)
+## Second signal — first SHORT, 7 October 2026
 
     SHORT XAUUSD @ 4102.21   SL 4130.45 (28.24)   TP 4045.74 (56.47)   0.35 lots
-    NY, ATR 12.47, spread 26, volume 7994/6533.5 = 1.22x, trend DOWN (3 BOS)
-    outcome: NOT YET RESOLVED (deliberately, see below)
+    bar 2026-10-07 17:30 server (closes 14:45 UTC), NY, regime TRANSITION/HIGH
+    ATR 12.47, spread 26, volume 7994/6533.5 = 1.22x, trend DOWN (3 BOS)
+    SL_HIT after 34 bars (8.5 h)    MFE 3.67    MAE 32.64
+    realised -1.000R, identical raw and spread-adjusted; -$988.40 planned
+
+Resolved after `3fdef54` landed (`signal_outcome_20261013T060555Z.json`). The
+loss is unambiguous: the bid traded 4.4 points through the stop trigger and the
+trade never came within 52 points of target.
+
+**Running tally, n = 2: +1.856R, -1.000R, net +0.856R.** Supports nothing about
+edge, win rate or expectancy, and no parameter moves on it.
+
+### Delay did not change either outcome
+
+| Signal | Five delays | Outcome at every delay | adverse range |
+|---|---|---|---|
+| LONG 2 Oct | 60 to 480 s | TP_HIT | +0.64 to -0.94 |
+| SHORT 7 Oct | 60 to 480 s | SL_HIT | -0.58 to -3.63 |
+
+Every SHORT delay was *favourable* by entry price (price rose, so the short
+filled higher, with RR rising to 2.06-2.44) and every one lost. That is the
+convexity point in a single example: a favourable entry displacement on a short
+is price moving toward the stop, so a better entry and a worse trade can be the
+same event. Drift sign does not determine expectancy; only the replay's hit
+rates can.
+
+### First live conformance point (0g-1 vs M1 proxy)
+
+The SHORT is the first qualified signal with 0g-1 fields. The 2 October event
+predates 0g-1 and carries none.
+
+| | M1 proxy, 480 s | Live 0g-1 |
+|---|---|---|
+| Delay | 480 s preregistered | **484.978 s** |
+| Price at decision | 4105.84, M1 open 17:53:00 server | **bid 4105.66**, tick 17:53:05.706 |
+| Spread | 0.26, signal time | **0.26**, decision time |
+
+Live delay is the schedule plus about five seconds of process overhead, matching
+the measured Hermes runtime. Proxy and live bid differ by **0.18**, about 0.7%
+of the 24.79 executable stop, with the live tick 5.7 s after the proxy instant.
+The declared exit-spread approximation held exactly on this signal. n = 1:
+consistent with the proxy, not a validation of it.
+
+Baseline-policy observation (0g-5, logged, not acted on): entry 4105.66 on the
+bid, stop 24.79, volume 1000 / 2479 = 0.403 -> **0.40**, planned $991.60
+(0.9916%), RR 2.417, status `executable` with margin computed at 1642.26 — the
+first cycle on which margin was actually checked rather than reported unchecked.
+
+The live alert sized 0.35 lots from the stale 28.24 stop. Against the entry
+actually available that risks 0.35 x 24.79 x 100 = **$867.65, 0.87%**: favourable
+displacement under-sizes, and adverse displacement would over-size by the same
+mechanism. That asymmetry is the case for 0g-5 recomputing volume from the
+executable entry. In R the loss is -1 either way; only the cash differs.
+
+The 15-day all-bar study (`entry_timing_20261013T060559Z.json`, anchor
+1791881100, n=956) is the third independent window and reproduces the earlier
+ones: p50 |drift| 0.78 at 1 minute, 2.09 at 8 minutes (29.23% of the reference
+stop, previously 30.35%). NY is the widest session at every delay (p95 8.80 at
+8 minutes, against 7.25 LONDON).
 
 | Check | Value |
 |---|---|

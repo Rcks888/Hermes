@@ -216,7 +216,8 @@ def main():
             "ts": e.get("ts"), "bar_time": bar_time, "direction": direction,
             "entry": entry, "sl": sl, "tp": tp,
             "session": e.get("session"), "spread_points": e.get("spread_points"),
-            "lots": (e.get("risk_details") or {}).get("position_size"),
+            "lots": (e.get("position_size")
+                     or (e.get("risk_details") or {}).get("position_size")),
             "code_version": e.get("code_version"),
             "candle_hash": e.get("candle_hash"),
             "regime": (e.get("regime") or {}).get("structure_regime"),
