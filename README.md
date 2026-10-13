@@ -6,7 +6,7 @@ Part of **Project Olympus**. Automated XAU/USD day trading via MT5 + Python on O
 
 Alert-only, no capital at risk. Gate 0 soak passed; the Pullback Setup strategy
 runs every 15 minutes on closed M15 bars. Two signals to date (2 Oct LONG,
-13 Oct SHORT). 0g fixes how the replay engine prices entry: delayed decision
+7 Oct SHORT). 0g fixes how the replay engine prices entry: delayed decision
 time, executable quote, and spread charged on the correct leg per direction
 (`engine/entry_observation.spread_accounting`). See [ROADMAP.md](ROADMAP.md),
 section "Resume here", for live status.
