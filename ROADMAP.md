@@ -26,8 +26,11 @@ P4      live research dataset      ░░░░░░░░░░░░░░░
 P5      Guardian (AI layer)        ░░░░░░░░░░░░░░░░░░░░  PROHIBITED until P3 passes
 ```
 
-**Signals generated to date: ZERO.** Two weeks of live observation produced none,
-traced to `copy_rates_from_pos` reading the forming bar. Fixed in `cf4e3d4`.
+**Entry point is now `STATUS.md`** (weekly timeline and checkpoints); this
+block is kept as written on 30 September. Signals to date: two, see STATUS.md.
+
+As of 30 September: two weeks of live observation produced no signals, traced
+to `copy_rates_from_pos` reading the forming bar. Fixed in `cf4e3d4`.
 No strategy edge has been demonstrated. Profit factor, drawdown, exit
 effectiveness and regime robustness are all unknown.
 

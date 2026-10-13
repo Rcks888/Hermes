@@ -9,7 +9,7 @@ runs every 15 minutes on closed M15 bars. Two signals to date (2 Oct LONG,
 7 Oct SHORT). 0g fixes how the replay engine prices entry: delayed decision
 time, executable quote, and spread charged on the correct leg per direction
 (`engine/entry_observation.spread_accounting`). See [ROADMAP.md](ROADMAP.md),
-section "Resume here", for live status.
+section "Resume here", for detail; [STATUS.md](STATUS.md) is the entry point.
 
 ## Quick Start (VPS)
 
@@ -58,7 +58,11 @@ python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals
 ```
 
+Weekly: `python weekly_checkpoint.py --week=<Monday>` feeds the checkpoint log in [STATUS.md](STATUS.md).
+
 ## Docs
 
+- [STATUS.md](STATUS.md) — entry point: current state, weekly timeline, checkpoints
+- [ROADMAP.md](ROADMAP.md) — priorities, evidence and decisions
 - [HERMES_BRIEF.md](HERMES_BRIEF.md) — Project brief and strategy overview
 - [HERMES_PROPOSAL.md](HERMES_PROPOSAL.md) — Full technical proposal
