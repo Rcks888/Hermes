@@ -64,6 +64,6 @@ Weekly: `python weekly_checkpoint.py --week=<Monday>` feeds the checkpoint log i
 
 - [STATUS.md](STATUS.md) — entry point: current state, weekly timeline, checkpoints
 - [ROADMAP.md](ROADMAP.md) — priorities, evidence and decisions
-- [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) — 0g-6 replay execution contract (draft `ec-0.1`)
+- [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) — 0g-6 replay execution contract (draft `ec-0.1r2`, in review)
 - [HERMES_BRIEF.md](HERMES_BRIEF.md) — Project brief and strategy overview
 - [HERMES_PROPOSAL.md](HERMES_PROPOSAL.md) — Full technical proposal
