@@ -874,6 +874,51 @@ replay's entry assumption rather than merely annotating it.
 
 ---
 
+## Second signal — first SHORT (week of 13 October 2026)
+
+    SHORT XAUUSD @ 4102.21   SL 4130.45 (28.24)   TP 4045.74 (56.47)   0.35 lots
+    NY, ATR 12.47, spread 26, volume 7994/6533.5 = 1.22x, trend DOWN (3 BOS)
+    outcome: NOT YET RESOLVED (deliberately, see below)
+
+| Check | Value |
+|---|---|
+| Sizing | 1000 / (28.24 x 100) = 0.354 -> 0.35, rounded down |
+| Planned risk | 0.35 x 28.24 x 100 = $988.40, 0.988% |
+| Stop width | 28.24 / 12.47 = 2.26x ATR against the 2.5x limit |
+| Spread | 0.26 / 28.24 = 0.9% of the stop, against 5.0% on 2 October |
+
+First qualified signal since 0g-1 went live, so its event carries the real
+scheduling delay and executable quote: the first conformance data point for
+0g-6.
+
+### It exposed a SHORT-side spread defect before it could be resolved
+
+Every spread control was LONG. The first SHORT showed that both research probes
+mirrored the long rule onto shorts (`entry - spread`, levels checked on the
+bid). A SHORT actually sells at bid, so entry costs nothing, and buys back at
+ask, so both levels trigger when the bid is **one spread below** them. The
+mirrored rule moved the stop away and the target closer -- optimistic in both
+directions. Shown on the old code against the new controls:
+
+| Case (SHORT 100 / SL 105 / TP 90, spread 0.5) | Old | Correct |
+|---|---|---|
+| bid high 104.6 (ask 105.1) | OPEN | **SL_HIT** |
+| bid low 89.8 (ask 90.3) | TP_HIT | **OPEN** |
+| realised RR | 1.727 | **2.000** |
+
+A third instance: `entry_observation` judged a SHORT's stop as crossed on the
+bid, so a quote with ask already through the stop passed as executable.
+Observation only; no live decision reads it.
+
+Fix: one definition, `entry_observation.spread_accounting`, used by both probes
+and documented below as the 0g-6 accounting rule. On this signal the correct
+figures are fill 4102.21, stop trigger at bid 4130.19, target trigger at bid
+4045.48, realised 2.000R. With a 0.26 spread the numeric difference here is
+small; on a 7-point stop it is not, and every SHORT in the replay would have
+carried it.
+
+---
+
 ## PRIORITY 0g: ENTRY TIMING AND EXECUTION CONTRACT          [NOW]
 
 **Purpose.** Prevent the replay engine from filling at a historical bar close
@@ -931,7 +976,7 @@ tick data, not assumed. M1 coverage must not be assumed to match the M15 span.
 No forward-filling across missing minutes or closures; excluded observations
 are reported with reasons.
 
-### 0g-3. Control tests first  — **COMPLETE, 9/9 passing**
+### 0g-3. Control tests first  — **COMPLETE, 14/14 passing** (3 SHORT-spread controls added 13 Oct)
 
 Constant series, known offset, adverse signs both directions, missing minute
 unavailable rather than fabricated, timestamp boundary, and target-touched-
@@ -1309,6 +1354,28 @@ A side effect worth recording: sizing used the *quoted* 7.15 stop, so realised
 risk is **1.044%**, not the intended 1.000%. Small here, and it scales with
 spread.
 
+### Accounting rule by direction — required clause of 0g-6
+
+The table above is the LONG case only. Bars are BID; the spread falls on
+whichever leg transacts at the ask. Implemented once, in
+`engine/entry_observation.spread_accounting`, and controlled in all three
+call sites.
+
+| | LONG | SHORT |
+|---|---|---|
+| Entry leg | buy at ask: fill = bid + spread | sell at bid: fill = bid |
+| Exit leg | sell at bid | buy at ask |
+| SL / TP trigger, in bid terms | at the level | at **level - spread** |
+| Spread charged | once, at entry | once, at exit |
+| Realised RR vs nominal | below | **equal** |
+| Where the cost shows | smaller reward, larger risk | stop hit sooner, target needs a deeper move |
+| Planned risk if sized on quoted stop | exceeds plan (1.044% on 2 Oct) | equals plan |
+
+Declared approximation: the exit spread is taken as the spread at signal time.
+Bars do not carry the spread prevailing when a level is reached. MT5 rates
+include a per-bar `spread` field which may reduce this error; whether it is a
+usable exit-spread proxy is a 0g-6 question, `TBD`.
+
 ### Correction to an earlier claim
 
 The rejected public repository's failure mechanism was **not** optimistic
@@ -1320,6 +1387,12 @@ the cause of that repository's headline return.
 ---
 
 ## Resume here
+
+**Current as of 13 October 2026.** 0g is the active priority: 0g-1 to 0g-5 are
+done, SHORT-side spread accounting is fixed and controlled, cron is deferred.
+Next, in order: resolve both signals with `probe_signal_outcome.py` on the VPS,
+reconcile the 7-13 October funnel and 0g-1 accumulation, then draft 0g-6. The
+material below predates 0g and remains valid for what follows it.
 
 Priority 0 is complete except 0b, which is now unblocked. **No MT5
 configuration work is needed** -- the depth question is settled.

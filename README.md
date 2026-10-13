@@ -2,9 +2,14 @@
 
 Part of **Project Olympus**. Automated XAU/USD day trading via MT5 + Python on OANDA Global.
 
-## Current Phase: Gate 0 — MT5 Stability Soak
+## Current Phase: Priority 0g — Entry Timing and Execution Contract
 
-Before any strategy code runs, we must prove MT5 connectivity is stable on Ubuntu + Wine.
+Alert-only, no capital at risk. Gate 0 soak passed; the Pullback Setup strategy
+runs every 15 minutes on closed M15 bars. Two signals to date (2 Oct LONG,
+13 Oct SHORT). 0g fixes how the replay engine prices entry: delayed decision
+time, executable quote, and spread charged on the correct leg per direction
+(`engine/entry_observation.spread_accounting`). See [ROADMAP.md](ROADMAP.md),
+section "Resume here", for live status.
 
 ## Quick Start (VPS)
 
@@ -28,9 +33,12 @@ chmod +x setup_vps.sh
 
 ```
 config/          — Settings, strategy params, news calendar
-engine/          — MT5 connector, data feed, (strategy modules later)
+engine/          — MT5 connector, data feed, strategy, risk, entry_observation (0g-1)
 alerts/          — Telegram notifications
-logs/            — Soak data, trade journal, runtime logs
+logs/            — Soak data, events.jsonl, runtime logs
+research/        — Read-only probes: signal outcome, entry timing (0g-2..0g-4)
+tests/           — Unit tests
+run_hermes.py    — Strategy cycle (alert-only)
 run_soak.py      — Gate 0: stability soak script
 setup_vps.sh     — One-time VPS setup (Wine + Xvfb + MT5 + Python)
 ```
@@ -41,6 +49,14 @@ setup_vps.sh     — One-time VPS setup (Wine + Xvfb + MT5 + Python)
 - Candle pulls and account info consistently succeed
 - Symbol specs and spread distribution confirmed
 - Server time vs VPS time drift measured
+
+## Tests and controls
+
+```bash
+python tests/test_entry_observation.py        # 27 unit tests, no MT5 needed
+python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
+python research/probe_signal_outcome.py       # self-test gates resolution of logged signals
+```
 
 ## Docs
 

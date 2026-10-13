@@ -45,6 +45,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from engine.entry_observation import spread_accounting  # noqa: E402
+
 OUT_DIR = PROJECT_ROOT / "research" / "data_feasibility"
 EVENTS = PROJECT_ROOT / "logs" / "events.jsonl"
 SYMBOL = "XAUUSD"
@@ -173,6 +175,31 @@ def resolve_from_delayed_entry(direction, entry, sl, tp, bars, entry_time,
     return out
 
 
+def compose_delay_and_spread(direction, price, sl, tp, spread_price, bars,
+                             entry_time, signal_close_time):
+    """Delayed bid entry composed with the spread on the correct side.
+
+    The outcome is resolved against bid-space trigger levels, so a SHORT's
+    stop and target both sit one spread below their quoted prices. Pre-entry
+    touches use the same triggers: a level is only reachable once the price
+    its closing order fills on has reached it.
+    """
+    lv = spread_accounting(direction, price, sl, tp, spread_price)
+    res = resolve_from_delayed_entry(direction, lv["fill"], lv["sl_trigger_bid"],
+                                     lv["tp_trigger_bid"], bars, entry_time,
+                                     signal_close_time=signal_close_time)
+    return {
+        "spread_side": lv["spread_side"],
+        "fill_with_spread": round(lv["fill"], 2),
+        "fill_sl_distance": round(lv["realised_risk"], 2),
+        "sl_trigger_bid": round(lv["sl_trigger_bid"], 2),
+        "tp_trigger_bid": round(lv["tp_trigger_bid"], 2),
+        "rr_delay_and_spread": (round(lv["realised_rr"], 3)
+                                if lv["realised_rr"] is not None else None),
+        "outcome": res,
+    }
+
+
 def pct(values):
     """Percentile summary. Returns None fields rather than raising on n<2."""
     if not values:
@@ -291,6 +318,23 @@ def controls():
     check("control_discriminates_touch_detection_still_works",
           (r4["pre_entry_tp_discarded"], r4["pre_entry_sl_discarded"]),
           (True, True))
+
+    # Spread side. A SHORT pays the spread on exit, so its realised RR is
+    # nominal and both levels trigger one spread lower in bid terms. The
+    # mirrored-long rule an earlier revision used fails every SHORT case here.
+    c = compose_delay_and_spread("SHORT", 100.0, 105.0, 90.0, 0.5,
+                                 [(60, 104.6, 99.0)], 60, 0)
+    check("short_stop_triggers_on_ask",
+          (c["outcome"]["outcome"], c["fill_with_spread"], c["rr_delay_and_spread"]),
+          ("SL_HIT", 100.0, 2.0))
+    c = compose_delay_and_spread("SHORT", 100.0, 105.0, 90.0, 0.5,
+                                 [(60, 101.0, 89.8)], 60, 0)
+    check("short_target_needs_ask_to_fill", c["outcome"]["outcome"], "OPEN")
+    c = compose_delay_and_spread("LONG", 100.0, 95.0, 110.0, 0.5,
+                                 [(60, 110.0, 99.0)], 60, 0)
+    check("long_spread_at_entry_regression",
+          (c["outcome"]["outcome"], c["fill_with_spread"], c["rr_delay_and_spread"]),
+          ("TP_HIT", 100.5, round(9.5 / 5.5, 3)))
 
     all_ok = True
     for name, ok, got, want in results:
@@ -562,27 +606,20 @@ def qualified_setups(m1_by_time, m1_rows):
                     continue
                 dr = drift(entry_q, price, direction)
                 sl_dist = abs(price - sl)
-                res = resolve_from_delayed_entry(direction, price, sl, tp,
-                                                 m1_rows, close_time + d,
-                                                 signal_close_time=close_time)
                 # Delay and spread compose; reporting either alone understates
-                # the cost. Basis is BID, so a long fills one spread above the
-                # delayed bid while SL and TP stay put.
+                # the cost. Basis is BID; which side pays the spread depends on
+                # direction, see entry_observation.spread_accounting.
                 sp = float(ev.get("spread_points") or 0) * 0.01
-                fill = price + sp if direction == "LONG" else price - sp
-                f_sl = abs(fill - sl)
                 dr.update({
                     "available": True, "delayed_entry": price,
                     "delayed_sl_distance": round(sl_dist, 2),
                     "delayed_rr": (round(abs(tp - price) / sl_dist, 3)
                                    if sl_dist else None),
                     "spread_points": ev.get("spread_points"),
-                    "fill_with_spread": round(fill, 2),
-                    "fill_sl_distance": round(f_sl, 2),
-                    "rr_delay_and_spread": (round(abs(tp - fill) / f_sl, 3)
-                                            if f_sl else None),
-                    "outcome": res,
                 })
+                dr.update(compose_delay_and_spread(
+                    direction, price, sl, tp, sp, m1_rows, close_time + d,
+                    close_time))
                 rec["delays"][name] = dr
             out.append(rec)
     return out

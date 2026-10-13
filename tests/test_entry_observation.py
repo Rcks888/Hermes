@@ -175,6 +175,76 @@ def test_no_pre_entry_touch_counts_as_an_outcome():
     assert r["execution_validity_status"] == "original_sl_already_crossed"
 
 
+SHORT = {"direction": "SHORT", "entry": 4180.89, "sl": 4188.04,
+         "tp": 4166.59, "sl_distance": 7.15, "symbol": "XAUUSD"}
+
+
+def test_short_stop_crossed_is_judged_on_ask():
+    """A SHORT closes by buying, so its stop fills on the ask.
+
+    Bid 4187.80 is below the 4188.04 stop but ask 4188.16 is above it: the
+    position would be stopped on arrival. Judging on the bid, as an earlier
+    revision did, passed this as executable.
+    """
+    r = eo.propose_execution(SHORT, quote(4187.80, 4188.16), BAL, PARAMS, SYM)
+    assert r["execution_validity_status"] == "original_sl_already_crossed", r
+    assert "ask=" in r["execution_validity_detail"]
+
+
+def test_long_stop_crossed_still_judged_on_bid():
+    """Regression: the LONG rule must not move with the SHORT fix."""
+    r = eo.propose_execution(SIGNAL, quote(4173.70, 4174.06), BAL, PARAMS, SYM)
+    assert r["execution_validity_status"] == "original_sl_already_crossed", r
+    assert "bid=" in r["execution_validity_detail"]
+
+
+def test_short_sizes_from_bid_to_stop():
+    """A SHORT fills at bid and its stop fills at ask = SL, so risk = SL - bid."""
+    r = eo.propose_execution(SHORT, quote(4181.17, 4181.53), BAL, PARAMS, SYM)
+    assert r["proposed_executable_entry"] == 4181.17
+    assert r["executable_sl_distance"] == 6.87
+    # 1000 / (6.87 * 100) = 1.4556 -> rounds DOWN to 1.45
+    assert r["proposed_volume"] == 1.45
+    assert r["planned_stop_loss_cash"] <= 1000.0
+
+
+def test_spread_accounting_short_pays_on_exit():
+    """13 October signal: realised RR is nominal, triggers sit one spread low."""
+    lv = eo.spread_accounting("SHORT", 4102.21, 4130.45, 4045.74, 0.26)
+    assert lv["spread_side"] == "exit"
+    assert lv["fill"] == 4102.21
+    assert abs(lv["sl_trigger_bid"] - 4130.19) < 1e-9
+    assert abs(lv["tp_trigger_bid"] - 4045.48) < 1e-9
+    assert abs(lv["realised_risk"] - 28.24) < 1e-9
+    assert abs(lv["realised_rr"] - 56.47 / 28.24) < 1e-9
+
+
+def test_spread_accounting_long_pays_on_entry():
+    """2 October signal: the recorded 1.856R must be reproduced exactly."""
+    lv = eo.spread_accounting("LONG", 4180.89, 4173.74, 4195.19, 0.36)
+    assert lv["spread_side"] == "entry"
+    assert abs(lv["fill"] - 4181.25) < 1e-9
+    assert (lv["sl_trigger_bid"], lv["tp_trigger_bid"]) == (4173.74, 4195.19)
+    assert round(lv["realised_rr"], 3) == 1.856
+
+
+def test_spread_accounting_is_not_the_mirrored_long_rule():
+    """The defect being fixed: SHORT as entry - spread with bid triggers."""
+    lv = eo.spread_accounting("SHORT", 100.0, 105.0, 90.0, 0.5)
+    mirrored_rr = (99.5 - 90.0) / (105.0 - 99.5)
+    assert lv["realised_rr"] == 2.0
+    assert abs(lv["realised_rr"] - mirrored_rr) > 0.2
+
+
+def test_spread_accounting_rejects_bad_input():
+    for args in (("FLAT", 100, 95, 110, 0.5), ("LONG", 100, 95, 110, -0.1)):
+        try:
+            eo.spread_accounting(*args)
+        except ValueError:
+            continue
+        raise AssertionError(f"accepted {args}")
+
+
 if __name__ == "__main__":
     fails = 0
     for name, fn in sorted(globals().items()):

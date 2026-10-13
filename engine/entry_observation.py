@@ -67,6 +67,58 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def spread_accounting(direction, ref_bid, sl, tp, spread_price):
+    """Fill price, bid-space trigger levels and realised distances.
+
+    Bars and signal prices are BID. The spread is paid on the side of the trade
+    that transacts at the ask, and that side differs by direction:
+
+        LONG   opens by buying at ask   -> fill = bid + spread
+               closes by selling at bid -> SL/TP trigger on bid at their levels
+        SHORT  opens by selling at bid  -> fill = bid, no entry charge
+               closes by buying at ask  -> SL/TP trigger when ask reaches the
+               level, i.e. when bid reaches level - spread
+
+    Realised P&L is always exit price minus fill. For a LONG the spread shrinks
+    reward and grows risk, so realised RR falls below nominal. For a SHORT the
+    realised distances equal the nominal ones and RR is unchanged; the cost
+    appears instead as a stop that triggers one spread sooner and a target that
+    needs a move one spread deeper.
+
+    An earlier revision of both research probes treated a SHORT as
+    `entry - spread` with triggers on the bid, mirroring the LONG rule. That
+    moves the stop away and the target closer, the opposite of reality. It went
+    unnoticed because every control used LONG spread cases.
+
+    The exit spread is assumed equal to the spread at signal time. Bars do not
+    carry the spread prevailing at the moment a level is reached; that is a
+    declared approximation, not a measurement.
+    """
+    s = float(spread_price or 0.0)
+    if s < 0:
+        raise ValueError(f"negative spread {s}")
+    ref_bid, sl, tp = float(ref_bid), float(sl), float(tp)
+    if direction == "LONG":
+        fill = ref_bid + s
+        sl_trigger, tp_trigger = sl, tp
+        risk, reward = fill - sl, tp - fill
+    elif direction == "SHORT":
+        fill = ref_bid
+        sl_trigger, tp_trigger = sl - s, tp - s
+        risk, reward = sl - fill, fill - tp
+    else:
+        raise ValueError(f"unknown direction {direction!r}")
+    return {
+        "fill": fill,
+        "sl_trigger_bid": sl_trigger,
+        "tp_trigger_bid": tp_trigger,
+        "realised_risk": risk,
+        "realised_reward": reward,
+        "realised_rr": (reward / risk) if risk > 0 else None,
+        "spread_side": "entry" if direction == "LONG" else "exit",
+    }
+
+
 class Stopwatch:
     """Monotonic for elapsed durations, UTC wall clock for reconciliation.
 
@@ -262,14 +314,19 @@ def propose_execution(signal, quote, account_balance, params, symbol_info,
 
     sl, tp = float(original_sl), float(original_tp)
 
-    # The stop is evaluated on the bid for a long. If the bid has already
-    # reached it, the opportunity is gone rather than merely degraded.
-    if (bid <= sl) if long else (bid >= sl):
+    # A level is crossed when the price series its closing order triggers on
+    # has reached it: bid for a LONG (closes by selling), ask for a SHORT
+    # (closes by buying). A SHORT whose ask is already at its stop would be
+    # stopped out on arrival; checking the bid misses that by one spread. Cases
+    # where only the entry side is beyond a level fall to the band check.
+    trig = bid if long else ask
+    side = "bid" if long else "ask"
+    if (trig <= sl) if long else (trig >= sl):
         return fail("original_sl_already_crossed",
-                    f"bid={bid} vs original_sl={sl}")
-    if (bid >= tp) if long else (bid <= tp):
+                    f"{side}={trig} vs original_sl={sl}")
+    if (trig >= tp) if long else (trig <= tp):
         return fail("original_tp_already_crossed",
-                    f"bid={bid} vs original_tp={tp}")
+                    f"{side}={trig} vs original_tp={tp}")
     if not ((sl < entry < tp) if long else (tp < entry < sl)):
         return fail("entry_outside_sl_tp_band",
                     f"entry={entry} not between sl={sl} and tp={tp}")

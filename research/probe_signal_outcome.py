@@ -14,11 +14,18 @@ AMBIGUOUS and, where a single outcome is needed, resolved as the stop. That is
 the conservative direction and it must stay conservative: a replay engine that
 breaks ties optimistically will show a profitable strategy that does not exist.
 
-Bar data is bid. A long is filled at ask, so the real entry sits one spread
-above the quoted figure while the stop does not move. On this signal the spread
-was 36 points against a 7.15 stop, so it consumes 5% of the risk and shrinks
-the realised reward below the nominal 2.0R. Both raw and spread-adjusted
-figures are reported, because the raw one flatters the strategy.
+Bar data is bid, and the spread falls on whichever side transacts at the ask.
+A long buys at ask on entry, so its fill sits one spread above the quoted
+figure while SL and TP trigger on the bid at their levels; on 2 October that
+was 36 points against a 7.15 stop, 5% of risk, giving 1.856R. A short sells at
+bid on entry and buys at ask on exit, so its realised distances are nominal but
+both levels trigger when the bid is one spread below them: the stop comes
+sooner and the target needs a deeper move. The rule lives in
+entry_observation.spread_accounting; an earlier revision here mirrored the long
+rule onto shorts, which moved the stop away and the target closer.
+
+Both raw and spread-adjusted figures are reported, because the raw one flatters
+the strategy.
 """
 import json
 import sys
@@ -29,6 +36,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from engine import mt5_connector, data_feed  # noqa: E402
+from engine.entry_observation import spread_accounting  # noqa: E402
 from engine.version import get_code_version  # noqa: E402
 
 EVENTS = PROJECT_ROOT / "logs" / "events.jsonl"
@@ -73,6 +81,14 @@ def resolve(direction, entry, sl, tp, bars):
     return out
 
 
+def resolve_with_spread(direction, entry, sl, tp, bars, spread_px):
+    """Resolve on bid bars with the spread on the correct side of the trade."""
+    lv = spread_accounting(direction, entry, sl, tp, spread_px)
+    adj = resolve(direction, lv["fill"], lv["sl_trigger_bid"],
+                  lv["tp_trigger_bid"], bars)
+    return adj, lv
+
+
 def selftest():
     """Prove the resolver detects each outcome before trusting it on real bars.
 
@@ -102,6 +118,31 @@ def selftest():
         flag = "PASS" if good else "FAIL"
         print(f"  {flag}  {name:12} -> {got['outcome']}"
               f"{' AMBIGUOUS' if got['ambiguous'] else ''}")
+
+    # Spread composition. Every case here discriminates: the mirrored-long
+    # rule an earlier revision used gives a different answer on each SHORT.
+    spread_cases = [
+        # SHORT: bid high 104.6 means ask 105.1, so the 105 stop has filled.
+        ("SHORT sl on ask", "SHORT", 100.0, 105.0, 90.0, 0.5,
+         [("t1", 104.6, 99.0)], "SL_HIT", 2.0),
+        # SHORT: bid low 89.8 means ask 90.3, so the 90 target has NOT filled.
+        ("SHORT tp needs ask", "SHORT", 100.0, 105.0, 90.0, 0.5,
+         [("t1", 101.0, 89.8)], "OPEN", 2.0),
+        ("SHORT tp on ask", "SHORT", 100.0, 105.0, 90.0, 0.5,
+         [("t1", 101.0, 89.4)], "TP_HIT", 2.0),
+        # LONG regression: fill at ask, triggers on bid, RR below nominal.
+        ("LONG sl on bid", "LONG", 100.0, 95.0, 110.0, 0.5,
+         [("t1", 101.0, 95.0)], "SL_HIT", 9.5 / 5.5),
+        ("LONG tp on bid", "LONG", 100.0, 95.0, 110.0, 0.5,
+         [("t1", 110.0, 99.0)], "TP_HIT", 9.5 / 5.5),
+    ]
+    for name, d, e, sl, tp, s, bars, want, want_rr in spread_cases:
+        got, lv = resolve_with_spread(d, e, sl, tp, bars, s)
+        good = (got["outcome"] == want
+                and abs(lv["realised_rr"] - want_rr) < 1e-9)
+        ok &= good
+        print(f"  {'PASS' if good else 'FAIL'}  {name:18} -> {got['outcome']}"
+              f"  rr {lv['realised_rr']:.3f}")
     return ok
 
 
@@ -164,15 +205,12 @@ def main():
 
         raw = resolve(direction, entry, sl, tp, bars)
 
-        # Spread-adjusted: long fills at ask, short at bid.
         spread_px = float(e.get("spread_points") or 0) * POINT
-        entry_adj = entry + spread_px if direction == "LONG" else entry - spread_px
-        adj = resolve(direction, entry_adj, sl, tp, bars)
+        adj, lv = resolve_with_spread(direction, entry, sl, tp, bars, spread_px)
 
         sl_dist_raw = abs(entry - sl)
-        sl_dist_adj = abs(entry_adj - sl)
-        tp_dist_adj = abs(tp - entry_adj)
-        realised_r = round(tp_dist_adj / sl_dist_adj, 3) if sl_dist_adj else None
+        realised_r = (round(lv["realised_rr"], 3)
+                      if lv["realised_rr"] is not None else None)
 
         row = {
             "ts": e.get("ts"), "bar_time": bar_time, "direction": direction,
@@ -189,6 +227,10 @@ def main():
             "spread_cost_pct_of_risk": (round(100 * spread_px / sl_dist_raw, 1)
                                         if sl_dist_raw else None),
             "realised_rr_after_spread": realised_r,
+            "spread_side": lv["spread_side"],
+            "fill": round(lv["fill"], 2),
+            "sl_trigger_bid": round(lv["sl_trigger_bid"], 2),
+            "tp_trigger_bid": round(lv["tp_trigger_bid"], 2),
             "raw": raw, "spread_adjusted": adj,
         }
         rows.append(row)
