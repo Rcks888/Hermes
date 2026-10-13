@@ -1373,7 +1373,14 @@ and consumes a preregistered strategy-change attempt.
 
 ### 0g-6. Freeze the Athena execution contract
 
-Entry occurs at the simulated decision/quote time, never automatically at the
+**Drafted 13 October as [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md), `ec-0.1`,
+under review.** The contract supersedes the outline below wherever they differ.
+It surfaced three hazards that change the plan: the server offset is not a
+constant across DST (H1), `MaxBars` very probably caps M1 at about 72 trading
+days, which reopens the earlier decision not to raise it (H2), and the live
+daily-loss and open-position gates are inert in alert-only mode (H3).
+
+Original outline: entry occurs at the simulated decision/quote time, never automatically at the
 signal-bar close. Spread and slippage applied consistently and **not charged
 twice**. Exits evaluated only after entry. Where SL/TP ordering is unresolved:
 apply the registered conservative rule, flag `AMBIGUOUS`, and report ambiguity
@@ -1432,9 +1439,10 @@ call sites.
 | Planned risk if sized on quoted stop | exceeds plan (1.044% on 2 Oct) | equals plan |
 
 Declared approximation: the exit spread is taken as the spread at signal time.
-Bars do not carry the spread prevailing when a level is reached. MT5 rates
-include a per-bar `spread` field which may reduce this error; whether it is a
-usable exit-spread proxy is a 0g-6 question, `TBD`.
+Bars do not carry the spread prevailing when a level is reached. An earlier
+version of this note suggested the per-bar MT5 `spread` field might refine
+it; that contradicts 0a, where bar spread understates live by 3.5x, and is
+withdrawn (EXECUTION_CONTRACT.md C3.5, H5).
 
 ### Correction to an earlier claim
 

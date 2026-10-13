@@ -102,6 +102,10 @@ def main():
     notes = collections.Counter(e.get("scheduling_delay_note") for e in cycles
                                 if e.get("scheduling_delay_note"))
     print(f"  suspect delay notes: {dict(notes) if notes else 'none'}")
+    offsets = collections.Counter(round(e["server_offset_seconds"] / 3600.0, 1) for e in cycles
+                                  if isinstance(e.get("server_offset_seconds"), (int, float)))
+    print(f"  server offset, hours (EXECUTION_CONTRACT H1, watch for a DST change): "
+          f"{dict(sorted(offsets.items())) if offsets else 'none recorded'}")
     quotes = [e["quote"] for e in cycles if isinstance(e.get("quote"), dict)]
     ok = [q for q in quotes if not q.get("quote_error")]
     lat = sorted(q["quote_latency_ms"] for q in ok

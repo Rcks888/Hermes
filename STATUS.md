@@ -19,7 +19,7 @@ live execution.
 ✔ P0      0a 0c 0d 0e 0f prerequisites  30 Sep
 ✔ Fix     closed-bar evaluation cf4e3d4 30 Sep -> first signal 2 Oct
 ▶ 0g      entry timing + execution contract
-            0g-1..0g-5 done; 0g-6 draft -> review -> freeze     <- HERE
+            0g-1..0g-5 done; 0g-6 ec-0.1 drafted, in review     <- HERE
 ◻ 0b      preregister success criteria, folds, sealed holdout
 ◻ Data    M15 history CSV export, Wine side (hard gate on replay)
 ◻ Replay  purpose-built M15 delayed-entry engine
@@ -37,10 +37,10 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 | Sep 21 – Sep 25 | observe | observation only, zero signals | — |
 | Sep 28 – Oct 2 | two-week review; vacation from Oct 1 | 30 Sep: forming-bar root cause fixed (`cf4e3d4`), 10x oversizing fixed (`495e078`), ROADMAP, P0 0c/0d/0e/0f done. 2 Oct: first signal, LONG, TP_HIT | — |
 | Oct 5 – Oct 9 | vacation; resume 7 Oct | 7 Oct: 0g opened, 0g-1 to 0g-5 done, three own bugs caught by guards and controls, cron change deferred. Second signal 7 Oct, SHORT, SL_HIT | unplanned: 0g promoted ahead of the replay |
-| Oct 12 – Oct 16 | catch-up funnel; 0g-6 draft -> review -> freeze | 13 Oct: SHORT-side spread defect fixed (`3fdef54`), both signals resolved, first live conformance point, STATUS and weekly checkpoint added | |
-| Oct 19 – Oct 23 | 0b preregistration; M15 CSV export and validation | | |
+| Oct 12 – Oct 16 | catch-up funnel; 0g-6 draft -> review -> freeze | 13 Oct: SHORT-side spread defect fixed (`3fdef54`), both signals resolved, first live conformance point, STATUS and weekly checkpoint added, 0g-6 drafted as `EXECUTION_CONTRACT.md` ec-0.1 | drafting found H1-H3, which add work to the weeks of Oct 19 and Oct 26 |
+| Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | | M1 added by the contract |
 | Oct 26 – Oct 30 | replay engine build, controls first | | |
-| Nov 2 – Nov 6 | replay engine finish; Level 2 conformance | | |
+| Nov 2 – Nov 6 | replay engine finish; Level 2 and Level E conformance; server-offset rule from the DST change (TBD-1) | | |
 | Nov 9 onward | rule-only baseline on development folds -> P1 gate | | no date for the P1 verdict until the baseline exists |
 
 ## Signals to date
@@ -83,6 +83,10 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
 
 ## Known open items
 
+- **Server offset across DST (contract H1).** Watch `server_offset_seconds` in
+  the weekly checkpoint around 25 Oct and 1 Nov.
+- **M1 depth (contract H2).** `MaxBars` very probably caps M1 at about 72
+  trading days; a 4-year replay needs it raised or read Wine-side.
 - 7–13 October funnel reconciliation: `weekly_checkpoint.py` not yet run on the VPS.
 - The live alert sizes from the signal-close stop, not the executable entry.
   The 0g-5 resize is logged as an observation only.
