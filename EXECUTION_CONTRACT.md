@@ -101,6 +101,13 @@ points, quote bid and ask, `propose_execution` output in full, trigger levels,
 pre-entry touches, outcome, exit time and price, AMBIGUOUS flag, gap flag,
 realised R, cash, rollover crossings, and M1 availability.
 
+Records conform to the 0d schema in `engine/research_schema.py`. Population C
+rows carry `outcome_type` **`ACTUAL_SIMULATED`** and an exit reason from
+`EXIT_REASONS`; V1 uses only `TP_HIT`, `SL_HIT` and `OPEN`, with ambiguity and
+gap fills as flags, not new reasons. Rejected setups tracked for research are
+`COUNTERFACTUAL_DIAGNOSTIC` and never enter a performance metric. The fields
+above that 0d lacks are added as a versioned schema change, not ad hoc keys.
+
 ## 8. Conformance
 
 Levels 1-4 as defined in ROADMAP, run in CONFORMANCE mode. 0g-6 adds
