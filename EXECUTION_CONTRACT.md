@@ -1,7 +1,7 @@
 # Hermes execution contract (0g-6)
 
-**Version `ec-0.1r2` — DRAFT, 2026-10-13.** Structure under review. Revision 2
-answers the first review (verdict HOLD); every finding and the clause that
+**Version `ec-0.1r3` — DRAFT, 2026-10-13.** Structure under review. Revisions 2
+and 3 answer reviews 1 and 2 (both HOLD); every finding and the clause that
 closes it is in §14. Values marked `TBD` are deliberately unset and each has a
 named resolution path (§11).
 
@@ -38,7 +38,7 @@ parameter. A result without the full identity is not a result.
 | C2.2 | Session = `run_hermes.get_session_tag(utc_hour(D))`, imported. The probe-local `session_of()` is **not** used; it disagrees by one hour at three boundaries (table below). |
 | C2.3 | The spread filter (`max_spread_points` 50) is applied to the **spread-model draw** (§3), in points. Never to bar spread. |
 | C2.4 | Two modes, never mixed in one report. **CONFORMANCE** reproduces live alert-only state: no open positions and a daily loss count of zero, because live never records outcomes (`trades.json` `outcome: null`) and never holds positions (hazard H3). Used for §8. **SIMULATION** enforces `max_open_trades` 1 from simulated open trades and `daily_loss_limit` 3 losses per **server-clock date**. Performance metrics come from SIMULATION only. |
-| C2.5 | **Event ordering in SIMULATION.** A trade's exit time `X` is the close (`open + 60`) of the M1 bar it resolves in; for a gap exit, the close of the gap bar. At a new setup's entry instant E: (a) a trade **frees the slot** iff `X <= E`; (b) the daily loss count is the number of losses with `X <= E` whose `X` falls on the **server date of E**. A loss belongs to its **exit** date, the day it is realised. A loss is `SL_HIT`, or `PATH_UNKNOWN` (C5.8), which is counted conservatively and frees the slot at the close of the M15 bar where the path became unknown. Exits are therefore always applied before a decision at the same instant. Live `_daily_loss_count` keys on the signal bar date instead; that deviation is recorded and stays moot while the live gate is inert (H3). |
+| C2.5 | **Event ordering in SIMULATION.** A trade's exit time `X` is the close (`open + 60`) of the M1 bar it resolves in; for a gap exit, the close of the gap bar. At a new setup's entry instant E: (a) a trade **frees the slot** iff `X <= E`; (b) the daily loss count is the number of losses with `X <= E` whose `X` falls on the **server date of E**. A loss belongs to its **exit** date, the day it is realised. A loss is `SL_HIT`, gap stops included. A `PATH_UNKNOWN` trade (C5.8) follows the scenario in force (C5.9), which fixes its exit time, price, slot release and loss count from one instant. Exits are therefore always applied before a decision at the same instant. Live `_daily_loss_count` keys on the signal bar date instead; that deviation is recorded and stays moot while the live gate is inert (H3). |
 
 Session boundaries, UTC:
 
@@ -83,8 +83,10 @@ Probe session splits in earlier evidence remain indicative only.
 | C5.3 | SL and TP both inside one M1 bar resolves to **SL, flagged AMBIGUOUS**. Ambiguity count and an optimistic-ordering sensitivity are reported separately, never folded into the headline. |
 | C5.4 | **Gaps.** Applies between consecutive observed M1 bars with no hole between them (C1.8), including across a closure. A bar opening beyond the SL trigger exits at that open, so a loss can exceed 1R. A bar opening beyond the TP trigger exits at the TP level; no positive slippage is credited. |
 | C5.5 | No time stop and no management (V1 is fixed SL/TP). Trades may span sessions, days and weekends. |
-| C5.6 | **Data end.** A trade unresolved at the last M1 bar of the snapshot is `OPEN`, marked to market at that bar's close on its closing leg (C5.7), giving `mtm_R`. **Closed-trade statistics** (expectancy, win rate, profit factor, R distribution) use resolved trades only. **Portfolio statistics** (total R, equity curve, maximum drawdown) include `OPEN` at `mtm_R`. Both are reported, with the `OPEN` count; with `max_open_trades` 1 there is at most one. |
-| C5.8 | **Holes after entry.** For each M15 bar during the trade that contains a hole: if the trade is not already resolved by an observed minute **before** the bar's first hole, and the M15 bid range reaches either trigger, the outcome is **`PATH_UNKNOWN`**, flag `m1_hole`, and resolution stops. If the M15 range reaches neither trigger, nothing in that bar touched one, and resolution continues with the hole counted. A whole missing M15 bar in scheduled time leaves no range, so an unresolved trade becomes `PATH_UNKNOWN`. `PATH_UNKNOWN` is excluded from closed-trade statistics and reported with two bounds: **adverse**, SL with the gap rule applied at the first observed open after the hole; **favourable**, TP. Portfolio statistics use the adverse bound. |
+| C5.6 | **Data end.** A trade unresolved at the last M1 bar of the snapshot is `OPEN`; its floating R at that bar's mark (C5.10) is `mtm_R`. **Closed-trade statistics** (expectancy, win rate, profit factor, R distribution) use resolved trades only. **Portfolio statistics** (total R, maximum drawdown) come from the equity curve of C5.10, which carries every open trade's floating R throughout the run, not only at data end. Both are reported, with the `OPEN` count; with `max_open_trades` 1 there is at most one. |
+| C5.8 | **Holes after entry.** `PATH_UNKNOWN` means a trigger touch inside a hole **cannot be excluded**; it does not assert that one occurred. **Declared assumption:** the exported M15 bar is a valid envelope of its minutes, holes included, wherever C6.3(b) does not refute it. For each M15 bar during the trade that contains a hole, if the trade is not resolved by an observed minute before the bar's first hole: (a) a whole missing M15 bar, or one that is envelope-invalid under C6.3(b), gives `PATH_UNKNOWN`; (b) otherwise, an M15 bid range reaching either trigger gives `PATH_UNKNOWN`; (c) otherwise nothing in that bar touched a trigger, and resolution continues with the hole counted. In the M15 bar containing E, the range includes pre-entry prices, so (b) can fire on a pre-entry touch alone; such cases are flagged `m1_hole_entry_bar` and counted separately. Let `H` be the open time of the first missing minute that made the trade unknown. `PATH_UNKNOWN` trades are excluded from closed-trade statistics in every scenario. **No bound on their R is claimed:** the price inside a hole is unobserved, so a stop fill there could be worse than any value the data supply. |
+| C5.9 | **`PATH_UNKNOWN` scenarios.** The portfolio is computed as three complete paths. Each applies one rule to every `PATH_UNKNOWN` trade, and each is internally consistent. **S (stop):** exit at the SL trigger level, -1R with no gap assumed, at `X = H + 60`; it counts as a loss on the server date of X and frees the slot at X. **T (target):** exit at the TP level at `X = H + 60`, freeing the slot at X. **C (continue):** the hole is taken to contain no touch, and resolution continues on observed data by C5.1-C5.5, holding the slot meanwhile. The first observed bar after the hole is treated as directly following the last observed bar before it, so C5.4 applies to it. In S and T, exit price and accounting time come from the same instant, so no later observation is used for an earlier event. **None of the three is a bound.** Mixed fates across trades are not enumerated, and the true loss in S can exceed 1R. The SIMULATION portfolio headline is S, labelled as a scenario. **P1 requirement:** `PATH_UNKNOWN` at most **1%** of population C, and the P1 verdict identical under S, T and C. Otherwise P1 is undecidable on this data and the result is HOLD. |
+| C5.10 | **Equity curve**, in R: cumulative realised R plus the floating R of the open trade. It is marked at the close of every observed M1 bar while a trade is open, on its closing leg (C5.7: bid for LONG; bid plus entry spread for SHORT), and at each exit. Floating losses before an eventual TP are therefore included. A hole minute or a closure has no mark: the curve steps from the last observed mark to the next, and the count of unmarked expected minutes is reported. **Maximum drawdown** is computed on these marks. Sensitivity: intraminute-adverse marks (M1 low for LONG; M1 high plus spread for SHORT) are reported beside it. |
 | C5.7 | **Realised R** = `(exit - fill) / (fill - SL)` for LONG and `(fill - exit) / (SL - fill)` for SHORT, where `exit` is the price on the closing leg: bid for LONG, `bid + spread` for SHORT. A clean stop is exactly -1R in both directions. |
 
 ## 6. Data dependencies
@@ -93,7 +95,7 @@ Probe session splits in earlier evidence remain indicative only.
 |---|---|
 | C6.1 | M15: 2022-06-23 to present, about 100,000 bars, exported Wine-side to CSV, snapshot-hashed. |
 | C6.2 | **M1 over the same span is required** by C1.6 and §5. Whether the server holds M1 that far back is **unknown**, and `MaxBars=100000` very probably caps the client at about 72 trading days in any case (hazard H2). Resolution `TBD-2`. If M1 is available for a shorter span only, the replay span is the M1 span and the P1 sample shrinks accordingly; that is reported, never padded. **No silent M15 fallback**: any run without M1 is labelled `M15_APPROX` and excluded from the P1 gate. Missing M1 inside an otherwise covered span is handled by C1.6 at entry and C5.8 after it. |
-| C6.3 | Control: M15 OHLC rebuilt from M1 must equal the exported M15 bars over the full span. Mismatches are listed, not tolerated. |
+| C6.3 | **M15 export against M1**, two checks with different scope. **(a) Complete bars**, every expected minute present: M15 OHLC rebuilt from M1 must equal the export. Mismatches are listed and reviewed before `ec-1.0`. The strategy always uses the exported M15, as live does; exits always use M1. **(b) Bars with holes**, envelope check: every observed M1 high is at most the M15 high and every observed low at least the M15 low; the M15 open equals the first minute's open, and the close the last minute's close, where those minutes are observed. A bar failing (b) is **envelope-invalid**, and C5.8 treats it as having no usable range. Counts of (a) mismatches and (b) failures are reported. |
 
 ## 7. Populations and per-opportunity record
 
@@ -105,7 +107,7 @@ D and E in server and UTC; offset applied), mode, delay, session, spread draw
 `u` and points, quote bid and ask, `propose_execution` output in full, margin
 check, trigger levels, pre-entry touches, outcome, exit time X and price,
 AMBIGUOUS, gap and `m1_hole` flags, hole count, realised R (or `mtm_R`, or both
-`PATH_UNKNOWN` bounds), cash, rollover crossings, and M1 availability.
+`PATH_UNKNOWN` S/T/C scenario values), `H`, cash, rollover crossings, and M1 availability.
 
 Records conform to the 0d schema in `engine/research_schema.py`. Population C
 rows carry `outcome_type` **`ACTUAL_SIMULATED`** and an exit reason from
@@ -124,15 +126,15 @@ which is not, because the replay's bid is an M1 open and its spread is a draw.
 
 | # | Kind | Check | Pass rule |
 |---|---|---|---|
-| E0 | function parity | The live logged quote, logged signal and the balance are passed to `propose_execution` with the C4.4 margin calculator | **every** logged execution field equal, including status and `required_margin`. First point (7 Oct): all fields equal |
+| E0 | function parity | On every **E0-eligible** cycle, the live logged quote, logged signal and the balance are passed to `propose_execution` with the C4.4 margin calculator. A signal cycle is E0-eligible iff its event carries the 0g-1 execution fields. Eligibility starts at the first such event; a later signal cycle lacking them **fails** E0, it is not exempt. The 2 Oct signal predates 0g-1 and is ineligible, and it is listed as ineligible in every conformance report | **every** logged execution field equal, including status and `required_margin`. First eligible point (7 Oct): all fields equal |
 | E1 | model agreement | Decision instant: replay E at baseline delay vs live `bar_close + scheduling_delay_seconds` | `abs(diff) <= 60 s` |
 | E2 | model agreement | Price: replay bid at E vs live `quote_bid` | difference distribution reported; tolerance `TBD-4`, frozen before any replay result. First point: 0.18 |
-| E3 | model agreement | `execution_validity_status` on signal cycles, replay inputs vs live | agreement rate reported. Each disagreement is **attributed** by re-running with one input swapped at a time: live bid with model spread, then proxy bid with live spread. A disagreement that one swap removes is explained by that input |
+| E3 | model agreement | `execution_validity_status` on signal cycles, replay inputs vs live | agreement rate reported. Each disagreement is **attributed** by re-running with one input swapped at a time: live bid with model spread, then proxy bid with live spread. A disagreement that one swap removes is attributed to that input. One that needs both swaps is **`E3_UNATTRIBUTED`**: it may reflect a bid-spread interaction, which this gate deliberately does not accept |
 | E4 | model agreement | Spread: model distribution vs live decision-time `quote_spread_price` by session | distributional only, because the draw is synthetic |
 
 **REPLAY NOT CONFORMANT, historical performance reporting prohibited**, on any
 of: a Level 1-4 mismatch; any E0 field mismatch; an E1 or E2 breach (E2 once
-`TBD-4` is frozen); an E3 disagreement that no single-input swap explains.
+`TBD-4` is frozen); any `E3_UNATTRIBUTED`.
 
 ## 9. Contract tests (preregistered)
 
@@ -154,10 +156,15 @@ variant**, demonstrated once, as 0g-3 did.
 13. M15 rebuilt from M1 matches the M15 export (C6.3).
 14. Function parity E0: the 7 Oct logged quote reproduces every logged execution field, including `required_margin` 1642.26. (The 2 Oct signal predates 0g-1 and has no fields to compare.)
 15. A fractional delay (484.978 s) gives E at the next whole minute; the pre-entry window ends at E and no minute is both pre- and post-entry.
-16. A hole inside a trade: harmless when the M15 range reaches neither trigger, `PATH_UNKNOWN` with both bounds when it does, and `PATH_UNKNOWN` for a whole missing M15 bar.
+16. A hole inside a trade: harmless when the M15 range reaches neither trigger; `PATH_UNKNOWN` when it does; `PATH_UNKNOWN` for a whole missing M15 bar; and `m1_hole_entry_bar` when only a pre-entry minute of the entry bar touched.
 17. A constructed stop tight enough that `required_margin` exceeds the balance gives `margin_insufficient`, recorded in B, never C.
-18. A trade unresolved at data end is `OPEN` with `mtm_R`, excluded from closed-trade statistics and included in drawdown.
+18. A trade unresolved at data end is `OPEN` with `mtm_R`, excluded from closed-trade statistics; a trade whose floating loss reaches -0.8R on a minute close before it hits TP shows that drawdown on the C5.10 curve.
 19. Ordering: an exit with `X = E` frees the slot for the decision at E, and a loss is counted on the server date of X, not of entry.
+20. An observed M1 high above its M15 high in a bar with a hole makes the bar envelope-invalid, and an unresolved trade there becomes `PATH_UNKNOWN`.
+21. Scenario chronology: under S and T, a `PATH_UNKNOWN` trade exits at `H + 60`, frees the slot then, and S counts the loss on that date; no price observed after H enters either. Under C, the slot stays held.
+22. Equity marks: the closing-leg mark is used at every observed minute close, no mark is made in a hole, and the unmarked count is reported.
+23. E0 eligibility: a signal cycle without execution fields before the first eligible event is listed as ineligible; one after it fails E0.
+24. P1 invariance: a constructed run where S and T reach different P1 verdicts reports HOLD; a run exceeding 1% `PATH_UNKNOWN` reports HOLD.
 
 ## 10. Decisions for review
 
@@ -168,8 +175,8 @@ variant**, demonstrated once, as 0g-3 did.
 | D3 | Gap fills | Stop at gap open; target at level; only between observed bars with no hole (C5.4) | Filling stops at the level understates weekend risk; crediting target gaps is optimistic |
 | D4 | SIMULATION day boundary | Server-clock date; a loss belongs to its exit date; exits before decisions at the same instant (C2.5) | UTC date; the live code compares a server-clock bar date to a UTC date, so neither matches it, and server date is consistent with VWAP |
 | D5 | Swap | Not modelled; rollover count and a current-rate estimate reported, labelled as not a bound (C3.7) | Modelling it now needs per-date swap history the broker does not supply |
-| D6 | Capital | Fixed $100,000, non-compounding, R as unit; margin modelled and checked (C4.4); `OPEN` marked to market in portfolio statistics (C5.6) | Compounding makes results path-dependent and hides per-trade expectancy |
-| D7 | Missing M1 | No silent fallback; `M15_APPROX` label, excluded from P1; holes after entry give `PATH_UNKNOWN` with bounds (C5.8) | Silently approximating entry on M15 would reintroduce exactly what 0g exists to prevent |
+| D6 | Capital | Fixed $100,000, non-compounding, R as unit; margin modelled and checked (C4.4); equity marked at every observed M1 close (C5.10) | Compounding makes results path-dependent and hides per-trade expectancy |
+| D7 | Missing M1 | No silent fallback; `M15_APPROX` label, excluded from P1; holes after entry give `PATH_UNKNOWN`, three declared scenarios S/T/C, P1 must agree under all three (C5.8, C5.9) | Silently approximating entry on M15 would reintroduce exactly what 0g exists to prevent |
 
 ## 11. Open values
 
@@ -198,8 +205,10 @@ variant**, demonstrated once, as 0g-3 did.
   reason recorded.
 - **`ec-1.0`** requires all of: TBD-1 to TBD-5 resolved and frozen; every §9
   test passing and shown once to fail on its broken variant; E0 passing on
-  every live signal cycle to date; the C6.3 control run on the replay span
-  with its mismatch list recorded; and the TBD-3 spread artefact hashed.
+  every **E0-eligible** live signal cycle to date, with ineligible cycles
+  listed (§8); both C6.3 checks run on the replay span, with the (a) mismatch
+  list reviewed and the (b) failure count recorded; and the TBD-3 spread
+  artefact hashed.
 - Replay results produced under any `ec-0.x` are labelled **provisional** and
   cannot enter the P1 gate.
 
@@ -221,6 +230,19 @@ accepted, and where it is closed:
 | R9 | D5 "bound" undefined | Accepted. Renamed a current-rate estimate, formula given, explicitly not a bound | C3.7 |
 | R10 | Freeze rule insufficient | Accepted. ec-0.2 needs no HOLD; ec-1.0 lists every gate | §13 |
 
+**r3, 2026-10-13**, answering review 2 (HOLD). r2's R3 response called
+scenario values bounds; that wording is withdrawn.
+
+| # | Finding | Response | Closed in |
+|---|---|---|---|
+| Q1 | C6.3 demanded full-span equality while C5.8 permits holes; no failure rule for an observed minute outside its M15 envelope | Accepted. C6.3 split: (a) equality on complete bars only; (b) envelope check on bars with holes, failure making the bar envelope-invalid, with no usable range. The envelope is now a declared assumption | C6.3, C5.8, test 20 |
+| Q2 | The entry bar's range includes pre-entry prices | Accepted. `PATH_UNKNOWN` redefined as a touch that cannot be excluded, not one that occurred. The entry-bar case is flagged and counted separately | C5.8, test 16 |
+| Q3 | Counting unknown as a loss while freeing the slot early is not conservative | Accepted. Replaced by three complete scenario paths, S, T and C, none claimed conservative or a bound. P1 must agree under all three, and `PATH_UNKNOWN` is capped at 1% | C5.9, C2.5, test 24 |
+| Q4 | "Unexplained" overstated | Accepted. Renamed `E3_UNATTRIBUTED`; the gate is unchanged | §8 |
+| B1 | Adverse and favourable values were not bounds, and adverse was undefined with no later open | Accepted. No bound claimed. S uses the SL level at H, defined without any later observation, and the possibility of a worse fill is stated | C5.8, C5.9 |
+| B2 | Unknown-loss time and price came from different clocks | Accepted. In S and T, both come from `H + 60`; no later price is used | C5.9, test 21 |
+| B3 | Drawdown marking underspecified | Accepted. Marks at every observed M1 close on the closing leg; floating losses included; no marks in holes, counted; intraminute-adverse sensitivity | C5.10, C5.6, tests 18, 22 |
+| B4 | ec-1.0 required E0 on a signal that cannot have it | Accepted. E0-eligibility is defined by data; ineligible cycles are listed; later gaps fail | §8 E0, §13, test 23 |
+
 Not verifiable from the two reviewed files, and not claimed to be: the bundle's
-rerunnable evidence. The new E0 claim (all fields equal, margin to the cent) is
-in the bundle's `results/`.
+rerunnable evidence, which is in its `results/`.
