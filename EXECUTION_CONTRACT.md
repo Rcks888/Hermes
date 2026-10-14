@@ -1,7 +1,7 @@
 # Hermes execution contract (0g-6)
 
-**Version `ec-0.1r4` — DRAFT, 2026-10-13.** Structure under review. Revisions 2
-to 4 answer reviews 1 to 3 (all HOLD); every finding and the clause that
+**Version `ec-0.1r5` — DRAFT, 2026-10-14.** Structure under review. Revisions 2
+to 5 answer reviews 1 to 4 (all HOLD); every finding and the clause that
 closes it is in §14. Values marked `TBD` are deliberately unset and each has a
 named resolution path (§11).
 
@@ -39,7 +39,7 @@ parameter. A result without the full identity is not a result.
 | C2.3 | The spread filter (`max_spread_points` 50) is applied to the **spread-model draw** (§3), in points. Never to bar spread. |
 | C2.4 | Two modes, never mixed in one report. **CONFORMANCE** reproduces live alert-only state: no open positions and a daily loss count of zero, because live never records outcomes (`trades.json` `outcome: null`) and never holds positions (hazard H3). Used for §8. **SIMULATION** enforces `max_open_trades` 1 from simulated open trades and `daily_loss_limit` 3 losses per **server-clock date**. Performance metrics come from SIMULATION only. |
 | C2.5 | **Event ordering in SIMULATION.** A trade's exit time `X` is the close (`open + 60`) of the M1 bar it resolves in; for a gap exit, the close of the gap bar; for an outcome decided under C5.8, the M15 close K. At a new setup's entry instant E: (a) a trade **frees the slot** iff `X <= E`; (b) the daily loss count is the number of losses with `X <= E` whose `X` falls on the **server date of E**. A loss belongs to its **exit** date, the day it is realised. A loss is `SL_HIT`, gap stops included. A `PATH_UNKNOWN` trade (C5.8) follows the scenario in force (C5.9), which fixes its exit time, price, slot release and loss count from one instant. Exits are therefore always applied before a decision at the same instant. Live `_daily_loss_count` keys on the signal bar date instead; that deviation is recorded and stays moot while the live gate is inert (H3). |
-| C2.6 | **Causality.** Every SIMULATION decision at instant t (strategy evaluation, eligibility, slot, daily loss count, sizing, margin) is a function only of M15 bars closed by t, M1 bars closed by t, and exits with `X <= t`. Conversely, **an exit is never booked before the instant at which the data establishing it are complete**: an M1 bar's close for an ordinary exit, and the close of the M15 bar for any outcome that depends on that bar's range (C5.8). This holds in every scenario of C5.9. A replay is a reconstruction of a market path, but the portfolio built on it must still be one a trader could have run in real time. |
+| C2.6 | **Causality.** Every SIMULATION decision at instant t (strategy evaluation, eligibility, slot, daily loss count, sizing, margin) is a function only of M15 bars closed by t, M1 bars closed by t, **the open of the M1 bar stamped t** (available at t, and the entry price of C1.6 and C4.1; never that bar's high, low or close), and exits with `X <= t`. Conversely, **an exit is never booked before the instant at which the data establishing it are complete**: an M1 bar's close for an ordinary exit, and the close of the M15 bar for any outcome that depends on that bar's range (C5.8). This holds in every scenario of C5.9. A replay is a reconstruction of a market path, but the portfolio built on it must still be one a trader could have run in real time. |
 
 Session boundaries, UTC:
 
@@ -162,11 +162,11 @@ variant**, demonstrated once, as 0g-3 did.
 18. A trade unresolved at data end is `OPEN` with `mtm_R`, excluded from closed-trade statistics; a trade whose floating loss reaches -0.8R on a minute close before it hits TP shows that drawdown on the C5.10 curve.
 19. Ordering: an exit with `X = E` frees the slot for the decision at E, and a loss is counted on the server date of X, not of entry.
 20. An observed M1 high above its M15 high in a bar with a hole makes the bar envelope-invalid, and an unresolved trade there becomes `PATH_UNKNOWN`.
-21. Chronology at K: an observed SL touch at minute 10:12 after a hole at 10:02 in bar 10:00-10:15 is booked at 10:15, not 10:13. A second setup with E = 10:08 or 10:13 is blocked in every scenario, and one with E = 10:15 is not. S and T book `PATH_UNKNOWN` at K.
+21. Chronology at K, bar 10:00-10:15, one open trade, no loss yet on the server date unless stated. **(a) Determined exit:** a hole at 10:02 and an observed SL touch at 10:12 are booked at 10:15, not 10:13. A second setup at E = 10:08 or 10:13 is refused on the slot; at E = 10:15 the slot is free and it is accepted. **(b) `PATH_UNKNOWN`,** with the M15 bar 10:00 missing: under S and T the slot frees at 10:15 and E = 10:15 is accepted. Under C the slot stays held, so E = 10:15 is refused on the slot, until the trade's later observed exit. **(c) Loss limit:** as (a), with two losses already counted on that server date. At E = 10:15 the slot is free, but the setup is refused by the daily loss limit, because the SL booked at K is the third loss. In (b) under S it is likewise refused; under T it is accepted.
 22. Equity marks: the closing-leg mark is used at every observed minute close, no mark is made in a hole, and the unmarked count is reported.
 23. E0 eligibility: a signal cycle without execution fields before the first eligible event is listed as ineligible; one after it fails E0.
 24. P1 scenario agreement: a constructed run where S and T reach different P1 verdicts reports HOLD, and so does a run exceeding 1% `PATH_UNKNOWN` in any one path.
-25. Causality, metamorphic: for sampled instants t, replace all M1 and M15 data stamped at or after t with arbitrary values and rerun. Every decision and every booked exit with time at or before t is unchanged, in S, T and C. A variant that books a C5.8 exit before K must fail this test.
+25. Causality, metamorphic: for sampled instants t, replace with arbitrary values all M1 and M15 data stamped after t, every M15 bar stamped t, and the high, low and close of the M1 bar stamped t, keeping its open (C2.6). Then rerun. Every decision and every booked exit with time at or before t is unchanged, in S, T and C. A variant that books a C5.8 exit before K must fail this test.
 
 ## 10. Decisions for review
 
@@ -256,6 +256,14 @@ were found while closing it; they are listed as such.
 | V3 | Three uniform scenarios establish agreement under those only | Accepted. Renamed scenario agreement, with what it does not establish stated | C5.9 |
 | V4 | *Found in r4 drafting:* r3's scenario C assumed the hole held no touch even where the range reached a trigger that no observed minute attained, which contradicts the declared envelope | Fixed. That case is now determined, case (d) or (e); C applies only where no range exists | C5.8, C5.9 |
 | V5 | *Found in r4 drafting:* an observed touch after a hole cannot be booked at its minute close, because a touch of the other trigger inside the hole is excluded only by the range at K | Fixed. Booked at K | C5.8 (d)-(e), test 21 |
+
+**r5, 2026-10-14**, answering review 4 (HOLD; the r4 blocker confirmed closed,
+two inconsistencies remaining).
+
+| # | Finding | Response | Closed in |
+|---|---|---|---|
+| W1 | C2.6 admitted only closed M1 bars, but C1.6 and C4.1 price entry at the open of the M1 bar stamped E; test 25 replaced that open, so a correct implementation could fail it | Accepted. C2.6 admits the open of the bar stamped t and nothing else from it. Test 25 keeps that open and replaces the bar's high, low and close | C2.6, test 25 |
+| W2 | Test 21 claimed release at K in every scenario, but C holds the slot past K; slot release also does not imply eligibility | Accepted. Test 21 split into three fixtures: determined exit, `PATH_UNKNOWN` per scenario, and a loss-limit refusal at K | test 21 |
 
 Not verifiable from the reviewed files, and not claimed to be: the bundle's
 rerunnable evidence, which is in its `results/`.

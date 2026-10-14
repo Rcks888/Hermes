@@ -1374,8 +1374,8 @@ and consumes a preregistered strategy-change attempt.
 ### 0g-6. Freeze the Athena execution contract
 
 **Drafted 13 October as [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md), `ec-0.1`;
-reviews 1 to 3 returned HOLD with ten, eight and three findings, all accepted
-in `ec-0.1r2` to `ec-0.1r4` (its §14), which is back under review.** The contract supersedes the outline below wherever they differ.
+reviews 1 to 4 returned HOLD with ten, eight, three and two findings, all
+accepted in `ec-0.1r2` to `ec-0.1r5` (its §14), which is back under review.** The contract supersedes the outline below wherever they differ.
 It surfaced three hazards that change the plan: the server offset is not a
 constant across DST (H1), `MaxBars` very probably caps M1 at about 72 trading
 days, which reopens the earlier decision not to raise it (H2), and the live
