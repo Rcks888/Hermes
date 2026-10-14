@@ -1,9 +1,11 @@
 # Hermes execution contract (0g-6)
 
-**Version `ec-0.1r5` — DRAFT, 2026-10-14.** Structure under review. Revisions 2
-to 5 answer reviews 1 to 4 (all HOLD); every finding and the clause that
-closes it is in §14. Values marked `TBD` are deliberately unset and each has a
-named resolution path (§11).
+**Version `ec-0.2` — STRUCTURE FROZEN, 2026-10-14.** Review 5 approved the
+structure under §13. Every clause is identical to `ec-0.1r5`; reviews 1 to 4
+(all HOLD) and the clauses that closed them are in §14. Any change to a clause
+is now a new version with its reason recorded. Values marked `TBD` remain
+deliberately unset, each with a named resolution path (§11); `ec-1.0` requires
+them (§13). Until then every replay result is **provisional**.
 
 **Scope.** How the replay engine turns a historical M15 setup into an
 executable, costed, resolved trade, and how that is checked against what live
@@ -264,6 +266,17 @@ two inconsistencies remaining).
 |---|---|---|---|
 | W1 | C2.6 admitted only closed M1 bars, but C1.6 and C4.1 price entry at the open of the M1 bar stamped E; test 25 replaced that open, so a correct implementation could fail it | Accepted. C2.6 admits the open of the bar stamped t and nothing else from it. Test 25 keeps that open and replaces the bar's high, low and close | C2.6, test 25 |
 | W2 | Test 21 claimed release at K in every scenario, but C holds the slot past K; slot release also does not imply eligibility | Accepted. Test 21 split into three fixtures: determined exit, `PATH_UNKNOWN` per scenario, and a loss-limit refusal at K | test 21 |
+
+**ec-0.2, 2026-10-14: review 5 APPROVE, structure frozen.** W1 and W2 confirmed
+closed, with no blocking inconsistency remaining. No clause changed from
+`ec-0.1r5`; only this header and this entry differ. The approval is bounded,
+as the reviewer stated:
+
+- **Structure only.** It is a freeze under §13, not `ec-1.0`. TBD-1 to TBD-5,
+  the implemented §9 tests and the conformance evidence are still required.
+- **Document-level.** The reviewer did not independently rerun the executable
+  evidence (bundles v1 to v5, `results/`).
+- **Not live authorisation.**
 
 Not verifiable from the reviewed files, and not claimed to be: the bundle's
 rerunnable evidence, which is in its `results/`.

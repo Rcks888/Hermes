@@ -1130,7 +1130,9 @@ Structural gaps do dominate the total: 12 gaps, 7,084 missing minutes over
 (`copy_rates_from_pos`), so the sampled window slides with wall-clock time and
 two runs are not directly reconcilable. The absolute range is recorded in
 `m1_quality`, so results remain interpretable, but archival evidence should be
-pinned to an explicit epoch range. Required before 0g-6 freeze.
+pinned to an explicit epoch range. Required before 0g-6 freeze. **Closed 7
+October (`a6baadb`):** the probe now fetches with `copy_rates_range` over an
+explicit epoch window and records it in its output.
 
 ### 0g-5 FROZEN — BASELINE ENTRY POLICY
 
@@ -1375,7 +1377,9 @@ and consumes a preregistered strategy-change attempt.
 
 **Drafted 13 October as [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md), `ec-0.1`;
 reviews 1 to 4 returned HOLD with ten, eight, three and two findings, all
-accepted in `ec-0.1r2` to `ec-0.1r5` (its §14), which is back under review.** The contract supersedes the outline below wherever they differ.
+accepted in `ec-0.1r2` to `ec-0.1r5` (its §14). Review 5 approved, and the
+structure is frozen as `ec-0.2` on 14 October. `ec-1.0` still needs TBD-1 to
+TBD-5, the §9 tests built, and conformance evidence.** The contract supersedes the outline below wherever they differ.
 It surfaced three hazards that change the plan: the server offset is not a
 constant across DST (H1), `MaxBars` very probably caps M1 at about 72 trading
 days, which reopens the earlier decision not to raise it (H2), and the live
