@@ -59,6 +59,7 @@ At the end of each week, on the VPS:
 
 ```bash
 cd /root/Hermes && git pull && source venv/bin/activate && export DISPLAY=:99
+python weekly_checkpoint.py --self-test                    # expect ALL PASS
 python weekly_checkpoint.py --week=<Monday, YYYY-MM-DD>   # cycles, signals, funnel, 0g-1
 python research/probe_signal_outcome.py                     # resolve any new signals
 ```
@@ -88,6 +89,27 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
 - **M1 depth (contract H2).** `MaxBars` very probably caps M1 at about 72
   trading days; a 4-year replay needs it raised or read Wine-side.
 - 7–13 October funnel reconciliation: `weekly_checkpoint.py` not yet run on the VPS.
+- **Frozen tick after the daily quote stop (found 14 Oct).** On 12 and 13 Oct,
+  XAUUSD ticks stop at server 22:59:58, about 20:00 UTC. From then on,
+  `get_server_time_offset()`, which reads the last tick, falls by 900 s per
+  cycle, and the scheduling delay reads about 899 s. Position 1 also stays on
+  the 22:30 server bar, so that bar is re-evaluated (NY session, blocked by the
+  signal-key dedup), and the 22:45 server bar (19:45–20:00 UTC) is very
+  probably never evaluated on time. `weekly_checkpoint.py` now excludes these
+  cycles. Still open: confirm on the VPS when ticks resume; decide whether
+  `run_hermes.py` should log the tick age; make the live-vs-replay difference
+  for the day's last bar explicit in the contract (a new version after
+  `ec-0.2`) and in TBD-5, the trading calendar.
+- **Memory (14 Oct).** `vm.swappiness` is still 60; the ROADMAP fix (10) was
+  never applied. Every night Ares' 21:00 run causes a swap-out burst at the
+  21:07 soak sample: 12 Oct 25,484 pages with a 382 ms stall, below the alert;
+  13 Oct 43,045 pages with a 517 ms stall, which raised the alert. Free RAM
+  stayed above 860 MB and Hermes was unaffected. Applying 10 is an owner
+  decision, because the setting is system-wide.
+- **MT5 authorization failure, 13 Oct 11:52 UTC.** `(-6, 'Terminal:
+  Authorization failed')` on all three attempts. Memory was normal. The 11:53
+  Hermes run recovered on its third attempt with delay 499 s, so no cycle was
+  lost. Single occurrence; act only if it recurs.
 - The live alert sizes from the signal-close stop, not the executable entry.
   The 0g-5 resize is logged as an observation only.
 - Exit spread is approximated by the entry-time spread draw (contract C3.5, declared approximation).

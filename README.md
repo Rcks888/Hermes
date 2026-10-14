@@ -58,7 +58,7 @@ python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals
 ```
 
-Weekly: `python weekly_checkpoint.py --week=<Monday>` feeds the checkpoint log in [STATUS.md](STATUS.md).
+Weekly: `python weekly_checkpoint.py --week=<Monday>` feeds the checkpoint log in [STATUS.md](STATUS.md). It keeps stale-tick cycles (market not quoting) out of the delay and offset statistics; `--self-test` runs its controls.
 
 ## Docs
 
