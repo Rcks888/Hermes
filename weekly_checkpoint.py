@@ -155,7 +155,7 @@ def main():
     print(f"  total {sum(funnel.values()) + n_sig} = tradeable evaluated cycles {len(tr)}")
     rep_tr = sum(1 for e, why in stale_flags(cycles)
                  if "bar_repeated" in why and e in tr)
-    print(f"  of which {rep_tr} re-evaluate a bar already evaluated (frozen tick), "
+    print(f"  of which {rep_tr} re-evaluate a bar already evaluated (frozen tick or manual rerun), "
           f"so distinct tradeable bars {len(tr) - rep_tr}")
     print("\n0g-1 accumulation")
     flagged = stale_flags(cycles)
@@ -167,16 +167,18 @@ def main():
     rep = collections.Counter(str(e.get("bar_time")) for e, w in stale if "bar_repeated" in w)
     if rep:
         print(f"  bars evaluated more than once: {len(rep)}, e.g. {sorted(rep)[:3]}")
-    delays = sorted(e["scheduling_delay_seconds"] for e in fresh
-                    if isinstance(e.get("scheduling_delay_seconds"), (int, float)))
+    timed = [e for e in fresh if isinstance(e.get("scheduling_delay_seconds"), (int, float))]
+    delays = sorted(e["scheduling_delay_seconds"] for e in timed if not e.get("scheduling_delay_note"))
     if delays:
-        print(f"  scheduling delay n={len(delays)}  p50 {quantile(delays, .5):.1f}"
+        print(f"  scheduling delay, fresh and unflagged, n={len(delays)}  p50 {quantile(delays, .5):.1f}"
               f"  p95 {quantile(delays, .95):.1f}  max {delays[-1]:.1f} s")
     else:
         print("  scheduling delay: none recorded")
-    notes = collections.Counter(e.get("scheduling_delay_note") for e in cycles
-                                if e.get("scheduling_delay_note"))
-    print(f"  suspect delay notes: {dict(notes) if notes else 'none'}")
+    suspect = [e for e in cycles if e.get("scheduling_delay_note")]
+    print(f"  suspect delays, excluded above: {len(suspect)}")
+    for e in suspect[:8]:
+        print(f"    {str(e.get('ts'))[:19]}  {e.get('session')}  bar {e.get('bar_time')}"
+              f"  {e.get('scheduling_delay_seconds')} s  {str(e.get('scheduling_delay_note')).split(':')[0]}")
     offsets = collections.Counter(round(e["server_offset_seconds"] / 3600.0, 1) for e in fresh
                                   if isinstance(e.get("server_offset_seconds"), (int, float)))
     print(f"  server offset, hours (EXECUTION_CONTRACT H1, watch for a DST change): "

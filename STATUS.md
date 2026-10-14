@@ -37,7 +37,7 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 | Sep 21 – Sep 25 | observe | observation only, zero signals | — |
 | Sep 28 – Oct 2 | two-week review; vacation from Oct 1 | 30 Sep: forming-bar root cause fixed (`cf4e3d4`), 10x oversizing fixed (`495e078`), ROADMAP, P0 0c/0d/0e/0f done. 2 Oct: first signal, LONG, TP_HIT | — |
 | Oct 5 – Oct 9 | vacation; resume 7 Oct | 7 Oct: 0g opened, 0g-1 to 0g-5 done, three own bugs caught by guards and controls, cron change deferred. Second signal 7 Oct, SHORT, SL_HIT | unplanned: 0g promoted ahead of the replay |
-| Oct 12 – Oct 16 | catch-up funnel; 0g-6 draft -> review -> freeze | 13 Oct: SHORT-side spread defect fixed (`3fdef54`), both signals resolved, first live conformance point, STATUS and weekly checkpoint added, 0g-6 drafted as `EXECUTION_CONTRACT.md` ec-0.1, reviews 1-4 HOLD (10 + 8 + 3 + 2 findings), all accepted in ec-0.1r2-r5. 14 Oct: review 5 APPROVE, **ec-0.2 structure frozen** (tag `ec-0.2`) | drafting found H1-H3, which add work to the weeks of Oct 19 and Oct 26 |
+| Oct 12 – Oct 16 | catch-up funnel; 0g-6 draft -> review -> freeze | 14 Oct: funnel for weeks Oct 5 and Oct 12 reconciled, frozen-tick and nightly-swap findings, `vm.swappiness=10` applied. 13 Oct: SHORT-side spread defect fixed (`3fdef54`), both signals resolved, first live conformance point, STATUS and weekly checkpoint added, 0g-6 drafted as `EXECUTION_CONTRACT.md` ec-0.1, reviews 1-4 HOLD (10 + 8 + 3 + 2 findings), all accepted in ec-0.1r2-r5. 14 Oct: review 5 APPROVE, **ec-0.2 structure frozen** (tag `ec-0.2`) | drafting found H1-H3, which add work to the weeks of Oct 19 and Oct 26 |
 | Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | | M1 added by the contract |
 | Oct 26 – Oct 30 | replay engine build, controls first | | |
 | Nov 2 – Nov 6 | replay engine finish; Level 2 and Level E conformance; server-offset rule from the DST change (TBD-1) | | |
@@ -69,7 +69,8 @@ marker, and one line in the log below.
 
 | Checkpoint | Cycles | Signals | Notes |
 |---|---|---|---|
-| 2026-10-13 (wk Oct 5) | pending | 1 (SHORT) | first 0g-1 signal: delay 484.98 s, live bid 0.18 from M1 proxy |
+| 2026-10-14 (wk Oct 5) | 483 of 480 (3 extra, probably manual reruns during the 7 Oct work: 3 repeated LONDON bars) | 1 (SHORT, SL_HIT) | 0 aborts. Funnel reconciles: 283 tradeable cycles, 260 distinct bars. Delay p50 484.0 s, p95 485.0 s (n=217 fresh). Offset UTC+3 on all 216 fresh cycles. 51 stale-tick cycles. First 0g-1 signal: delay 484.98 s, live bid 0.18 from the M1 proxy |
+| 2026-10-14 (wk Oct 12, partial, to Wed 08:53 UTC) | 228 of 228 scheduled so far | 0 | 0 aborts; the 13 Oct 11:52 failure was soak-only. 120 tradeable cycles, 112 distinct bars. Delay p50 484.0 s, p95 485.0 s. UTC+3 on all 212 fresh cycles. 16 stale-tick cycles. 2 suspect delays of about 7,680 s: the 22:45 server bar evaluated at 22:08 UTC |
 
 ## What runs (cron, weekdays, UTC)
 
@@ -88,24 +89,33 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
   the weekly checkpoint around 25 Oct and 1 Nov.
 - **M1 depth (contract H2).** `MaxBars` very probably caps M1 at about 72
   trading days; a 4-year replay needs it raised or read Wine-side.
-- 7–13 October funnel reconciliation: `weekly_checkpoint.py` not yet run on the VPS.
-- **Frozen tick after the daily quote stop (found 14 Oct).** On 12 and 13 Oct,
-  XAUUSD ticks stop at server 22:59:58, about 20:00 UTC. From then on,
-  `get_server_time_offset()`, which reads the last tick, falls by 900 s per
-  cycle, and the scheduling delay reads about 899 s. Position 1 also stays on
-  the 22:30 server bar, so that bar is re-evaluated (NY session, blocked by the
-  signal-key dedup), and the 22:45 server bar (19:45–20:00 UTC) is very
-  probably never evaluated on time. `weekly_checkpoint.py` now excludes these
-  cycles. Still open: confirm on the VPS when ticks resume; decide whether
-  `run_hermes.py` should log the tick age; make the live-vs-replay difference
-  for the day's last bar explicit in the contract (a new version after
-  `ec-0.2`) and in TBD-5, the trading calendar.
-- **Memory (14 Oct).** `vm.swappiness` is still 60; the ROADMAP fix (10) was
-  never applied. Every night Ares' 21:00 run causes a swap-out burst at the
-  21:07 soak sample: 12 Oct 25,484 pages with a 382 ms stall, below the alert;
-  13 Oct 43,045 pages with a 517 ms stall, which raised the alert. Free RAM
-  stayed above 860 MB and Hermes was unaffected. Applying 10 is an owner
-  decision, because the setting is system-wide.
+- **Frozen tick in the daily quote stop (found 14 Oct, confirmed by both checkpoints).**
+  XAUUSD stops quoting at server 23:00 (about 20:00 UTC) and resumes between
+  21:53 and 22:08 UTC. In between:
+  - The tick-derived offset and delay are artefacts.
+  - Position 1 stays on the 22:30 server bar, which is re-evaluated 4 times in
+    NY (20:08–20:53) and 4 times in OFF (21:08–21:53). The pattern is exact
+    across 7 weekdays.
+  - The day's last bar, 22:45 server (19:45–20:00 UTC), is evaluated at 22:08
+    UTC, 7,680 s late and in OFF, so it can never alert. On Fridays it is never
+    evaluated.
+
+  **No trading impact:** there are no quotes until about 22:00 UTC, so that bar
+  is untradeable at any delay, and the signal-key dedup blocks repeat alerts.
+  `weekly_checkpoint.py` excludes these cycles and reports distinct bars.
+  **Pending contract amendment** for the version after `ec-0.2`: the replay
+  records such a bar as `quote_unavailable` at D (C1.6, C1.8), while live
+  evaluates it at reopen in OFF. It must be excluded from E1 and E3 with an
+  explicit label, and the daily stop goes into TBD-5. No `run_hermes.py`
+  change proposed.
+- **Memory (14 Oct).** Every night Ares' 21:00 run causes a swap-out burst at
+  the 21:07 soak sample: 12 Oct 25,484 pages with a 382 ms stall, below the
+  alert; 13 Oct 43,045 pages with a 517 ms stall, which raised the alert. Free
+  RAM stayed above 860 MB and Hermes was unaffected. **`vm.swappiness=10`
+  applied 14 Oct about 09:00 UTC**, persisted in
+  `/etc/sysctl.d/99-swappiness.conf`; it was 60, and the ROADMAP fix had never
+  been applied. Check the next 21:07 samples against that baseline; if they
+  don't drop, the burst is Ares' own allocation.
 - **MT5 authorization failure, 13 Oct 11:52 UTC.** `(-6, 'Terminal:
   Authorization failed')` on all three attempts. Memory was normal. The 11:53
   Hermes run recovered on its third attempt with delay 499 s, so no cycle was
