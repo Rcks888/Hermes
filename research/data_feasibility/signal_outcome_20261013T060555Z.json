@@ -1,0 +1,88 @@
+{
+  "probe": "signal_outcome",
+  "generated_utc": "2026-10-13T06:05:55.266171+00:00",
+  "code_version": "3fdef54-dirty",
+  "note": "Counterfactual. Hermes placed no orders. Same-bar target/stop collisions resolve to the stop because M15 OHLC cannot order intrabar events.",
+  "signals": [
+    {
+      "ts": "2026-10-02T07:08:04.668342+00:00",
+      "bar_time": "2026-10-02 09:45:00+00:00",
+      "direction": "LONG",
+      "entry": 4180.89,
+      "sl": 4173.74,
+      "tp": 4195.19,
+      "session": "LONDON",
+      "spread_points": 36,
+      "lots": null,
+      "code_version": "e451fc9",
+      "candle_hash": "be1702a6e0f7facf",
+      "regime": "TRANSITION",
+      "vol_regime": "LOW",
+      "bars_available_after": 612,
+      "sl_distance": 7.15,
+      "nominal_rr": 2.0,
+      "spread_cost_pct_of_risk": 5.0,
+      "realised_rr_after_spread": 1.856,
+      "spread_side": "entry",
+      "fill": 4181.25,
+      "sl_trigger_bid": 4173.74,
+      "tp_trigger_bid": 4195.19,
+      "raw": {
+        "outcome": "TP_HIT",
+        "bars_to_resolve": 5,
+        "resolved_at": "2026-10-02 11:00:00+00:00",
+        "ambiguous": false,
+        "mfe": 15.45,
+        "mae": 3.22
+      },
+      "spread_adjusted": {
+        "outcome": "TP_HIT",
+        "bars_to_resolve": 5,
+        "resolved_at": "2026-10-02 11:00:00+00:00",
+        "ambiguous": false,
+        "mfe": 15.09,
+        "mae": 3.58
+      }
+    },
+    {
+      "ts": "2026-10-07T14:53:05.897019+00:00",
+      "bar_time": "2026-10-07 17:30:00+00:00",
+      "direction": "SHORT",
+      "entry": 4102.21,
+      "sl": 4130.45,
+      "tp": 4045.74,
+      "session": "NY",
+      "spread_points": 26,
+      "lots": null,
+      "code_version": "047b848-dirty",
+      "candle_hash": "e01cad6cb314ed41",
+      "regime": "TRANSITION",
+      "vol_regime": "HIGH",
+      "bars_available_after": 317,
+      "sl_distance": 28.24,
+      "nominal_rr": 2.0,
+      "spread_cost_pct_of_risk": 0.9,
+      "realised_rr_after_spread": 2.0,
+      "spread_side": "exit",
+      "fill": 4102.21,
+      "sl_trigger_bid": 4130.19,
+      "tp_trigger_bid": 4045.48,
+      "raw": {
+        "outcome": "SL_HIT",
+        "bars_to_resolve": 34,
+        "resolved_at": "2026-10-08 04:00:00+00:00",
+        "ambiguous": false,
+        "mfe": 3.67,
+        "mae": 32.64
+      },
+      "spread_adjusted": {
+        "outcome": "SL_HIT",
+        "bars_to_resolve": 34,
+        "resolved_at": "2026-10-08 04:00:00+00:00",
+        "ambiguous": false,
+        "mfe": 3.67,
+        "mae": 32.64
+      }
+    }
+  ]
+}
