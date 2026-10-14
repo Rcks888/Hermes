@@ -1,0 +1,879 @@
+{
+  "probe": "entry_timing_0g",
+  "label": "M1_PRICE_PROXY",
+  "generated_utc": "2026-10-07T09:55:01.080252+00:00",
+  "code_version": "a6baadb",
+  "conventions": {
+    "bar_timestamp_means": "bar open",
+    "observation_at_instant_X": "open of M1 bar stamped X",
+    "clock": "server clock, integer unix seconds",
+    "server_offset_seconds": 10799.583954,
+    "known_defect": "data_feed labels server time as UTC via utc=True; comparisons here are server-to-server so unaffected, but cross-source joins are not",
+    "forward_fill": "never; missing minutes are excluded",
+    "session_classifier": "probe-local, not the engine's"
+  },
+  "sample_pinning": {
+    "anchor_epoch_server_clock": 1791376200,
+    "anchor_source": "latest closed M15 bar",
+    "window_start_epoch": 1790512200,
+    "window_days": 10,
+    "reproduce_with": "--anchor=1791376200 --days=10",
+    "note": "copy_rates_range over an explicit epoch window. Earlier runs used copy_rates_from_pos, whose window slides with wall-clock time; their availability counts differed for that reason alone and they are not reconcilable."
+  },
+  "preregistered_delays_seconds": {
+    "d1_min": 60,
+    "d2_min": 120,
+    "d3_min": 180,
+    "d5_min_ares_safe_slot": 300,
+    "d8_min_current_schedule": 480
+  },
+  "reference_stop": 7.15,
+  "m1_quality": {
+    "bars": 9931,
+    "duplicates": 0,
+    "first": "2026-09-28T01:00:00+00:00",
+    "last": "2026-10-07T12:30:00+00:00",
+    "span_days": 9.48,
+    "expected_if_continuous": 13651,
+    "gap_count": 7,
+    "missing_minutes": 3720,
+    "largest_gaps_hours": [
+      {
+        "from": "2026-10-02T22:59:00+00:00",
+        "hours": 50.02
+      },
+      {
+        "from": "2026-09-28T22:59:00+00:00",
+        "hours": 2.02
+      },
+      {
+        "from": "2026-09-29T22:59:00+00:00",
+        "hours": 2.02
+      },
+      {
+        "from": "2026-09-30T22:59:00+00:00",
+        "hours": 2.02
+      },
+      {
+        "from": "2026-10-01T22:59:00+00:00",
+        "hours": 2.02
+      }
+    ],
+    "non_60s_steps": 7
+  },
+  "price_basis": {
+    "verdict": "BID",
+    "reason": null,
+    "evidence": {
+      "bar_high": 4121.22,
+      "bar_low": 4119.24,
+      "tick_count": 358,
+      "bid_high": 4121.22,
+      "bid_low": 4119.24,
+      "ask_high": 4121.53,
+      "ask_low": 4119.61,
+      "residual_vs_bid": 0.0,
+      "residual_vs_ask": 0.68
+    }
+  },
+  "excluded_observations": {
+    "m1_minute_unavailable": 45
+  },
+  "all_bar_summary": {
+    "d1_min": {
+      "available": 654,
+      "unavailable": 9,
+      "absolute": {
+        "n": 654,
+        "min": 0.0,
+        "max": 28.67,
+        "mean": 1.2088,
+        "p50": 0.81,
+        "p90": 2.52,
+        "p95": 3.24,
+        "p99": 4.94
+      },
+      "signed": {
+        "n": 654,
+        "min": -5.37,
+        "max": 28.67,
+        "mean": -0.0611,
+        "p50": -0.12,
+        "p90": 1.61,
+        "p95": 2.31,
+        "p99": 4.55
+      },
+      "adverse_if_long": {
+        "n": 654,
+        "min": -5.37,
+        "max": 28.67,
+        "mean": -0.0611,
+        "p50": -0.12,
+        "p90": 1.61,
+        "p95": 2.31,
+        "p99": 4.55
+      },
+      "adverse_if_short": {
+        "n": 654,
+        "min": -28.67,
+        "max": 5.37,
+        "mean": 0.0611,
+        "p50": 0.12,
+        "p90": 1.99,
+        "p95": 2.69,
+        "p99": 4.03
+      },
+      "vs_reference_stop_pct": {
+        "n": 654,
+        "min": 0.0,
+        "max": 400.98,
+        "mean": 16.9066,
+        "p50": 11.33,
+        "p90": 35.24,
+        "p95": 45.31,
+        "p99": 69.09
+      },
+      "vs_atr_pct": {
+        "n": 640,
+        "min": 0.0,
+        "max": 358.33,
+        "mean": 15.3009,
+        "p50": 10.87,
+        "p90": 32.76,
+        "p95": 40.26,
+        "p99": 63.2
+      },
+      "by_session": {
+        "ASIA": {
+          "n": 256,
+          "min": 0.02,
+          "max": 4.94,
+          "mean": 1.1034,
+          "p50": 0.85,
+          "p90": 2.41,
+          "p95": 3.06,
+          "p99": 3.66
+        },
+        "LONDON": {
+          "n": 146,
+          "min": 0.0,
+          "max": 28.67,
+          "mean": 1.2554,
+          "p50": 0.74,
+          "p90": 1.94,
+          "p95": 3.24,
+          "p99": 11.93
+        },
+        "NY": {
+          "n": 196,
+          "min": 0.0,
+          "max": 13.54,
+          "mean": 1.4361,
+          "p50": 1.1,
+          "p90": 2.98,
+          "p95": 3.99,
+          "p99": 6.35
+        },
+        "OFF": {
+          "n": 56,
+          "min": 0.01,
+          "max": 3.38,
+          "mean": 0.7736,
+          "p50": 0.53,
+          "p90": 1.69,
+          "p95": 2.28,
+          "p99": 2.46
+        }
+      },
+      "by_period": {
+        "first_half": {
+          "n": 328,
+          "min": 0.0,
+          "max": 13.54,
+          "mean": 1.2735,
+          "p50": 0.88,
+          "p90": 3.02,
+          "p95": 3.54,
+          "p99": 5.37
+        },
+        "second_half": {
+          "n": 326,
+          "min": 0.01,
+          "max": 28.67,
+          "mean": 1.1437,
+          "p50": 0.75,
+          "p90": 2.28,
+          "p95": 2.95,
+          "p99": 4.94
+        }
+      }
+    },
+    "d2_min": {
+      "available": 654,
+      "unavailable": 9,
+      "absolute": {
+        "n": 654,
+        "min": 0.0,
+        "max": 32.63,
+        "mean": 1.6364,
+        "p50": 1.13,
+        "p90": 3.49,
+        "p95": 4.52,
+        "p99": 8.18
+      },
+      "signed": {
+        "n": 654,
+        "min": -10.63,
+        "max": 32.63,
+        "mean": -0.099,
+        "p50": -0.19,
+        "p90": 2.25,
+        "p95": 3.26,
+        "p99": 5.35
+      },
+      "adverse_if_long": {
+        "n": 654,
+        "min": -10.63,
+        "max": 32.63,
+        "mean": -0.099,
+        "p50": -0.19,
+        "p90": 2.25,
+        "p95": 3.26,
+        "p99": 5.35
+      },
+      "adverse_if_short": {
+        "n": 654,
+        "min": -32.63,
+        "max": 10.63,
+        "mean": 0.099,
+        "p50": 0.18,
+        "p90": 2.67,
+        "p95": 3.56,
+        "p99": 6.14
+      },
+      "vs_reference_stop_pct": {
+        "n": 654,
+        "min": 0.0,
+        "max": 456.36,
+        "mean": 22.8876,
+        "p50": 15.8,
+        "p90": 48.81,
+        "p95": 63.22,
+        "p99": 114.41
+      },
+      "vs_atr_pct": {
+        "n": 640,
+        "min": 0.0,
+        "max": 407.83,
+        "mean": 20.6033,
+        "p50": 14.44,
+        "p90": 43.0,
+        "p95": 54.69,
+        "p99": 90.06
+      },
+      "by_session": {
+        "ASIA": {
+          "n": 256,
+          "min": 0.0,
+          "max": 10.63,
+          "mean": 1.5824,
+          "p50": 1.23,
+          "p90": 3.49,
+          "p95": 4.05,
+          "p99": 5.51
+        },
+        "LONDON": {
+          "n": 146,
+          "min": 0.01,
+          "max": 32.63,
+          "mean": 1.7873,
+          "p50": 1.03,
+          "p90": 3.07,
+          "p95": 3.92,
+          "p99": 23.28
+        },
+        "NY": {
+          "n": 196,
+          "min": 0.02,
+          "max": 12.55,
+          "mean": 1.8067,
+          "p50": 1.26,
+          "p90": 4.45,
+          "p95": 5.57,
+          "p99": 8.18
+        },
+        "OFF": {
+          "n": 56,
+          "min": 0.02,
+          "max": 4.46,
+          "mean": 0.8941,
+          "p50": 0.54,
+          "p90": 1.84,
+          "p95": 2.71,
+          "p99": 3.56
+        }
+      },
+      "by_period": {
+        "first_half": {
+          "n": 328,
+          "min": 0.0,
+          "max": 23.28,
+          "mean": 1.718,
+          "p50": 1.21,
+          "p90": 3.76,
+          "p95": 4.72,
+          "p99": 10.32
+        },
+        "second_half": {
+          "n": 326,
+          "min": 0.0,
+          "max": 32.63,
+          "mean": 1.5544,
+          "p50": 1.08,
+          "p90": 3.15,
+          "p95": 3.96,
+          "p99": 7.48
+        }
+      }
+    },
+    "d3_min": {
+      "available": 654,
+      "unavailable": 9,
+      "absolute": {
+        "n": 654,
+        "min": 0.0,
+        "max": 34.64,
+        "mean": 1.8848,
+        "p50": 1.29,
+        "p90": 4.18,
+        "p95": 5.16,
+        "p99": 8.89
+      },
+      "signed": {
+        "n": 654,
+        "min": -11.71,
+        "max": 34.64,
+        "mean": -0.1229,
+        "p50": -0.18,
+        "p90": 2.61,
+        "p95": 3.79,
+        "p99": 6.46
+      },
+      "adverse_if_long": {
+        "n": 654,
+        "min": -11.71,
+        "max": 34.64,
+        "mean": -0.1229,
+        "p50": -0.18,
+        "p90": 2.61,
+        "p95": 3.79,
+        "p99": 6.46
+      },
+      "adverse_if_short": {
+        "n": 654,
+        "min": -34.64,
+        "max": 11.71,
+        "mean": 0.1229,
+        "p50": 0.17,
+        "p90": 2.94,
+        "p95": 4.27,
+        "p99": 6.59
+      },
+      "vs_reference_stop_pct": {
+        "n": 654,
+        "min": 0.0,
+        "max": 484.48,
+        "mean": 26.3607,
+        "p50": 18.04,
+        "p90": 58.46,
+        "p95": 72.17,
+        "p99": 124.34
+      },
+      "vs_atr_pct": {
+        "n": 640,
+        "min": 0.0,
+        "max": 432.95,
+        "mean": 23.8874,
+        "p50": 17.14,
+        "p90": 51.77,
+        "p95": 66.87,
+        "p99": 107.3
+      },
+      "by_session": {
+        "ASIA": {
+          "n": 256,
+          "min": 0.0,
+          "max": 11.71,
+          "mean": 1.8155,
+          "p50": 1.32,
+          "p90": 4.32,
+          "p95": 4.97,
+          "p99": 7.09
+        },
+        "LONDON": {
+          "n": 146,
+          "min": 0.0,
+          "max": 34.64,
+          "mean": 1.9415,
+          "p50": 1.37,
+          "p90": 3.32,
+          "p95": 4.44,
+          "p99": 20.35
+        },
+        "NY": {
+          "n": 196,
+          "min": 0.02,
+          "max": 19.15,
+          "mean": 2.1801,
+          "p50": 1.52,
+          "p90": 5.02,
+          "p95": 6.3,
+          "p99": 9.0
+        },
+        "OFF": {
+          "n": 56,
+          "min": 0.02,
+          "max": 3.98,
+          "mean": 1.02,
+          "p50": 0.68,
+          "p90": 2.83,
+          "p95": 3.09,
+          "p99": 3.2
+        }
+      },
+      "by_period": {
+        "first_half": {
+          "n": 328,
+          "min": 0.0,
+          "max": 20.35,
+          "mean": 2.0655,
+          "p50": 1.55,
+          "p90": 4.41,
+          "p95": 5.98,
+          "p99": 10.64
+        },
+        "second_half": {
+          "n": 326,
+          "min": 0.0,
+          "max": 34.64,
+          "mean": 1.703,
+          "p50": 1.15,
+          "p90": 3.52,
+          "p95": 4.83,
+          "p99": 8.29
+        }
+      }
+    },
+    "d5_min_ares_safe_slot": {
+      "available": 654,
+      "unavailable": 9,
+      "absolute": {
+        "n": 654,
+        "min": 0.0,
+        "max": 36.75,
+        "mean": 2.3999,
+        "p50": 1.83,
+        "p90": 4.81,
+        "p95": 6.52,
+        "p99": 10.38
+      },
+      "signed": {
+        "n": 654,
+        "min": -14.01,
+        "max": 36.75,
+        "mean": 0.0021,
+        "p50": -0.07,
+        "p90": 3.54,
+        "p95": 4.75,
+        "p99": 7.69
+      },
+      "adverse_if_long": {
+        "n": 654,
+        "min": -14.01,
+        "max": 36.75,
+        "mean": 0.0021,
+        "p50": -0.07,
+        "p90": 3.54,
+        "p95": 4.75,
+        "p99": 7.69
+      },
+      "adverse_if_short": {
+        "n": 654,
+        "min": -36.75,
+        "max": 14.01,
+        "mean": -0.0021,
+        "p50": 0.07,
+        "p90": 3.61,
+        "p95": 4.85,
+        "p99": 7.65
+      },
+      "vs_reference_stop_pct": {
+        "n": 654,
+        "min": 0.0,
+        "max": 513.99,
+        "mean": 33.565,
+        "p50": 25.59,
+        "p90": 67.27,
+        "p95": 91.19,
+        "p99": 145.17
+      },
+      "vs_atr_pct": {
+        "n": 640,
+        "min": 0.0,
+        "max": 459.32,
+        "mean": 30.6215,
+        "p50": 23.58,
+        "p90": 62.28,
+        "p95": 79.08,
+        "p99": 115.63
+      },
+      "by_session": {
+        "ASIA": {
+          "n": 256,
+          "min": 0.0,
+          "max": 14.01,
+          "mean": 2.342,
+          "p50": 1.93,
+          "p90": 4.8,
+          "p95": 6.1,
+          "p99": 7.69
+        },
+        "LONDON": {
+          "n": 146,
+          "min": 0.01,
+          "max": 36.75,
+          "mean": 2.4974,
+          "p50": 1.78,
+          "p90": 4.4,
+          "p95": 5.41,
+          "p99": 21.92
+        },
+        "NY": {
+          "n": 196,
+          "min": 0.02,
+          "max": 19.04,
+          "mean": 2.6706,
+          "p50": 2.1,
+          "p90": 5.23,
+          "p95": 7.2,
+          "p99": 10.84
+        },
+        "OFF": {
+          "n": 56,
+          "min": 0.02,
+          "max": 5.52,
+          "mean": 1.463,
+          "p50": 1.18,
+          "p90": 3.13,
+          "p95": 4.67,
+          "p99": 4.9
+        }
+      },
+      "by_period": {
+        "first_half": {
+          "n": 328,
+          "min": 0.01,
+          "max": 21.92,
+          "mean": 2.5092,
+          "p50": 2.02,
+          "p90": 4.81,
+          "p95": 6.54,
+          "p99": 12.25
+        },
+        "second_half": {
+          "n": 326,
+          "min": 0.0,
+          "max": 36.75,
+          "mean": 2.2899,
+          "p50": 1.75,
+          "p90": 4.79,
+          "p95": 6.1,
+          "p99": 8.08
+        }
+      }
+    },
+    "d8_min_current_schedule": {
+      "available": 654,
+      "unavailable": 9,
+      "absolute": {
+        "n": 654,
+        "min": 0.0,
+        "max": 36.7,
+        "mean": 2.8781,
+        "p50": 2.17,
+        "p90": 6.02,
+        "p95": 7.78,
+        "p99": 13.45
+      },
+      "signed": {
+        "n": 654,
+        "min": -13.59,
+        "max": 36.7,
+        "mean": -0.1846,
+        "p50": -0.22,
+        "p90": 4.24,
+        "p95": 5.61,
+        "p99": 11.05
+      },
+      "adverse_if_long": {
+        "n": 654,
+        "min": -13.59,
+        "max": 36.7,
+        "mean": -0.1846,
+        "p50": -0.22,
+        "p90": 4.24,
+        "p95": 5.61,
+        "p99": 11.05
+      },
+      "adverse_if_short": {
+        "n": 654,
+        "min": -36.7,
+        "max": 13.59,
+        "mean": 0.1846,
+        "p50": 0.21,
+        "p90": 4.64,
+        "p95": 6.55,
+        "p99": 9.53
+      },
+      "vs_reference_stop_pct": {
+        "n": 654,
+        "min": 0.0,
+        "max": 513.29,
+        "mean": 40.2536,
+        "p50": 30.35,
+        "p90": 84.2,
+        "p95": 108.81,
+        "p99": 188.11
+      },
+      "vs_atr_pct": {
+        "n": 640,
+        "min": 0.0,
+        "max": 458.7,
+        "mean": 36.5595,
+        "p50": 27.13,
+        "p90": 76.53,
+        "p95": 98.68,
+        "p99": 143.84
+      },
+      "by_session": {
+        "ASIA": {
+          "n": 256,
+          "min": 0.01,
+          "max": 13.65,
+          "mean": 2.8473,
+          "p50": 2.36,
+          "p90": 5.9,
+          "p95": 7.42,
+          "p99": 11.05
+        },
+        "LONDON": {
+          "n": 146,
+          "min": 0.01,
+          "max": 36.7,
+          "mean": 2.9164,
+          "p50": 1.97,
+          "p90": 5.21,
+          "p95": 6.64,
+          "p99": 17.58
+        },
+        "NY": {
+          "n": 196,
+          "min": 0.0,
+          "max": 13.98,
+          "mean": 3.2115,
+          "p50": 2.35,
+          "p90": 7.22,
+          "p95": 9.23,
+          "p99": 13.47
+        },
+        "OFF": {
+          "n": 56,
+          "min": 0.03,
+          "max": 6.19,
+          "mean": 1.752,
+          "p50": 1.42,
+          "p90": 3.57,
+          "p95": 4.21,
+          "p99": 5.85
+        }
+      },
+      "by_period": {
+        "first_half": {
+          "n": 328,
+          "min": 0.0,
+          "max": 17.58,
+          "mean": 2.9724,
+          "p50": 2.35,
+          "p90": 6.19,
+          "p95": 8.25,
+          "p99": 13.59
+        },
+        "second_half": {
+          "n": 326,
+          "min": 0.0,
+          "max": 36.7,
+          "mean": 2.7833,
+          "p50": 2.03,
+          "p90": 5.81,
+          "p95": 7.42,
+          "p99": 11.95
+        }
+      }
+    }
+  },
+  "qualified_setups": [
+    {
+      "ts": "2026-10-02T07:08:04.668342+00:00",
+      "bar_time": "2026-10-02 09:45:00+00:00",
+      "direction": "LONG",
+      "quoted_entry": 4180.89,
+      "sl": 4173.74,
+      "tp": 4195.19,
+      "quoted_sl_distance": 7.15,
+      "session": "LONDON",
+      "spread_points": 36,
+      "delays": {
+        "d1_min": {
+          "signed": 0.64,
+          "absolute": 0.64,
+          "adverse": 0.64,
+          "available": true,
+          "delayed_entry": 4181.53,
+          "delayed_sl_distance": 7.79,
+          "delayed_rr": 1.754,
+          "spread_points": 36,
+          "fill_with_spread": 4181.89,
+          "fill_sl_distance": 8.15,
+          "rr_delay_and_spread": 1.632,
+          "outcome": {
+            "outcome": "TP_HIT",
+            "bars_to_resolve": 68,
+            "resolved_at": 1790939280,
+            "ambiguous": false,
+            "mfe": 14.81,
+            "mae": 3.86,
+            "pre_entry_touch": {
+              "sl_touched": false,
+              "tp_touched": false
+            },
+            "pre_entry_tp_discarded": false,
+            "pre_entry_sl_discarded": false
+          }
+        },
+        "d2_min": {
+          "signed": -0.27,
+          "absolute": 0.27,
+          "adverse": -0.27,
+          "available": true,
+          "delayed_entry": 4180.62,
+          "delayed_sl_distance": 6.88,
+          "delayed_rr": 2.118,
+          "spread_points": 36,
+          "fill_with_spread": 4180.98,
+          "fill_sl_distance": 7.24,
+          "rr_delay_and_spread": 1.963,
+          "outcome": {
+            "outcome": "TP_HIT",
+            "bars_to_resolve": 67,
+            "resolved_at": 1790939280,
+            "ambiguous": false,
+            "mfe": 15.72,
+            "mae": 2.95,
+            "pre_entry_touch": {
+              "sl_touched": false,
+              "tp_touched": false
+            },
+            "pre_entry_tp_discarded": false,
+            "pre_entry_sl_discarded": false
+          }
+        },
+        "d3_min": {
+          "signed": -0.24,
+          "absolute": 0.24,
+          "adverse": -0.24,
+          "available": true,
+          "delayed_entry": 4180.65,
+          "delayed_sl_distance": 6.91,
+          "delayed_rr": 2.104,
+          "spread_points": 36,
+          "fill_with_spread": 4181.01,
+          "fill_sl_distance": 7.27,
+          "rr_delay_and_spread": 1.95,
+          "outcome": {
+            "outcome": "TP_HIT",
+            "bars_to_resolve": 66,
+            "resolved_at": 1790939280,
+            "ambiguous": false,
+            "mfe": 15.69,
+            "mae": 2.98,
+            "pre_entry_touch": {
+              "sl_touched": false,
+              "tp_touched": false
+            },
+            "pre_entry_tp_discarded": false,
+            "pre_entry_sl_discarded": false
+          }
+        },
+        "d5_min_ares_safe_slot": {
+          "signed": -0.94,
+          "absolute": 0.94,
+          "adverse": -0.94,
+          "available": true,
+          "delayed_entry": 4179.95,
+          "delayed_sl_distance": 6.21,
+          "delayed_rr": 2.454,
+          "spread_points": 36,
+          "fill_with_spread": 4180.31,
+          "fill_sl_distance": 6.57,
+          "rr_delay_and_spread": 2.265,
+          "outcome": {
+            "outcome": "TP_HIT",
+            "bars_to_resolve": 64,
+            "resolved_at": 1790939280,
+            "ambiguous": false,
+            "mfe": 16.39,
+            "mae": 2.28,
+            "pre_entry_touch": {
+              "sl_touched": false,
+              "tp_touched": false
+            },
+            "pre_entry_tp_discarded": false,
+            "pre_entry_sl_discarded": false
+          }
+        },
+        "d8_min_current_schedule": {
+          "signed": -0.35,
+          "absolute": 0.35,
+          "adverse": -0.35,
+          "available": true,
+          "delayed_entry": 4180.54,
+          "delayed_sl_distance": 6.8,
+          "delayed_rr": 2.154,
+          "spread_points": 36,
+          "fill_with_spread": 4180.9,
+          "fill_sl_distance": 7.16,
+          "rr_delay_and_spread": 1.996,
+          "outcome": {
+            "outcome": "TP_HIT",
+            "bars_to_resolve": 61,
+            "resolved_at": 1790939280,
+            "ambiguous": false,
+            "mfe": 15.8,
+            "mae": 0.83,
+            "pre_entry_touch": {
+              "sl_touched": false,
+              "tp_touched": false
+            },
+            "pre_entry_tp_discarded": false,
+            "pre_entry_sl_discarded": false
+          }
+        }
+      }
+    }
+  ],
+  "caveats": [
+    "M1 OHLC is not an executable quote. This is a price proxy, not measured slippage.",
+    "All-bar figures describe timing exposure; qualified-setup figures describe strategy exposure. The two populations are not interchangeable.",
+    "Delays are preregistered, not selected after inspecting results."
+  ]
+}
