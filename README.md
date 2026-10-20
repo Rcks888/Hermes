@@ -54,6 +54,8 @@ setup_vps.sh     — One-time VPS setup (Wine + Xvfb + MT5 + Python)
 
 ```bash
 python tests/test_entry_observation.py        # 27 unit tests, no MT5 needed
+python tests/test_mt5_failure_state.py        # cross-process outage count and reconnect, no MT5 needed
+python tests/test_alert_throttle.py           # Telegram throttle state across cron processes
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals
 ```

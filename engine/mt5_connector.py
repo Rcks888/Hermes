@@ -4,6 +4,7 @@ import logging
 import subprocess
 import os
 import socket
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -14,13 +15,90 @@ logger = logging.getLogger("hermes.mt5")
 mt5 = None
 _config = None
 _conn = None
-_consecutive_failures = 0
-_last_disconnect_time = None
 _rpyc_process = None
 
 RETRY_BACKOFF = [2, 5, 10]
 RPYC_HOST = "localhost"
 RPYC_PORT = 18812
+
+# Cross-process failure state. run_soak (:07) and run_hermes (:08) are separate
+# cron processes, so module globals reset every run: the failure count was
+# always 1 and no run ever saw a reconnect. Escalation tiers and the reconnect
+# alert were therefore dead (found 20 Oct). Failures are counted per 15-minute
+# slot, so the soak/strategy pair of one slot counts once.
+FAILURE_STATE = Path(__file__).parent.parent / "logs" / "mt5_failure_state.json"
+SLOT_SECONDS = 900
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
+
+
+def _load_failure_state():
+    if FAILURE_STATE.exists():
+        try:
+            with open(FAILURE_STATE) as f:
+                state = json.load(f)
+            if isinstance(state, dict):
+                return state
+        except Exception as exc:
+            logger.warning(f"MT5 failure state unreadable ({exc}); treating as empty")
+    return {}
+
+
+def _save_failure_state(state):
+    try:
+        FAILURE_STATE.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(FAILURE_STATE.parent), suffix=".tmp")
+        with os.fdopen(fd, "w") as f:
+            json.dump(state, f, indent=2)
+        os.replace(tmp, str(FAILURE_STATE))
+    except Exception as exc:
+        logger.warning(f"Could not persist MT5 failure state: {exc}")
+
+
+def _record_failure(now):
+    """Count this failed run; return the number of consecutive failed slots."""
+    state = _load_failure_state()
+    if not state.get("first_failure"):
+        state = {"first_failure": now.isoformat(), "slots": 0, "runs": 0}
+    slot = int(now.timestamp() // SLOT_SECONDS)
+    if state.get("last_slot") != slot:
+        state["slots"] = state.get("slots", 0) + 1
+        state["last_slot"] = slot
+    state["runs"] = state.get("runs", 0) + 1
+    state["last_failure"] = now.isoformat()
+    _save_failure_state(state)
+    return state["slots"]
+
+
+def _record_success(now):
+    """Clear any outage; return the outage record if one was open, else None."""
+    state = _load_failure_state()
+    if not state.get("first_failure"):
+        return None
+    try:
+        FAILURE_STATE.unlink()
+    except OSError as exc:
+        logger.warning(f"Could not clear MT5 failure state: {exc}")
+    try:
+        first = datetime.fromisoformat(state["first_failure"])
+        state["downtime_seconds"] = max(0.0, (now - first).total_seconds())
+    except (TypeError, ValueError):
+        state["downtime_seconds"] = 0.0
+    return state
+
+
+def _success_info(rpyc_restarted):
+    info = {"reconnected": False, "rpyc_restarted": rpyc_restarted, "consecutive_failures": 0}
+    outage = _record_success(_utcnow())
+    if outage is not None:
+        info["reconnected"] = True
+        info["downtime_seconds"] = outage["downtime_seconds"]
+        logger.info(
+            f"MT5 reconnected: first failed check {outage['first_failure']}, "
+            f"{outage.get('slots', 0)} failed slot(s), {outage.get('runs', 0)} failed run(s)")
+    return info
 
 RPYC_SERVER_CODE = """
 import rpyc
@@ -142,24 +220,11 @@ def is_connected():
 
 
 def ensure_connected():
-    global _consecutive_failures, _last_disconnect_time
-
     rpyc_restarted = False
     cold_start = (mt5 is None)
 
     if is_connected():
-        if _consecutive_failures > 0:
-            downtime = 0
-            if _last_disconnect_time:
-                downtime = (datetime.now(timezone.utc) - _last_disconnect_time).total_seconds()
-            _consecutive_failures = 0
-            _last_disconnect_time = None
-            logger.info("MT5 reconnected")
-            return True, {"reconnected": True, "downtime_seconds": downtime, "rpyc_restarted": False, "consecutive_failures": 0}
-        return True, {"consecutive_failures": 0, "rpyc_restarted": False}
-
-    if not cold_start and _last_disconnect_time is None:
-        _last_disconnect_time = datetime.now(timezone.utc)
+        return True, _success_info(rpyc_restarted)
 
     try:
         if mt5 is not None:
@@ -177,22 +242,15 @@ def ensure_connected():
         if initialize() and is_connected():
             if cold_start:
                 logger.info("MT5 connected (cold start)")
-                return True, {"reconnected": False, "rpyc_restarted": rpyc_restarted, "consecutive_failures": 0}
-            downtime = 0
-            if _last_disconnect_time:
-                downtime = (datetime.now(timezone.utc) - _last_disconnect_time).total_seconds()
-            _consecutive_failures = 0
-            _last_disconnect_time = None
-            logger.info(f"MT5 reconnected after {downtime:.0f}s")
-            return True, {"reconnected": True, "downtime_seconds": downtime, "rpyc_restarted": rpyc_restarted, "consecutive_failures": 0}
+            return True, _success_info(rpyc_restarted)
 
-    _consecutive_failures += 1
-    logger.error(f"MT5 reconnect failed. Consecutive failures: {_consecutive_failures}")
+    failures = _record_failure(_utcnow())
+    logger.error(f"MT5 reconnect failed. Consecutive failures: {failures} (15-min slots)")
 
-    if _consecutive_failures >= 4:
-        logger.critical(f"CRITICAL: {_consecutive_failures} consecutive failures. Manual intervention needed.")
+    if failures >= 4:
+        logger.critical(f"CRITICAL: {failures} consecutive failed slots. Manual intervention needed.")
 
-    return False, {"consecutive_failures": _consecutive_failures, "rpyc_restarted": rpyc_restarted}
+    return False, {"consecutive_failures": failures, "rpyc_restarted": rpyc_restarted}
 
 
 def get_server_time_offset():

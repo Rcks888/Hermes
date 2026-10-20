@@ -112,15 +112,16 @@ def send_throttled(key, text, cooldown_minutes=None):
 
     suppressed = entry.get("suppressed", 0)
     if suppressed:
-        since = entry.get("first_seen") or last_sent
+        # The count runs from the previous alert of this key, so that is the
+        # time to cite. A key-lifetime first_seen made a 19 Oct alert read
+        # "since 2026-10-13".
         text += (f"\n\n<i>{suppressed} further occurrence(s) suppressed since "
-                 f"{since}.</i>")
+                 f"the previous alert at {last_sent}.</i>")
 
     send_message(text)
     state[key] = {
         "last_sent": now.isoformat(),
         "suppressed": 0,
-        "first_seen": entry.get("first_seen") or now.isoformat(),
     }
     _save_alert_state(state)
     return True
@@ -169,7 +170,9 @@ def alert_reconnected(downtime_seconds):
                 "mt5_disconnected_critical"):
         clear_alert(key)
     minutes = downtime_seconds / 60
-    send_message(f"🔱 HERMES — MT5 reconnected after {minutes:.1f} min")
+    send_message(
+        f"🔱 HERMES — MT5 reconnected, {minutes:.1f} min after the first failed "
+        f"check (cron samples every 15 min, so the outage itself may be shorter)")
 
 
 def alert_soak_status(stats):

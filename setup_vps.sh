@@ -15,12 +15,24 @@ echo "[1/6] Enabling 32-bit architecture..."
 sudo dpkg --add-architecture i386
 sudo apt-get update -y
 
-# --- 2. Install Wine ---
-echo "[2/6] Installing Wine..."
-sudo apt-get install -y wine64 wine32 winbind
+# --- 2. Install Wine (WineHQ stable, not the Ubuntu package) ---
+# Ubuntu noble ships Wine 9.0. MT5 build 6271 (17 Oct 2026) stopped
+# initialising on it: a "debugger found" dialog blocked the IPC pipe, and
+# MetaQuotes asks for Wine 10.0 or later. WineHQ stable (11.0) fixed it.
+echo "[2/6] Installing Wine from WineHQ..."
+sudo mkdir -pm755 /etc/apt/keyrings
+sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/noble/winehq-noble.sources
+sudo apt-get update -y
+sudo apt-get install -y --install-recommends winehq-stable winbind
+# --install-recommends pulls in avahi-daemon, which opens UDP 5353. Not needed.
+sudo systemctl disable --now avahi-daemon.service avahi-daemon.socket || true
 
 echo "Wine version:"
 wine --version
+# After any Wine upgrade, update an existing prefix without the Mono/Gecko
+# installer dialogs, which otherwise block headless on Xvfb:
+#   WINEDLLOVERRIDES="mscoree,mshtml=" DISPLAY=:99 wineboot -u; wineserver -w
 
 # --- 3. Install Xvfb (virtual display for headless MT5) ---
 echo "[3/6] Installing Xvfb..."

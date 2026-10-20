@@ -158,7 +158,7 @@ the Hermes repo.
 | # | Item | Severity | State |
 |---|---|---|---|
 | 2 | Soak spread samples are 4/hour instantaneous reads, not time-weighted. Cost model inherits any intra-bar bias | Medium | Accepted limitation, documented in 0b |
-| 3 | Duplicate disconnect alerts — soak and strategy call `ensure_connected()` in separate processes | Low | Flagged |
+| 12 | Broker-side MT5 outages of 4–6 min (13, 15, 19 Oct) outlast the 17 s retry budget and cost a cycle (2 tradeable so far). Longer retries move D; see STATUS | Low | Open decision, next contract amendment |
 | 4 | `ram_free < 300` is a state check, re-fires every cycle during a dip | Low | Flagged |
 | 5 | `alerts.telegram.alert_soak_status()` orphaned after periodic summary removal | Cosmetic | Deliberate — re-wire hook |
 | 6 | `price_action.scan()` never called | Cosmetic | Deliberate — V2 candidate |
@@ -184,7 +184,8 @@ the Hermes repo.
 | Alert throttling did not survive process exit; a two-week outage would have sent ~2,700 messages | `bcdb1d3` |
 | Archive depth attributed to the broker when it was a client-side `MaxBars` cap; true floor 2022-06-23 | `018579f` |
 | Range probe passed `datetime` across rpyc, producing 23 uniform failures read as an archive result | `7bff1f3` |
-| Clamped boundary bars counted as twenty years of history | this commit |
+| Clamped boundary bars counted as twenty years of history | `806c150` |
+| Disconnect state in module globals: count always 1 across cron processes, escalation tiers and reconnect alert dead, throttle footer cited a stale `first_seen` (also closes #3, duplicate disconnect alerts) | 20 Oct, this commit |
 
 ---
 

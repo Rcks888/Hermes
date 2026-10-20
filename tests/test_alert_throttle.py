@@ -80,6 +80,22 @@ def test_suppressed_count_is_reported_not_lost():
         assert "5 further occurrence" in _sent[1], _sent[1]
 
 
+def test_suppressed_footer_cites_previous_alert_not_key_lifetime():
+    """19 Oct: the footer read "since 2026-10-13T11:52" from a never-cleared
+    first_seen, although the count ran from the previous alert."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _setup(tmp)
+        previous = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        json.dump({"mt5_disconnected_first": {
+            "last_sent": previous, "suppressed": 1,
+            "first_seen": "2026-10-13T11:52:20.037571+00:00"}},
+            open(telegram.ALERT_STATE, "w"))
+        telegram.alert_disconnected(1)
+        assert len(_sent) == 1
+        assert "2026-10-13" not in _sent[0], _sent[0]
+        assert previous in _sent[0], _sent[0]
+
+
 def test_clear_allows_immediate_realert():
     """A fault that resolves and returns inside one window must notify again."""
     with tempfile.TemporaryDirectory() as tmp:
