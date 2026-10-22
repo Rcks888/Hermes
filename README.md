@@ -41,6 +41,8 @@ tests/           — Unit tests
 run_hermes.py    — Strategy cycle (alert-only)
 run_soak.py      — Gate 0: stability soak script
 setup_vps.sh     — One-time VPS setup (Wine + Xvfb + MT5 + Python)
+requirements.lock — Exact venv versions; install with `pip install -r requirements.lock`
+requirements.txt — Lower bounds only; never `pip install -U -r` it on the VPS
 ```
 
 ## Gate 0 Pass Criteria

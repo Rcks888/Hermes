@@ -1,0 +1,18 @@
+# Exact versions running on the VPS, frozen 22 Oct 2026 after an unintended
+# `pip install -U -r requirements.txt` moved numpy and pandas at 08:49 UTC.
+# Install from this file; change it deliberately, one package at a time, and
+# log the change in STATUS.md. requirements.txt holds the lower bounds only.
+certifi==2026.10.19
+charset-normalizer==3.5.1
+idna==3.19
+mt5linux==1.1.1
+numpy==2.5.4
+pandas==3.0.6
+plumbum==1.7.0
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.3
+requests==2.34.2
+rpyc==6.0.2
+six==1.17.0
+urllib3==2.7.0

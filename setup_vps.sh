@@ -46,7 +46,7 @@ cd ~/Olympus/Hermes
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.lock
 
 # --- 5. Download and install MT5 via Wine ---
 echo "[5/6] Downloading MetaTrader 5..."
