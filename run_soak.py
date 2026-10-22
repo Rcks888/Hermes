@@ -165,6 +165,13 @@ def main():
         "error": None,
     }
 
+    if not mt5_connector.acquire_run_lock():
+        cycle["error"] = "MT5 busy: previous run still holds the lock"
+        soak["cycles"].append(cycle)
+        save_soak_data(soak)
+        logger.error("Soak cycle skipped: previous MT5 run still holds the lock")
+        return
+
     import time as _time
     t0 = _time.monotonic()
     connected, reconnect_info = mt5_connector.ensure_connected()

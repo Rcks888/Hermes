@@ -1,7 +1,9 @@
+import fcntl
 import json
 import logging
 import os
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -81,7 +83,32 @@ def _save_alert_state(state):
         logger.warning(f"Could not persist alert state: {exc}")
 
 
+@contextmanager
+def _state_lock():
+    """Serialise read-check-send-write across processes. On 22 Oct the soak and
+    strategy runs, stalled on the same MT5 bridge, finished together: both read
+    the state before either saved it, and every alert tier went out twice. If
+    the lock cannot be opened, proceed unlocked: a duplicate beats silence."""
+    try:
+        ALERT_STATE.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(ALERT_STATE.with_suffix(".lock"), "a")
+    except OSError as exc:
+        logger.warning(f"Alert state lock unavailable ({exc}); proceeding unlocked")
+        yield
+        return
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        handle.close()
+
+
 def send_throttled(key, text, cooldown_minutes=None):
+    with _state_lock():
+        return _send_throttled_locked(key, text, cooldown_minutes)
+
+
+def _send_throttled_locked(key, text, cooldown_minutes=None):
     """Send at most once per cooldown window for this key.
 
     Returns True if sent. Suppressed occurrences are counted and reported in
@@ -134,10 +161,11 @@ def clear_alert(key):
     one cooldown window would be silent the second time -- which is precisely
     the case worth knowing about.
     """
-    state = _load_alert_state()
-    if key in state:
-        del state[key]
-        _save_alert_state(state)
+    with _state_lock():
+        state = _load_alert_state()
+        if key in state:
+            del state[key]
+            _save_alert_state(state)
 
 
 def alert_disconnected(consecutive_failures=1):

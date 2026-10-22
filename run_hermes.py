@@ -217,6 +217,11 @@ def main():
     now = datetime.now(timezone.utc)
     session = get_session_tag(now.hour)
 
+    if not mt5_connector.acquire_run_lock():
+        logger.error("Hermes cycle skipped: previous MT5 run still holds the lock")
+        log_event({"event": "CYCLE_ABORTED", "session": session, "reason": "mt5_busy"})
+        return
+
     connected, reconnect_info = mt5_connector.ensure_connected()
     if reconnect_info and reconnect_info.get("reconnected"):
         telegram.alert_reconnected(reconnect_info["downtime_seconds"])

@@ -174,6 +174,42 @@ def test_sustained_outage_is_bounded():
         assert len(_sent) >= 1
 
 
+def _racer(state_path, out_path, barrier):
+    """One cron process that reaches the throttle at the same instant as another."""
+    import time
+    telegram.ALERT_STATE = Path(state_path)
+
+    def slow_send(text):
+        time.sleep(0.5)
+        with open(out_path, "a") as f:
+            f.write(text.replace("\n", " ") + "\n")
+
+    telegram.send_message = slow_send
+    barrier.wait()
+    telegram.send_throttled("mt5_disconnected_first", "first failure")
+
+
+def test_concurrent_processes_send_once():
+    """22 Oct: soak and strategy runs, stalled on the same MT5 bridge, finished
+    together; both read the state before either saved it, and every tier went
+    out twice. The read-check-send-write sequence must be atomic across
+    processes."""
+    import multiprocessing as mp
+    with tempfile.TemporaryDirectory() as tmp:
+        state = Path(tmp) / "alert_state.json"
+        out = Path(tmp) / "sent.txt"
+        ctx = mp.get_context("fork")
+        barrier = ctx.Barrier(2)
+        procs = [ctx.Process(target=_racer, args=(str(state), str(out), barrier))
+                 for _ in range(2)]
+        for p in procs:
+            p.start()
+        for p in procs:
+            p.join(timeout=20)
+        sends = out.read_text().splitlines() if out.exists() else []
+        assert len(sends) == 1, f"expected 1 send from 2 concurrent processes, got {len(sends)}"
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):

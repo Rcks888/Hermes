@@ -38,7 +38,7 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 | Sep 28 – Oct 2 | two-week review; vacation from Oct 1 | 30 Sep: forming-bar root cause fixed (`cf4e3d4`), 10x oversizing fixed (`495e078`), ROADMAP, P0 0c/0d/0e/0f done. 2 Oct: first signal, LONG, TP_HIT | — |
 | Oct 5 – Oct 9 | vacation; resume 7 Oct | 7 Oct: 0g opened, 0g-1 to 0g-5 done, three own bugs caught by guards and controls, cron change deferred. Second signal 7 Oct, SHORT, SL_HIT | unplanned: 0g promoted ahead of the replay |
 | Oct 12 – Oct 16 | catch-up funnel; 0g-6 draft -> review -> freeze | 14 Oct: funnel for weeks Oct 5 and Oct 12 reconciled, frozen-tick and nightly-swap findings, `vm.swappiness=10` applied. 13 Oct: SHORT-side spread defect fixed (`3fdef54`), both signals resolved, first live conformance point, STATUS and weekly checkpoint added, 0g-6 drafted as `EXECUTION_CONTRACT.md` ec-0.1, reviews 1-4 HOLD (10 + 8 + 3 + 2 findings), all accepted in ec-0.1r2-r5. 14 Oct: review 5 APPROVE, **ec-0.2 structure frozen** (tag `ec-0.2`). 15 Oct: second broker outage, 13 Oct probe evidence committed. Sat 17 Oct: host reboot test with Ares; MT5 build 6271 blocked on Wine 9, moved to WineHQ Wine 11.0, PASS (see Incidents) | drafting found H1-H3, which add work to the weeks of Oct 19 and Oct 26 |
-| Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | In progress. 19 Oct: reboot validated on live cron (00:07 PASS), third broker outage. 20 Oct: swap timeline from host `sar`, broker-outage table, cross-process MT5 failure-state fix, `setup_vps.sh` to WineHQ | M1 added by the contract |
+| Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | In progress. 19 Oct: reboot validated on live cron (00:07 PASS), third broker outage. 20 Oct: swap timeline from host `sar`, broker-outage table, cross-process MT5 failure-state fix, `setup_vps.sh` to WineHQ. 20 Oct: signal 3 (SHORT, NY), first live reconnect alert. 22 Oct: unattended-upgrade outage and host lock-up, MT5 pile-up controls (see Incidents) | M1 added by the contract; 22 Oct unplanned fix delays 0b |
 | Oct 26 – Oct 30 | replay engine build, controls first | | |
 | Nov 2 – Nov 6 | replay engine finish; Level 2 and Level E conformance; server-offset rule from the DST change (TBD-1) | | |
 | Nov 9 onward | rule-only baseline on development folds -> P1 gate | | no date for the P1 verdict until the baseline exists |
@@ -49,8 +49,11 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 |---|---|---|---|---|---|---|
 | 1 | 2026-10-02 09:45 | LONG | LONDON | 7.15 | TP_HIT, 5 bars | +1.856 |
 | 2 | 2026-10-07 17:30 | SHORT | NY | 28.24 | SL_HIT, 34 bars | -1.000 |
+| 3 | 2026-10-20 15:15 | SHORT | NY | 12.99 | pending probe | |
 
-n = 2, net +0.856R. Supports no claim about edge. Throughput about 1.6 signals
+Signal 3 alert (12:38 UTC): entry 4117.28, SL 4130.27, TP 4091.29, 0.76 lots,
+ATR 6.41 (stop 2.03 ATR), spread 41. Record and outcome to be read on the VPS.
+n = 2 resolved, net +0.856R. Supports no claim about edge. Throughput about 1.6 signals
 per week, which is why the replay, not forward collection, is the critical path.
 
 ## Weekly checkpoint
@@ -145,8 +148,15 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
   close, which touches contract §1 and E1. Decide with the next contract
   amendment, not as a patch. Separately, MT5 drops for about 1 s on every
   access-point switch (2–3 min after each authorisation); harmless so far.
-- **MT5 build 6274 downloaded 19 Oct 21:29**, installs on the next terminal
-  restart. 17 Oct showed a restart is the risky moment; check the first init.
+- **MT5 build 6281 installed 22 Oct 08:26** on the manual restart. Each later
+  build installs on the next terminal restart, which 17 and 22 Oct showed is the
+  risky moment; the 22 Oct controls now bound it (see Incidents).
+- **needrestart override for `xvfb.service` (22 Oct).** Verify after the next
+  library upgrade: the unattended-upgrades dpkg log should list `xvfb.service`
+  under "Service restarts being deferred". Xvfb then runs old libraries until a
+  planned reboot; schedule one with Ares when `/var/run/reboot-required` appears.
+- The 240 s per-run retry budget (22 Oct) caps runaway runs only. It is not the
+  open retry-budget decision above, which concerns riding out broker outages.
 - The live alert sizes from the signal-close stop, not the executable entry.
   The 0g-5 resize is logged as an observation only.
 - Exit spread is approximated by the entry-time spread draw (contract C3.5, declared approximation).
@@ -159,6 +169,8 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
 |---|---|---|
 | 14 Oct 06:22 | Unattended upgrade (libx11) restarted `xvfb.service`; MT5 relaunched with LiveUpdate, init 32 s | Self-recovered. Explains the 14 Oct wine/Xvfb pair Ares asked about |
 | 17 Oct 01:10–01:50 | Planned host reboot (kernel 6.8.0-147). MT5 updated to build 6271 on relaunch and stopped answering the IPC pipe on Wine 9.0 ("debugger found" dialog; MT5 asks for Wine 10+) | Wine prefix backed up, Ubuntu Wine 9.0 replaced by WineHQ stable 11.0, avahi disabled, `wineboot -u` with Mono/Gecko overrides. PASS 01:50 UTC, init 21 s. Mon 19 Oct 00:07 soak PASS, init 2.06 s. `setup_vps.sh` now installs WineHQ |
+| 20 Oct 16:37–16:52 | MT5 disconnect at the 16:37 soak; first live "reconnected" alert, 14.7 min after the first failed check | Self-recovered. Cause (broker or host) not yet read from the terminal log |
+| 22 Oct 06:05–08:26 | Unattended upgrades (libnss3, liblzma5, ca-certificates, ...) at 06:04–06:06; needrestart restarted `xvfb.service` and `winbind`. MT5 lost its display; build 6281 was pending, every relaunch hit the 60 s IPC timeout (-10003) and left a terminal behind. Runs took 564–968 s, overlapped, and the host stopped answering SSH logins (load 8). Every alert tier went out twice. Last good check 05:53, 9 failed slots, 16 failed runs, about 2 h 20 min lost (ASIA and LONDON) | Hermes cron paused, `wineserver -k`, manual soak: build 6281 installed, connected 08:26, cron restored. Host: `/etc/needrestart/conf.d/50-hermes-xvfb.conf` stops needrestart restarting `xvfb.service` (Xvfb keeps old libraries until a planned reboot). Code: one MT5 run at a time (`logs/mt5.lock`, busy run logs `CYCLE_ABORTED mt5_busy`), 240 s retry budget per run, stuck terminal killed after an IPC timeout, alert state locked across processes. 5 + 1 controls, 4 + 1 fail on the old code |
 | 20 Oct, found | Cross-process failure state: `ensure_connected()` kept its failure count in module globals, so every cron run started at 0. The count was always 1, the "still down" and CRITICAL tiers never fired, no reconnect was ever reported, and the throttle footer cited a never-cleared 13 Oct `first_seen` | Fixed: failure state persisted in `logs/mt5_failure_state.json`, counted per 15-min slot; reconnect alert now fires; footer cites the previous alert. 7 + 1 controls, 5 fail on the old code |
 
 ## Standing rules

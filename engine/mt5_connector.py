@@ -1,3 +1,4 @@
+import fcntl
 import json
 import time
 import logging
@@ -29,9 +30,71 @@ RPYC_PORT = 18812
 FAILURE_STATE = Path(__file__).parent.parent / "logs" / "mt5_failure_state.json"
 SLOT_SECONDS = 900
 
+# 22 Oct pile-up controls. After needrestart restarted xvfb.service, every
+# relaunch hit the 60 s IPC timeout and left another terminal64.exe behind;
+# runs took up to 968 s, overlapped, and stacked terminals until the host
+# stopped answering SSH. One MT5 run at a time, a wall-clock retry budget that
+# keeps a run inside its slot, and a stuck terminal is killed before retrying.
+MT5_LOCK = Path(__file__).parent.parent / "logs" / "mt5.lock"
+MT5_LOCK_WAIT_SECONDS = 50
+RETRY_BUDGET_SECONDS = 240
+IPC_TIMEOUT_CODE = -10003
+
+_lock_handle = None
+_last_init_error = None
+_monotonic = time.monotonic
+
 
 def _utcnow():
     return datetime.now(timezone.utc)
+
+
+def acquire_run_lock(wait_seconds=None):
+    """Take the cross-process MT5 lock for the life of this process.
+
+    Returns False if another run still holds it after wait_seconds; the caller
+    must then skip its cycle rather than start a second terminal. The kernel
+    releases the lock when the process exits, including on a crash.
+    """
+    global _lock_handle
+    if _lock_handle is not None:
+        return True
+    if wait_seconds is None:
+        wait_seconds = MT5_LOCK_WAIT_SECONDS
+    MT5_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(MT5_LOCK, "a")
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _lock_handle = handle
+            return True
+        except BlockingIOError:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                handle.close()
+                logger.error(f"MT5 lock still held by another run after {wait_seconds}s")
+                return False
+            time.sleep(min(0.2, remaining))
+
+
+def _is_ipc_timeout(error):
+    try:
+        return error is not None and int(error[0]) == IPC_TIMEOUT_CODE
+    except (TypeError, ValueError, IndexError):
+        return False
+
+
+def _kill_stuck_terminals():
+    """Kill terminal64.exe after an IPC timeout so the next attempt starts one
+    fresh terminal instead of adding another to the hung one."""
+    try:
+        result = subprocess.run(["pkill", "-f", r"terminal64\.exe"],
+                                capture_output=True, timeout=10)
+        logger.warning(f"Killed stuck MT5 terminal after IPC timeout (pkill rc={result.returncode})")
+        time.sleep(3)
+    except Exception as exc:
+        logger.warning(f"Could not kill stuck MT5 terminal: {exc}")
 
 
 def _load_failure_state():
@@ -167,7 +230,8 @@ def start_rpyc_server():
 
 
 def initialize():
-    global mt5, _conn
+    global mt5, _conn, _last_init_error
+    _last_init_error = None
     cfg = _load_config()
 
     if not start_rpyc_server():
@@ -190,7 +254,8 @@ def initialize():
 
     try:
         if not mt5.initialize(path=cfg.get("path", "")):
-            logger.error(f"MT5 initialize failed: {mt5.last_error()}")
+            _last_init_error = tuple(mt5.last_error())
+            logger.error(f"MT5 initialize failed: {_last_init_error}")
             return False
     except Exception as e:
         logger.error(f"MT5 initialize error: {e}")
@@ -236,13 +301,26 @@ def ensure_connected():
         rpyc_restarted = True
         logger.warning("rpyc server down, restarting...")
 
+    start = _monotonic()
     for i, delay in enumerate(RETRY_BACKOFF):
+        spent = _monotonic() - start
+        if i > 0 and spent + delay > RETRY_BUDGET_SECONDS:
+            logger.warning(
+                f"MT5 retry budget {RETRY_BUDGET_SECONDS}s spent ({spent:.0f}s, "
+                f"{i} attempt(s)); giving up this run")
+            break
         logger.warning(f"MT5 reconnect attempt {i+1}/3 (backoff {delay}s)")
         time.sleep(delay)
         if initialize() and is_connected():
             if cold_start:
                 logger.info("MT5 connected (cold start)")
             return True, _success_info(rpyc_restarted)
+        if _is_ipc_timeout(_last_init_error):
+            try:
+                mt5.shutdown()
+            except Exception:
+                pass
+            _kill_stuck_terminals()
 
     failures = _record_failure(_utcnow())
     logger.error(f"MT5 reconnect failed. Consecutive failures: {failures} (15-min slots)")
