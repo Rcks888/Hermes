@@ -56,6 +56,9 @@ consistent with the contract's day boundary (D4).
 ## 3. Development gates (all required)
 
 Evaluated once per attempt (§6), on the development span, primary configuration.
+**Fold aggregation rule:** G1-G4 and G6-G8 are computed on the **pooled**
+development span, one continuous run (F4); segments enter only through G5. No
+per-segment calibration, no averaging of per-segment statistics.
 
 | # | Gate | Threshold | Derivation |
 |---|---|---|---|
@@ -66,7 +69,7 @@ Evaluated once per attempt (§6), on the development span, primary configuration
 | G5 | Stability | Total R **> 0 in at least two thirds of segments**, rounded up (4 of 6), **and** no segment holds **more than 50%** of total R | The proposal's "monthly consistency", at a resolution where each unit holds enough trades to mean something |
 | G6 | Random-entry benchmark | Mean R **above the 95th percentile** of 1,000 matched random portfolios (§4) | Separates entry value from exit structure and market drift. ROADMAP: "the decisive one" |
 | G7 | Delay robustness | Mean R point estimate **> 0 at every registered delay**: 60, 120, 180, 300 s | The 480 s baseline is the live schedule; an edge that exists only at one delay is fragile |
-| G8 | Cost robustness | Mean R point estimate **> 0 with constant session p90 spread** | TIER 3 draws come from about 6 weeks of 2026 spreads applied to 4 years (§7 L2) |
+| G8 | Cost robustness | Mean R point estimate **> 0 with constant session p90 spread** | TIER 3 draws come from about 6 weeks of 2026 spreads applied to 4 years (§10 L2) |
 | G9 | Scenario agreement | Contract C5.9: `PATH_UNKNOWN` <= 1% of population C in each of S, T, C, and the same verdict on G1-G8 in all three. Otherwise **HOLD** | Inherited, not new |
 
 Preconditions, any failing gives **HOLD**: `ec-1.0` frozen; REPLAY CONFORMANT
@@ -146,6 +149,7 @@ refute, not to prove.
 | PD8 | Sensitivity gates | Point estimate > 0 at every delay and at p90 spread; scenario agreement per C5.9 | Requiring G2 at every sensitivity multiplies the tests without a correction |
 | PD9 | Attempts | N = 3, `alpha` halving from 0.025, each committed before it runs. Cost: the baseline's G2 power drops from about 0.5 to about 0.37 at a 41% win rate and 150 trades | Unlimited attempts with a fixed `alpha` guarantees a false pass eventually; `alpha` 0.05 on the baseline alone leaves no budget for attempts |
 | PD10 | Holdout use | Once, after a development PASS, user go-ahead logged; failure spends it | Peeking at the holdout to pick between attempts turns it into a second development set |
+| PD11 | Session policy | Primary = live configuration, LONDON and NY. Overlap-only is reported (M6), and adopting it consumes attempt 1 | ROADMAP calls overlap the "primary candidate from soak". Making it primary changes the strategy from what live runs, so conformance (contract §8) would no longer cover it; registering both as attempt 0 halves `alpha_0` to 0.0125 for each. The soak evidence is about spreads, which TIER 3 already prices |
 
 ## 9. Freeze rule and preregistered tests
 
