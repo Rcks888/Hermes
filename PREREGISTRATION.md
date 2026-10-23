@@ -1,9 +1,9 @@
 # Hermes 0b preregistration: P1 success criteria
 
-**Version `pr-0.2` — DRAFT, 2026-10-23.** Nothing here is frozen. `pr-1.0` is
+**Version `pr-0.3` — DRAFT, 2026-10-23.** Nothing here is frozen. `pr-1.0` is
 frozen and git-tagged **before any SIMULATION result exists on any historical
-span** (§9). Decisions needing sign-off are in §8. Review 1 (HOLD, five findings)
-and the clauses that close it are in §11.
+span** (§9). Decisions needing sign-off are in §8. Reviews 1 and 2 (HOLD) and the
+clauses that close them are in §11.
 
 **Scope.** What the P1 decision gate tests, on which data, with which
 thresholds, and what happens on each outcome. It binds the replay engine (run
@@ -68,10 +68,10 @@ per-segment calibration, no averaging of per-segment statistics.
 | G3 | Profit factor | **>= 1.30**, point estimate | `HERMES_PROPOSAL.md` gate 2. At realised RR about 1.9 this implies a win rate of about 41% |
 | G4 | Maximum drawdown | **<= 20 R** (20% at 1% risk) on the C5.10 equity curve, scenario S | Proposal gate 6 was 10% over a few weeks of demo. Over 100-250 trades drawdown grows with the sample; see the table below and §8 PD5 |
 | G5 | Stability | **Segment R (F5) > 0 in at least two thirds of segments**, rounded up (4 of 6), **and** the development run's final equity > 0 with no segment's R above **50%** of it | The proposal's "monthly consistency", at a resolution where each unit holds enough trades to mean something |
-| G6 | Random-entry benchmark | Closed-trade mean R, scenario S, **above the 95th percentile** (type 1, rank 950) of the same statistic over the 1,000 random portfolios of B2 | Separates entry value from exit structure and market drift. ROADMAP: "the decisive one" |
+| G6 | Random-entry benchmark | Closed-trade mean R, scenario S, **above the 95th percentile** of the same statistic over the **M retained** random portfolios of B2 (B2.5): the value at type-1 rank `ceil(0.95 × M)`, i.e. rank 950 when none is dropped and rank 941 at M = 990 | Separates entry value from exit structure and market drift. ROADMAP: "the decisive one" |
 | G7 | Delay robustness | Mean R point estimate **> 0 at every registered delay**: 60, 120, 180, 300 s | The 480 s baseline is the live schedule; an edge that exists only at one delay is fragile |
 | G8 | Cost robustness | Mean R point estimate **> 0 with constant session p90 spread** | TIER 3 draws come from about 6 weeks of 2026 spreads applied to 4 years (§10 L2) |
-| G9 | Scenario agreement | Contract C5.9: `PATH_UNKNOWN` <= 1% of population C in each of S, T, C, and the same verdict on G1-G8 in all three. Otherwise **HOLD** | Inherited, not new |
+| G9 | Scenario agreement | Contract C5.9: `PATH_UNKNOWN` <= 1% of the strategy's population C in each of S, T, C, and the same verdict on G1-G8 in all three. Otherwise **HOLD**. **G1-G8 are evaluated three times, once per path. In each evaluation every quantity this document specifies under scenario S is taken from that path instead:** closed-trade statistics (G1-G3), the equity curve (G4) and segment R (F5, G5), the random portfolios' statistic (B2.5, each portfolio read on the same path) and the G7 and G8 sensitivity runs. The random portfolios' `PATH_UNKNOWN` shares are reported, not capped. The headline verdict is the S evaluation | Inherited, not new |
 
 Preconditions, any failing gives **HOLD**: `ec-1.0` frozen; REPLAY CONFORMANT
 (contract §8); both C6.3 checks run on the span; full run identity recorded.
@@ -104,8 +104,11 @@ Independent trades understate clustering, so real drawdowns run deeper.
 | B3 | **Simple momentum**: 20-bar Donchian close breakout in LONDON and NY, breakout direction, stop 1.5 × ATR(14), TP 2R, slot rule, same contract | Reported only |
 | B4 | **Cost-free diagnostic**: primary configuration with spread 0 | Reported only, labelled **non-deployable** |
 
-**B2, random-entry portfolio.** Each portfolio is a complete SIMULATION of the
-development fold, built from the strategy run of the same attempt.
+**B2, random-entry portfolio.** Each portfolio is a complete SIMULATION of **one
+fold**, built from the strategy run of the same configuration **on that same
+fold**: gating on the development fold (G6), reported only on the holdout (H2),
+where `A_c`, `N_c`, `L_c` and `R` come from the holdout strategy run. Matching
+statistics never cross folds.
 
 | # | Clause |
 |---|---|
@@ -113,14 +116,14 @@ development fold, built from the strategy run of the same attempt.
 | B2.2 | **Draws.** For portfolio i and an evaluated bar with server-stamped close epoch t, three uniforms are taken exactly as `u` in C3.3, with keys `hermes-pr-random-v2\|<i>\|<t>\|emit`, `...\|dir` and `...\|stop`. The bar emits a signal iff `u_emit < q_c`; it is LONG iff `u_dir < p_c`; its stop multiple is `R` at type-1 rank `ceil(u_stop * n)`. Every evaluated bar of the fold is eligible, in time order; there is no other ordering. |
 | B2.3 | **Signal.** Entry = the signal bar's close; SL = entry ∓ r × ATR(14) at that bar, TP = entry ± `tp_rr_multiple` × r × ATR(14), both anchored at the signal close before delay, as the strategy's are. |
 | B2.4 | **Downstream unchanged:** the same `risk_manager` filters (session, spread draw, ATR, stop-ratio bounds), SIMULATION slot and daily-loss rules (C2.4, C2.5), delay, `propose_execution`, margin, exits and statuses. An execution-invalid or `margin_insufficient` signal goes to population B and is **not replaced**; `OPEN` and `PATH_UNKNOWN` follow C5.6 and C5.9 exactly as for the strategy. Frequency is matched in expectation at population A; the realised C count of each portfolio is reported. |
-| B2.5 | **Statistic:** closed-trade mean R, scenario S. A portfolio with zero resolved trades is dropped and counted; more than 1% dropped gives HOLD. |
+| B2.5 | **Statistic:** closed-trade mean R, scenario S (or the path under evaluation, G9). A portfolio with zero resolved trades is dropped and counted; `M` = the number retained. More than 1% dropped (`M` < 990) gives HOLD. The percentile in G6 is always taken over the `M` retained. |
 
 ## 5. Uncertainty rule
 
 | # | Clause |
 |---|---|
 | U1 | **Cluster bootstrap over calendar months** of E. Months in the fold with no trade are included and contribute none. Resample months with replacement, as many as the fold has; statistic = total R / total trades of the resample. Months, not trades, are resampled because outcomes cluster by regime. |
-| U2 | 10,000 resamples, `numpy.random.default_rng(20261023)` (PCG64), resamples drawn in one call in month order. Lower bound = `numpy.quantile(stats, alpha_k, method="inverted_cdf")`. A resample with zero trades is dropped and counted; more than 1% dropped gives HOLD. |
+| U2 | 10,000 resamples, `numpy.random.default_rng(20261023)` (PCG64), resamples drawn in one call in month order. Lower bound = `numpy.quantile(stats, alpha_c, method="inverted_cdf")`, over the retained resamples. A resample with zero trades is dropped and counted; more than 1% dropped gives HOLD. |
 | U3 | Golden vector: a fixed synthetic R series, committed with the implementation, reproduces a recorded lower bound to 1e-12 (§9 test 3). |
 
 ## 6. Attempts and multiple testing
@@ -153,7 +156,7 @@ chosen from the configuration alone, with no outcome known.
 | # | Clause |
 |---|---|
 | H1 | **Unsealed once**, only after: `pr-1.0` and `ec-1.0` frozen; a development PASS committed with full identity and report; and the user's explicit written go-ahead, recorded in the unseal log. The engine refuses holdout timestamps unless given the commit of that development verdict, and refuses a second unseal (§9 test 1). |
-| H2 | **Permitted holdout executions, all in one unseal session from one engine commit:** the passing configuration, unchanged, at the primary settings, with its three C5.9 paths S, T and C; and, reported only, the sensitivities of G7 and G8, optimistic ordering, intraminute-adverse marks and B2 with 1,000 portfolios. Nothing else is ever run on holdout bars. A rerun is allowed only for an implementation defect whose failing test is committed before it; both reports are kept and the P1 record is flagged. |
+| H2 | **Permitted holdout executions, all in one unseal session from one engine commit:** the passing configuration, unchanged, at the primary settings, with its three C5.9 paths S, T and C; and, reported only, the sensitivities of G7 and G8, optimistic ordering, intraminute-adverse marks and B2 with 1,000 portfolios matched on the holdout strategy run (B2). Nothing else is ever run on holdout bars. A rerun is allowed only for an implementation defect whose failing test is committed before it; both reports are kept and the P1 record is flagged. |
 | H3 | **Holdout gates**, on the primary settings: **(a) >= 30 resolved trades**, fewer is **UNDECIDED**; **(b) total R > 0**, from the equity curve's final value; **(c) maximum drawdown <= 20 R**. G1-G9 do not apply to the holdout. |
 | H4 | **Holdout FAIL or UNDECIDED: P1 is not passed and the holdout is spent.** No attempt may be evaluated on it again. A further confirmation needs new unseen data, meaning a forward demo sample, with its own registration written before it starts. |
 | H5 | **Holdout scenario agreement**, replacing G9 here: `PATH_UNKNOWN` <= 1% of population C in each of S, T and C, and the H3 verdict the same in all three. Otherwise **HOLD**. H3 is evaluated on S; the T and C paths serve only this check. |
@@ -196,8 +199,8 @@ refute, not to prove.
 1. **Seal:** the engine refuses any holdout timestamp without the development verdict commit, logs a valid unseal, and refuses a second one.
 2. **Fold boundary:** a development trade open at the last development bar is `OPEN` with `mtm_R` at that bar and is never resolved with a holdout bar; the holdout run starts flat.
 3. **Bootstrap:** the golden vector of U3 is reproduced; months with no trade are included.
-4. **Gate evaluator:** constructed inputs give HOLD at 99 trades, FAIL at a negative lower bound, FAIL at 4 of 6 positive segments with one holding 60% of final equity, and PASS on a case meeting every gate. **Segments:** a trade open across a boundary splits its marked change between the two segments, and the segment R values sum to the final equity.
-5. **Random benchmark:** reproducible from its keys and identical between two runs; a cell with `A_c = 0` emits nothing; an execution-invalid signal is recorded in B and not replaced; a second signal while one is open is blocked by the slot rule.
+4. **Gate evaluator:** constructed inputs give HOLD at 99 trades, FAIL at a negative lower bound, FAIL at 4 of 6 positive segments with one holding 60% of final equity, and PASS on a case meeting every gate. **Segments:** a trade open across a boundary splits its marked change between the two segments, and the segment R values sum to the final equity. **Paths:** a constructed run whose drawdown passes G4 on S but fails on C gives HOLD by G9, and its G6 comparison on C uses the portfolios' C statistic.
+5. **Random benchmark:** reproducible from its keys and identical between two runs; with 10 of 1,000 portfolios dropped, G6 compares against rank 941 of the 990 retained; holdout portfolios take their matching statistics from the holdout strategy run; a cell with `A_c = 0` emits nothing; an execution-invalid signal is recorded in B and not replaced; a second signal while one is open is blocked by the slot rule.
 6. **Attempt ledger:** an attempt that is not a menu variant, or lacks a prior commit of its `config_hash`, is rejected; G2 uses 0.025 for the baseline and 0.003125 for a variant.
 7. **Holdout run family:** after unsealing, the engine runs only the H2 family for the committed configuration, and refuses any other configuration or setting on holdout bars.
 
@@ -225,3 +228,13 @@ The power table was independently reproduced. Five findings, all accepted:
 | R3 | F4 restarted folds flat while §3 required one pooled run; segment attribution of boundary-crossing trades was undefined | Exactly two folds; segments partition the development run and are scored by equity-curve change, summing to final equity (F4, F5, G5, test 4) |
 | R4 | H3 required G9, which compares verdicts on G1-G8 and so imported development gates into the holdout; the post-unseal run family was not fixed | H3 holds its own gates; H5 replaces G9 for the holdout; H2 fixes the permitted executions (test 7) |
 | R5 | §9 allowed a post-result change to a gate, threshold or fold at the cost of an attempt, a route to change what counts as success | After any development result the success test is closed; such a change is a new registration that ends P1 under `pr-1.x` (§9) |
+
+**Review 2 of `pr-0.2`: HOLD.** R1 and R3-R5 closed; R2 substantially closed. Three
+inconsistencies and one stale identifier, all accepted:
+
+| # | Finding | `pr-0.3` |
+|---|---|---|
+| S1 | G6 fixed rank 950 while B2.5 allows dropping up to 1% of portfolios | The percentile is taken over the `M` retained: type-1 rank `ceil(0.95 × M)` (G6, B2.5, test 5) |
+| S2 | G9 compares G1-G8 across S, T and C, but G4, G5 and G6 were defined on S only | G1-G8 are evaluated once per path, with every S-specified quantity, the random portfolios included, read on that path; headline is S (G9, test 4) |
+| S3 | Holdout B2 had no matching-data definition | B2 is defined per fold; on the holdout it is matched on the holdout strategy run, and matching never crosses folds (B2, H2, test 5) |
+| S4 | U2 kept `alpha_k` | Now `alpha_c` (U2) |
