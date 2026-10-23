@@ -60,7 +60,7 @@ python tests/test_mt5_failure_state.py        # cross-process outage count and r
 python tests/test_alert_throttle.py           # Telegram throttle state across cron processes, incl. concurrent runs
 python tests/test_mt5_run_lock.py             # one MT5 run at a time, retry budget, stuck-terminal kill (22 Oct)
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
-python research/probe_signal_outcome.py       # self-test gates resolution of logged signals
+python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED
 ```
 
 Weekly: `python weekly_checkpoint.py --week=<Monday>` feeds the checkpoint log in [STATUS.md](STATUS.md). It keeps stale-tick cycles (market not quoting) out of the delay and offset statistics; `--self-test` runs its controls.

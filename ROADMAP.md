@@ -891,7 +891,8 @@ loss is unambiguous: the bid traded 4.4 points through the stop trigger and the
 trade never came within 52 points of target.
 
 **Running tally, n = 2: +1.856R, -1.000R, net +0.856R.** Supports nothing about
-edge, win rate or expectancy, and no parameter moves on it.
+edge, win rate or expectancy, and no parameter moves on it. (n = 3 after
+20 Oct, below.)
 
 ### Delay did not change either outcome
 
@@ -977,6 +978,40 @@ figures are fill 4102.21, stop trigger at bid 4130.19, target trigger at bid
 4045.48, realised 2.000R. With a 0.26 spread the numeric difference here is
 small; on a 7-point stop it is not, and every SHORT in the replay would have
 carried it.
+
+---
+
+## Third signal — SHORT, 20 October 2026
+
+    SHORT XAUUSD @ 4117.28   SL 4130.27 (12.99)   TP 4091.29 (25.99)   0.76 lots
+    bar 2026-10-20 15:15 server (closes 12:30 UTC), NY, regime RANGE/NORMAL
+    ATR 6.41 (stop 2.03 ATR), spread 41, volume 5819/3708.95 = 1.57x, trend DOWN (2 BOS)
+    SL_HIT after 5 bars    MFE 4.81    MAE 13.96    result -1.000R
+
+First signal with a full 0g-1 record from the start. Decision 12:38:04.62 UTC,
+delay 483.99 s, quote bid 4114.50 / ask 4114.95 (latency 4.8 ms), alert 819 ms
+after the decision.
+
+The bid had already moved 2.78 below the signal close, in the trade's
+direction, so the executable sell was worse: stop distance 15.77, target
+distance 23.21, RR 1.472 instead of 2.001. The 0g-5 baseline resizes to 0.63
+lots, $993.51 at risk. **The live alert's 0.76 lots at that fill would have
+risked about $1,199 (1.20%)**; signal 2 went the other way (0.87%). Live alert
+sizing misstates risk in both directions, which is why the replay sizes from the
+executable entry. The outcome does not depend on it: the bid reached 4131.24,
+through the stop from either entry, and never came within 21 points of target.
+
+**Running tally, n = 3: +1.856R, -1.000R, -1.000R, net -0.144R.** Supports
+nothing about edge, win rate or expectancy, and no parameter moves on it.
+
+Probe defect found on this run (23 Oct). `probe_signal_outcome.py` fetched a
+fixed 700 bars, which by 23 Oct started on 13 Oct, and filtered on
+`time > bar_time` without checking the signal bar was in the window. Signals 1
+and 2 were resolved on bars from 13 Oct onwards (signal 2 printed SL_HIT after
+1 bar, MAE 88.17). It also printed the R:R ratio as "realised" for stop-outs.
+Fixed: the signal bar must be inside the fetched window or the signal is
+reported NOT RESOLVED; the fetch widens to reach the oldest signal; the result
+is printed as signed R. Signals 1 and 2 stand on the 13 Oct evidence.
 
 ---
 

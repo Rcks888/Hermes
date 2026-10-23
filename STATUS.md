@@ -1,6 +1,6 @@
 # Hermes: current status
 
-Last updated: 2026-10-20. This page is the entry point. Detailed reasoning and
+Last updated: 2026-10-23. This page is the entry point. Detailed reasoning and
 evidence are in `ROADMAP.md`, early history in `LOGBOOK.md`, probe outputs in
 `research/data_feasibility/`.
 
@@ -38,10 +38,11 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 | Sep 28 – Oct 2 | two-week review; vacation from Oct 1 | 30 Sep: forming-bar root cause fixed (`cf4e3d4`), 10x oversizing fixed (`495e078`), ROADMAP, P0 0c/0d/0e/0f done. 2 Oct: first signal, LONG, TP_HIT | — |
 | Oct 5 – Oct 9 | vacation; resume 7 Oct | 7 Oct: 0g opened, 0g-1 to 0g-5 done, three own bugs caught by guards and controls, cron change deferred. Second signal 7 Oct, SHORT, SL_HIT | unplanned: 0g promoted ahead of the replay |
 | Oct 12 – Oct 16 | catch-up funnel; 0g-6 draft -> review -> freeze | 14 Oct: funnel for weeks Oct 5 and Oct 12 reconciled, frozen-tick and nightly-swap findings, `vm.swappiness=10` applied. 13 Oct: SHORT-side spread defect fixed (`3fdef54`), both signals resolved, first live conformance point, STATUS and weekly checkpoint added, 0g-6 drafted as `EXECUTION_CONTRACT.md` ec-0.1, reviews 1-4 HOLD (10 + 8 + 3 + 2 findings), all accepted in ec-0.1r2-r5. 14 Oct: review 5 APPROVE, **ec-0.2 structure frozen** (tag `ec-0.2`). 15 Oct: second broker outage, 13 Oct probe evidence committed. Sat 17 Oct: host reboot test with Ares; MT5 build 6271 blocked on Wine 9, moved to WineHQ Wine 11.0, PASS (see Incidents) | drafting found H1-H3, which add work to the weeks of Oct 19 and Oct 26 |
-| Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | In progress. 19 Oct: reboot validated on live cron (00:07 PASS), third broker outage. 20 Oct: swap timeline from host `sar`, broker-outage table, cross-process MT5 failure-state fix, `setup_vps.sh` to WineHQ. 20 Oct: signal 3 (SHORT, NY), first live reconnect alert. 22 Oct: unattended-upgrade outage and host lock-up, MT5 pile-up controls (see Incidents) | M1 added by the contract; 22 Oct unplanned fix delays 0b |
-| Oct 26 – Oct 30 | replay engine build, controls first | | |
-| Nov 2 – Nov 6 | replay engine finish; Level 2 and Level E conformance; server-offset rule from the DST change (TBD-1) | | |
-| Nov 9 onward | rule-only baseline on development folds -> P1 gate | | no date for the P1 verdict until the baseline exists |
+| Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | **Target not met: 0b and the export not started.** 19 Oct: reboot validated on live cron (00:07 PASS), third broker outage. 20 Oct: swap timeline from host `sar`, broker-outage table, cross-process MT5 failure-state fix, `setup_vps.sh` to WineHQ; signal 3 (SHORT, NY), first live reconnect alert, fourth broker outage. 22 Oct: unattended-upgrade outage and host lock-up, MT5 pile-up controls, eMudhra/certifi fix, `requirements.lock` (see Incidents). 23 Oct: checkpoint, firewall confirmed harmless, signal 3 resolved SL_HIT, outcome-probe window defect found and fixed | Two unplanned host incidents (20 Oct failure state, 22 Oct lock-up) and the eMudhra check took the week. Whole target carried to Oct 26; later rows move one week |
+| Oct 26 – Oct 30 | **carried:** 0b preregistration; M15 and M1 CSV export and validation, M1 `MaxBars` test (TBD-2). Watch the offset across the EU DST change on 25 Oct (TBD-1) | | moved from Oct 19 |
+| Nov 2 – Nov 6 | contract amendment after `ec-0.2` (daily quote stop TBD-5, retry-budget decision); replay engine build, controls first. Offset across the US DST change on 1 Nov | | moved one week |
+| Nov 9 – Nov 13 | replay engine finish; Level 2 and Level E conformance; server-offset rule (TBD-1) | | moved one week |
+| Nov 16 onward | rule-only baseline on development folds -> P1 gate | | no date for the P1 verdict until the baseline exists |
 
 ## Signals to date
 
@@ -49,11 +50,12 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 |---|---|---|---|---|---|---|
 | 1 | 2026-10-02 09:45 | LONG | LONDON | 7.15 | TP_HIT, 5 bars | +1.856 |
 | 2 | 2026-10-07 17:30 | SHORT | NY | 28.24 | SL_HIT, 34 bars | -1.000 |
-| 3 | 2026-10-20 15:15 | SHORT | NY | 12.99 | pending probe | |
+| 3 | 2026-10-20 15:15 | SHORT | NY | 12.99 | SL_HIT, 5 bars | -1.000 |
 
-Signal 3 alert (12:38 UTC): entry 4117.28, SL 4130.27, TP 4091.29, 0.76 lots,
-ATR 6.41 (stop 2.03 ATR), spread 41. Record and outcome to be read on the VPS.
-n = 2 resolved, net +0.856R. Supports no claim about edge. Throughput about 1.6 signals
+Signal 3 (ROADMAP "Third signal"): executable bid 2.78 below the signal close,
+so the 0g-5 baseline resizes 0.76 -> 0.63 lots ($993.51); the alert's 0.76 lots
+would have risked about $1,199 (1.20%). Outcome is the same from either entry.
+n = 3 resolved, net -0.144R. Supports no claim about edge. Throughput about 1.6 signals
 per week, which is why the replay, not forward collection, is the critical path.
 
 ## Weekly checkpoint
@@ -74,6 +76,8 @@ marker, and one line in the log below.
 |---|---|---|---|
 | 2026-10-14 (wk Oct 5) | 483 of 480 (3 extra, probably manual reruns during the 7 Oct work: 3 repeated LONDON bars) | 1 (SHORT, SL_HIT) | 0 aborts. Funnel reconciles: 283 tradeable cycles, 260 distinct bars. Delay p50 484.0 s, p95 485.0 s (n=217 fresh). Offset UTC+3 on all 216 fresh cycles. 51 stale-tick cycles. First 0g-1 signal: delay 484.98 s, live bid 0.18 from the M1 proxy |
 | 2026-10-14 (wk Oct 12, partial, to Wed 08:53 UTC) | 228 of 228 scheduled so far | 0 | 0 aborts; the 13 Oct 11:52 failure was soak-only. 120 tradeable cycles, 112 distinct bars. Delay p50 484.0 s, p95 485.0 s. UTC+3 on all 212 fresh cycles. 16 stale-tick cycles. 2 suspect delays of about 7,680 s: the 22:45 server bar evaluated at 22:08 UTC |
+| 2026-10-23 (wk Oct 12, final) | 480 of 480 | 0 approved, 1 rejected | 1 abort (15 Oct 11:08 LONDON, broker outage). Rejection: 15 Oct 08:30 server bar, LONG, ASIA, session gate, as designed. 279 tradeable cycles, 259 distinct bars. Delay p50 484.0, p95 485.0, max 501 s (n=427). UTC+3 on all 431 fresh cycles. 48 stale-tick cycles; 4 suspect delays, all the daily-stop 22:45 bar. Quotes 479/479, latency p50 5.0 ms |
+| 2026-10-23 (wk Oct 19, to Fri 02:53 UTC) | 395 of 396 scheduled so far (1 missing, probably 22 Oct while cron was paused; to confirm) | 1 (SHORT, SL_HIT) | 11 aborts, all `mt5_not_connected`: 19 Oct 19:23, 20 Oct 16:38, and 9 in the 22 Oct lock-up. 216 tradeable cycles, 200 distinct bars. Delay p50 484.0, p95 485.0, max 487 s (n=348). UTC+3 on all 352 fresh cycles (EU DST ends 25 Oct). 32 stale-tick cycles; 4 suspect delays, all the daily-stop bar. Quotes 384/384. Signal 3 delay 483.99 s |
 
 ## What runs (cron, weekdays, UTC)
 
@@ -132,7 +136,7 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
   screening before concluding. The Ares dashboard's 171 MB / 1386 ms for
   19 Oct are window totals, not a 21:07 burst. The MT5 server-midnight
   hypothesis is withdrawn: the rollover happened on 19 Oct with no burst.
-- **Broker-side MT5 outages (13, 15, 19 Oct).** `(-6, 'Terminal:
+- **Broker-side MT5 outages (13, 15, 19, 20 Oct).** `(-6, 'Terminal:
   Authorization failed')` is what `initialize()` returns while the terminal
   itself has lost MetaQuotes-Demo. The MT5 terminal log shows each one:
 
@@ -141,6 +145,11 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
   | 13 Oct | 11:49:08 | 11:53:16 | 4.1 min | none (11:53 succeeded on retry 3, delay 499 s) |
   | 15 Oct | 11:05:18 | 11:09:55 | 4.6 min | 11:08 LONDON |
   | 19 Oct | 19:19:12 | 19:25:01 | 5.8 min | 19:23 NY |
+  | 20 Oct | 16:36:14 | 16:42:18 | 6.1 min | 16:38 NY |
+
+  Measured from the start of the lost run, the terminal re-authorised after
+  1.9 min (15 Oct), 2.0 min (19 Oct) and 4.3 min (20 Oct). Input for the
+  retry-budget decision, not a decision.
 
   The retry budget is 17 s (2 + 5 + 10), so an outage that covers a :07/:08
   slot costs that cycle. **Open decision, retry budget:** about 6 min of retries
@@ -158,7 +167,8 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
 - The 240 s per-run retry budget (22 Oct) caps runaway runs only. It is not the
   open retry-budget decision above, which concerns riding out broker outages.
 - The live alert sizes from the signal-close stop, not the executable entry.
-  The 0g-5 resize is logged as an observation only.
+  The 0g-5 resize is logged as an observation only. At the executable fill the
+  alert's size would have risked 0.87% (signal 2) and 1.20% (signal 3).
 - Exit spread is approximated by the entry-time spread draw (contract C3.5, declared approximation).
 - `ensure_connected()` spends an unconditional 2 s reconnect backoff every run.
 - Cron `dow=1-5` misses the Sunday 22:00 UTC gold open (ASIA, untradeable; research gap only).
@@ -169,9 +179,10 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
 |---|---|---|
 | 14 Oct 06:22 | Unattended upgrade (libx11) restarted `xvfb.service`; MT5 relaunched with LiveUpdate, init 32 s | Self-recovered. Explains the 14 Oct wine/Xvfb pair Ares asked about |
 | 17 Oct 01:10–01:50 | Planned host reboot (kernel 6.8.0-147). MT5 updated to build 6271 on relaunch and stopped answering the IPC pipe on Wine 9.0 ("debugger found" dialog; MT5 asks for Wine 10+) | Wine prefix backed up, Ubuntu Wine 9.0 replaced by WineHQ stable 11.0, avahi disabled, `wineboot -u` with Mono/Gecko overrides. PASS 01:50 UTC, init 21 s. Mon 19 Oct 00:07 soak PASS, init 2.06 s. `setup_vps.sh` now installs WineHQ |
-| 20 Oct 16:37–16:52 | MT5 disconnect at the 16:37 soak; first live "reconnected" alert, 14.7 min after the first failed check | Self-recovered. Cause (broker or host) not yet read from the terminal log |
+| 20 Oct 16:37–16:52 | MT5 disconnect at the 16:37 soak; first live "reconnected" alert, 14.7 min after the first failed check | Self-recovered. **Broker-side**: the terminal lost MetaQuotes-Demo 16:36:14 and re-authorised 16:42:18 (Access Point HA, 6.1 min), then a 1 s access-point switch at 16:45. Lost the 16:38 NY cycle. Added to the outage table |
 | 22 Oct 06:05–08:26 | Unattended upgrades (libnss3, liblzma5, ca-certificates, ...) at 06:04–06:06; needrestart restarted `xvfb.service` and `winbind`. MT5 lost its display; build 6281 was pending, every relaunch hit the 60 s IPC timeout (-10003) and left a terminal behind. Runs took 564–968 s, overlapped, and the host stopped answering SSH logins (load 8). Every alert tier went out twice. Last good check 05:53, 9 failed slots, 16 failed runs, about 2 h 20 min lost (ASIA and LONDON) | Hermes cron paused, `wineserver -k`, manual soak: build 6281 installed, connected 08:26, cron restored. Host: `/etc/needrestart/conf.d/50-hermes-xvfb.conf` stops needrestart restarting `xvfb.service` (Xvfb keeps old libraries until a planned reboot). Code: one MT5 run at a time (`logs/mt5.lock`, busy run logs `CYCLE_ABORTED mt5_busy`), 240 s retry budget per run, stuck terminal killed after an IPC timeout, alert state locked across processes. 5 + 1 controls, 4 + 1 fail on the old code |
-| 22 Oct, check | eMudhra CA key compromise and PHP RCE advisories. No PHP or web server on the host; only `sshd` listens publicly. System trust store (`ca-certificates` 20260816ubuntu0.24.04.1, upgraded 06:05) makes curl and git reject both diagnostic chains. Hermes and Ares venvs had certifi 2026.07.22, and Python `requests` **accepted** the `dv-g3b-emudhra` test chain | Hermes: `certifi>=2026.10.19` pinned in `requirements.txt`, venv upgraded, test chain rejected. Ares venv reported to the Ares thread (Ares frozen). The upgrade (`pip install -U -r`, 08:49 UTC) also moved **numpy to 2.5.4 and pandas to 3.0.6**; previous versions unrecoverable, most likely pandas 3.0.x and numpy 2.x (Ares venv: 3.0.5, 2.2.6). All 9 suites pass; first strategy cycle on the new libraries 08:53. Versions now frozen in `requirements.lock`; deploys install from it. Any funnel change from 22 Oct 08:49 has this as a candidate cause. Ares side (22 Oct, Ares logbook): Ares venv certifi 2026.10.19 (`--no-deps`), emSign roots removed from the gateway JRE, and a **DigitalOcean cloud firewall on the host: inbound TCP 22 only, outbound unrestricted**. Hermes needs outbound only (MetaQuotes, Telegram, GitHub) and rpyc is loopback, so no Hermes impact expected; confirm on the first cycles after it was applied |
+| 22 Oct, check | eMudhra CA key compromise and PHP RCE advisories. No PHP or web server on the host; only `sshd` listens publicly. System trust store (`ca-certificates` 20260816ubuntu0.24.04.1, upgraded 06:05) makes curl and git reject both diagnostic chains. Hermes and Ares venvs had certifi 2026.07.22, and Python `requests` **accepted** the `dv-g3b-emudhra` test chain | Hermes: `certifi>=2026.10.19` pinned in `requirements.txt`, venv upgraded, test chain rejected. Ares venv reported to the Ares thread (Ares frozen). The upgrade (`pip install -U -r`, 08:49 UTC) also moved **numpy to 2.5.4 and pandas to 3.0.6**; previous versions unrecoverable, most likely pandas 3.0.x and numpy 2.x (Ares venv: 3.0.5, 2.2.6). All 9 suites pass; first strategy cycle on the new libraries 08:53. Versions now frozen in `requirements.lock`; deploys install from it. Any funnel change from 22 Oct 08:49 has this as a candidate cause. Ares side (22 Oct, Ares logbook): Ares venv certifi 2026.10.19 (`--no-deps`), emSign roots removed from the gateway JRE, and a **DigitalOcean cloud firewall on the host: inbound TCP 22 only, outbound unrestricted**. Hermes needs outbound only (MetaQuotes, Telegram, GitHub) and rpyc is loopback. **Confirmed 23 Oct**: soak init 2.03 s, strategy cycles normal, alerts and `git pull` working |
+| 23 Oct, found | `probe_signal_outcome.py` fetched a fixed 700 bars (start 13 Oct by then) and filtered `time > bar_time` without checking the signal bar was in the window, so signals 1 and 2 were resolved on bars from 13 Oct onwards (signal 2: SL_HIT after 1 bar, MAE 88.17). It also printed the R:R ratio as "realised" for stop-outs | Fixed: signal bar must be in the window, else NOT RESOLVED; fetch widened to the oldest signal; signed result R. 3 controls; the window control fails on the old filter. The 23 Oct 03:02 JSON is invalid for signals 1 and 2 and is not committed; signals 1 and 2 stand on the 13 Oct evidence |
 | 20 Oct, found | Cross-process failure state: `ensure_connected()` kept its failure count in module globals, so every cron run started at 0. The count was always 1, the "still down" and CRITICAL tiers never fired, no reconnect was ever reported, and the throttle footer cited a never-cleared 13 Oct `first_seen` | Fixed: failure state persisted in `logs/mt5_failure_state.json`, counted per 15-min slot; reconnect alert now fires; footer cites the previous alert. 7 + 1 controls, 5 fail on the old code |
 
 ## Standing rules

@@ -42,8 +42,40 @@ from engine.version import get_code_version  # noqa: E402
 EVENTS = PROJECT_ROOT / "logs" / "events.jsonl"
 OUT_DIR = PROJECT_ROOT / "research" / "data_feasibility"
 SYMBOL = "XAUUSD"
-FETCH_BARS = 700          # ~7 days of M15, enough for any signal this month
+FETCH_BARS = 700          # minimum; widened to reach the oldest signal
+FETCH_BARS_CAP = 20000    # well inside the terminal's MaxBars
 POINT = 0.01              # XAUUSD point size, confirmed by the sizing probe
+
+
+def bars_after_signal(rows, bar_time):
+    """Bars strictly after the signal bar, and whether the window covers it.
+
+    rows is a list of (iso_time, high, low) in time order. A fixed-count fetch
+    can start after an old signal; filtering on time > bar_time then hands the
+    resolver bars from days later and it reports a confident wrong outcome. On
+    23 Oct the 2 Oct and 7 Oct signals were resolved on bars from 13 Oct
+    onwards this way. The signal bar itself must be in the window.
+    """
+    covered = any(t == bar_time for t, _, _ in rows)
+    if not covered:
+        return [], False
+    return [r for r in rows if r[0] > bar_time], True
+
+
+def outcome_r(outcome, realised_rr):
+    """Result in R of the realised risk: TP pays realised_rr, SL loses 1."""
+    if outcome == "TP_HIT":
+        return realised_rr
+    if outcome == "SL_HIT":
+        return -1.0
+    return None
+
+
+def fetch_count(bar_times, now):
+    """Upper bound on M15 bars back to the oldest signal (weekends included)."""
+    oldest = min(datetime.fromisoformat(t) for t in bar_times)
+    need = int((now - oldest).total_seconds() // 900) + 200
+    return min(max(FETCH_BARS, need), FETCH_BARS_CAP)
 
 
 def resolve(direction, entry, sl, tp, bars):
@@ -143,6 +175,30 @@ def selftest():
         ok &= good
         print(f"  {'PASS' if good else 'FAIL'}  {name:18} -> {got['outcome']}"
               f"  rr {lv['realised_rr']:.3f}")
+
+    # Window coverage. The fetched rows start after the signal bar, which is
+    # what a fixed 700-bar fetch did to the 2 and 7 Oct signals on 23 Oct.
+    rows = [("2026-10-13 07:00:00+00:00", 4190.0, 4180.0),
+            ("2026-10-13 07:15:00+00:00", 4191.0, 4185.0)]
+    bars, covered = bars_after_signal(rows, "2026-10-07 17:30:00+00:00")
+    good = (not covered) and bars == []
+    ok &= good
+    print(f"  {'PASS' if good else 'FAIL'}  window misses signal -> "
+          f"covered={covered} bars={len(bars)}")
+    rows = [("2026-10-07 17:30:00+00:00", 4105.0, 4100.0)] + rows
+    bars, covered = bars_after_signal(rows, "2026-10-07 17:30:00+00:00")
+    good = covered and len(bars) == 2
+    ok &= good
+    print(f"  {'PASS' if good else 'FAIL'}  window holds signal  -> "
+          f"covered={covered} bars={len(bars)}")
+
+    # A stop-out is -1R, never the R:R ratio the trade was aiming for.
+    for o, rr, want in (("SL_HIT", 2.0, -1.0), ("TP_HIT", 1.856, 1.856),
+                        ("OPEN", 2.0, None)):
+        got = outcome_r(o, rr)
+        good = got == want
+        ok &= good
+        print(f"  {'PASS' if good else 'FAIL'}  outcome_r {o:7} -> {got}")
     return ok
 
 
@@ -185,23 +241,35 @@ def main():
         print("  MT5 unavailable; cannot fetch bars.")
         return 1
 
-    print(f"Fetching {FETCH_BARS} closed M15 bars ...")
-    df = data_feed.get_candles(SYMBOL, count=FETCH_BARS)
+    count = fetch_count([str(e.get("bar_time")) for e in sigs],
+                        datetime.now(timezone.utc))
+    print(f"Fetching {count} closed M15 bars ...")
+    df = data_feed.get_candles(SYMBOL, count=count)
     if df is None or df.empty:
         print("  No bars returned.")
         return 1
     print(f"  got {len(df)} bars, {df['datetime'].iloc[0]} .. "
           f"{df['datetime'].iloc[-1]}")
+    all_rows = [(str(r.datetime), float(r.high), float(r.low))
+                for r in df.itertuples()]
 
     rows = []
+    uncovered = 0
     for e in sigs:
         bar_time = str(e.get("bar_time"))
         entry, sl, tp = float(e["entry"]), float(e["sl"]), float(e["tp"])
         direction = e.get("direction", "LONG")
 
-        after = df[df["datetime"].astype(str) > bar_time]
-        bars = [(str(r.datetime), float(r.high), float(r.low))
-                for r in after.itertuples()]
+        bars, covered = bars_after_signal(all_rows, bar_time)
+        if not covered:
+            uncovered += 1
+            rows.append({"ts": e.get("ts"), "bar_time": bar_time,
+                         "direction": direction, "entry": entry, "sl": sl,
+                         "tp": tp, "window_covers_signal": False})
+            print(f"\n  {direction} @ {entry}  bar {bar_time}  "
+                  f"{e.get('session')}")
+            print("    NOT RESOLVED  signal bar is outside the fetched window")
+            continue
 
         raw = resolve(direction, entry, sl, tp, bars)
 
@@ -227,7 +295,9 @@ def main():
             "nominal_rr": round(abs(tp - entry) / sl_dist_raw, 3) if sl_dist_raw else None,
             "spread_cost_pct_of_risk": (round(100 * spread_px / sl_dist_raw, 1)
                                         if sl_dist_raw else None),
+            "window_covers_signal": True,
             "realised_rr_after_spread": realised_r,
+            "outcome_r_after_spread": outcome_r(adj["outcome"], realised_r),
             "spread_side": lv["spread_side"],
             "fill": round(lv["fill"], 2),
             "sl_trigger_bid": round(lv["sl_trigger_bid"], 2),
@@ -247,8 +317,9 @@ def main():
               f"  MFE {raw['mfe']}  MAE {raw['mae']}")
         print(f"    w/ spread  {adj['outcome']:7}"
               f"{' AMBIGUOUS' if adj['ambiguous'] else ''}"
-              f"  realised {realised_r}R vs nominal {row['nominal_rr']}R"
-              f"  (spread = {row['spread_cost_pct_of_risk']}% of risk)")
+              f"  result {row['outcome_r_after_spread']}R"
+              f"  (rr {realised_r} vs nominal {row['nominal_rr']},"
+              f" spread = {row['spread_cost_pct_of_risk']}% of risk)")
 
     result = {
         "probe": "signal_outcome",
@@ -265,8 +336,10 @@ def main():
     out.write_text(json.dumps(result, indent=2))
     print(f"\nWritten: {out}")
 
-    n = len(rows)
+    n = len(rows) - uncovered
     print("\n" + "=" * 66)
+    if uncovered:
+        print(f"  {uncovered} signal(s) NOT resolved: outside the bar window.")
     print(f"  {n} signal{'s' if n != 1 else ''} resolved. This is a sample of "
           f"{n}.")
     print("  It cannot support any claim about edge, win rate or expectancy,")
