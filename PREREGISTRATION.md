@@ -1,9 +1,13 @@
 # Hermes 0b preregistration: P1 success criteria
 
-**Version `pr-0.3` — DRAFT, 2026-10-23.** Nothing here is frozen. `pr-1.0` is
-frozen and git-tagged **before any SIMULATION result exists on any historical
-span** (§9). Decisions needing sign-off are in §8. Reviews 1 and 2 (HOLD) and the
-clauses that close them are in §11.
+**Version `pr-0.4` — PROTOCOL FROZEN, 2026-10-23 (tag `pr-0.4`).** Review 3
+approved `pr-0.3` at document level. Every criterion is identical to `pr-0.3`;
+the only clause change is the freeze rule in §9, which now separates this
+**pre-result protocol freeze** from `pr-1.0`. `pr-1.0` additionally requires the
+§9 tests implemented, passing, and each shown to fail on a broken variant. **No
+SIMULATION result on any historical span exists, and none may be produced
+before `pr-1.0`.** Reviews 1-3 are in §11. Any later clause change is a new
+version with its reason recorded.
 
 **Scope.** What the P1 decision gate tests, on which data, with which
 thresholds, and what happens on each outcome. It binds the replay engine (run
@@ -130,7 +134,7 @@ statistics never cross folds.
 
 | # | Clause |
 |---|---|
-| M1 | **Attempt 0 is the frozen baseline.** At most **N = 3** further attempts, each **exactly one variant from the menu below**, which is fixed in this registration before any result. Variants are not combined. A change outside the menu cannot be tested under `pr-1.x` (§9). Implementation defects and research-infrastructure changes, as classified in ROADMAP, do not consume an attempt; every prior attempt is rerun under them and the rerun **supersedes** the earlier result, which is kept in the report without a verdict. |
+| M1 | **Attempt 0 is the frozen baseline.** At most **N = 3** further attempts, each **exactly one variant from the menu below**, which is fixed in this registration before any result. Variants are not combined. A change outside the menu cannot be tested under this registration (§9). Implementation defects and research-infrastructure changes, as classified in ROADMAP, do not consume an attempt; every prior attempt is rerun under them and the rerun **supersedes** the earlier result, which is kept in the report without a verdict. |
 | M2 | **G2 levels are fixed per configuration, not per attempt:** `alpha` = **0.025 for the baseline** and **0.003125 for each of the 8 menu variants**. By the union (weighted Bonferroni) bound, the probability that any configuration whose true mean R is <= 0 passes G2 is at most 0.025 + 8 × 0.003125 = **0.05, however the attempts are chosen**, because every configuration that could ever be tested and its level are fixed here. The bound is **nominal**: it inherits the bootstrap's approximate coverage (PD3), and it assumes reruns happen only under M1's documented defect or infrastructure classes, a procedural protection, not a statistical one. |
 | M3 | Every attempt is **committed before its run**: the menu variant, its rationale from the diagnosis, and its new `config_hash`. Choosing which variant to try after seeing results is allowed; that choice is what M2 covers. Running a variant before its commit consumes the attempt and voids its result. |
 | M4 | Every attempt is evaluated on the **development span only**, against all of G1-G9. Each gets its own report; none is discarded. |
@@ -180,21 +184,28 @@ refute, not to prove.
 | PD9 | Attempts | N = 3 runs from a fixed menu of 8; `alpha` 0.025 for the baseline, 0.003125 per variant, union-bounded at 0.05 (M2). Cost: at 150 trades a variant needs mean R above about 0.32, a win rate of about 46%; the baseline's power is unchanged | `alpha` halving per attempt (`pr-0.1`): its sum does not bound the error when each variant is chosen after seeing earlier results on the same data (review 1). Unlimited or off-menu variants: no bound exists |
 | PD10 | Holdout use | Once, after a development PASS, user go-ahead logged; the run family is fixed (H2), its gates and scenario check are its own (H3, H5); failure spends it | Peeking at the holdout to pick between attempts turns it into a second development set |
 | PD11 | Session policy | Primary = live configuration, LONDON and NY. Overlap-only is reported (M6) and is menu variant V1 | ROADMAP calls overlap the "primary candidate from soak". Making it primary changes the strategy from what live runs, so conformance (contract §8) would no longer cover it; registering both as attempt 0 splits the baseline level 0.025 into 0.0125 for each. The soak evidence is about spreads, which TIER 3 already prices |
-| PD12 | Variant menu | The eight single-parameter variants of §6, fixed now. **Your call**: these are the only rule changes P1 can ever test under `pr-1.x`, so anything you would want to try belongs here before the freeze | Leaving attempts open-ended (`pr-0.1`) keeps diagnosis flexible but leaves no error bound |
+| PD12 | Variant menu | The eight single-parameter variants of §6, fixed now. **Confirmed by the user, 23 Oct**, as research choices, not an endorsement of their profitability: these are the only rule changes P1 can ever test under this registration, never combined, at most three, at the M2 levels | Leaving attempts open-ended (`pr-0.1`) keeps diagnosis flexible but leaves no error bound |
 
 ## 9. Freeze rule and preregistered tests
 
-- **`pr-1.0` is frozen and tagged before the first SIMULATION result on any
-  historical span.** Conformance runs on the live period (contract §8) and
+- **`pr-0.4`, protocol frozen** (tag `pr-0.4`, 2026-10-23): the pre-result
+  registration. Every criterion in §0-§8 and §10 is fixed. It was tagged when
+  no replay engine existed, so it precedes every historical SIMULATION result.
+- **`pr-1.0`** = the `pr-0.4` clauses unchanged, plus the tests below written
+  with the engine, passing, and each shown once to fail on a deliberately
+  broken variant, as for the contract; and `ec-1.0` frozen. Only the status
+  line and the test-evidence record change between them.
+- **No SIMULATION result on any historical span is produced before `pr-1.0`.**
+  The seal, attempt ledger and gate evaluator must be proven before the first
+  run they govern. Conformance runs on the live period (contract §8) and
   engine tests on synthetic data may precede it.
-- A change after `pr-1.0` is a new version with its reason recorded. **After any
-  development result has been seen, the success test is closed:** gates,
-  thresholds, levels, folds, benchmarks and the variant menu cannot change
-  under `pr-1.x`. A change to any of them is a new registration, `pr-2.0`; it
-  ends P1 under `pr-1.x` with its current verdict, and the development span
-  cannot serve as confirmatory evidence for it.
-- `pr-1.0` also requires the tests below, written with the engine and each shown
-  once to fail on a deliberately broken variant, as for the contract.
+- From `pr-0.4` on, any clause change is a new version with its reason
+  recorded. **After any development result has been seen, the success test is
+  closed:** gates, thresholds, levels, folds, benchmarks and the variant menu
+  cannot change under this registration (`pr-0.4` and `pr-1.x`). A change to
+  any of them is a new registration, `pr-2.0`; it ends P1 under this
+  registration with its current verdict, and the development span cannot serve
+  as confirmatory evidence for it.
 
 1. **Seal:** the engine refuses any holdout timestamp without the development verdict commit, logs a valid unseal, and refuses a second one.
 2. **Fold boundary:** a development trade open at the last development bar is `OPEN` with `mtm_R` at that bar and is never resolved with a holdout bar; the holdout run starts flat.
@@ -238,3 +249,13 @@ inconsistencies and one stale identifier, all accepted:
 | S2 | G9 compares G1-G8 across S, T and C, but G4, G5 and G6 were defined on S only | G1-G8 are evaluated once per path, with every S-specified quantity, the random portfolios included, read on that path; headline is S (G9, test 4) |
 | S3 | Holdout B2 had no matching-data definition | B2 is defined per fold; on the holdout it is matched on the holdout strategy run, and matching never crosses folds (B2, H2, test 5) |
 | S4 | U2 kept `alpha_k` | Now `alpha_c` (U2) |
+
+**Review 3 of `pr-0.3`: APPROVE at document level.** S1-S4 closed; no
+remaining blocking inconsistency. Boundary as stated by the reviewer: the
+protocol is approved; `pr-1.0` readiness is not demonstrated until the §9 tests
+pass and discriminate against broken variants; no strategy edge and no live
+execution is authorised. Freezing as `pr-0.4` was approved with one correction,
+applied: the §9 freeze rule now recognises `pr-0.4` as the pre-result protocol
+freeze and keeps the test requirement, and the bar on historical SIMULATION
+results, for `pr-1.0`. The user confirmed the PD12 menu as listed, as research
+choices only.

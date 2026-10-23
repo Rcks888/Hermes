@@ -17,7 +17,7 @@ versions.
 GATE 0  infrastructure soak        ████████████████████  COMPLETE
         multi-session observation  ████████████████████  COMPLETE
         live alert-only deploy     ████████████████████  COMPLETE
-P0      prerequisites              ████████████████░░░░  5 of 6 — 0b unblocked
+P0      prerequisites              ████████████████████  6 of 6 — 0b protocol frozen (pr-0.4)
 P1      replay engine + baseline   ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P0
 P2      independent risk control   ░░░░░░░░░░░░░░░░░░░░  BLOCKED by P1
 P2b     event-risk filter          ░░░░░░░░░░░░░░░░░░░░  can run parallel to P2
@@ -39,7 +39,7 @@ effectiveness and regime robustness are all unknown.
 | Item | Description | Status |
 |---|---|---|
 | 0a | Historical data feasibility | **Near complete** — 4.25y, both discrepancies resolved; depth still config-capped |
-| 0b | Preregister success criteria | Draft `pr-0.1` in `PREREGISTRATION.md` (23 Oct), under review |
+| 0b | Preregister success criteria | `pr-0.4` protocol frozen 23 Oct (`PREREGISTRATION.md`, tag `pr-0.4`); `pr-1.0` once its §9 tests pass with the replay engine |
 | 0c | Deterministic regime classifier | **DONE** — two axes, frozen at `regime-1.0`, 13 tests |
 | 0d | Research dataset schema | **DONE** — 69 evaluation + 42 setup fields, validators, 11 tests |
 | 0e | Forward logging expansion | **DONE** `c6bfcc7` — 21 diagnostic fields, candle and config hash, block class |
@@ -1533,9 +1533,11 @@ rpyc bridge, where each row costs a network round trip.
 
 ### Then, in order
 
-1. **0b** — preregister success criteria. Cost model is settled (TIER 3,
-   measured live session distributions) and depth is now known, so fold
-   structure can be fixed. Must record the regime-coverage bound above.
+1. ~~**0b**~~ — **done 23 Oct:** `PREREGISTRATION.md`, `pr-0.4` protocol
+   frozen after three reviews, with the regime-coverage bound (F8). Holdout
+   2025-09-01 to 2026-09-11 is sealed: the export may hash and quality-check
+   those bars, nothing more (F6). `pr-1.0` needs its §9 tests built with the
+   replay engine, and no historical SIMULATION result may precede it.
 2. **Replay engine** — purpose-built M15, estimated 3-5 days, reusing Athena's
    `exit_policy`, `max_drawdown`, `summarise` and `reconcile`. Writes the 0d
    schema. Athena itself is not reusable; see the section above.
