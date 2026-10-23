@@ -39,7 +39,7 @@ effectiveness and regime robustness are all unknown.
 | Item | Description | Status |
 |---|---|---|
 | 0a | Historical data feasibility | **Near complete** — 4.25y, both discrepancies resolved; depth still config-capped |
-| 0b | Preregister success criteria | Blocked by 0a |
+| 0b | Preregister success criteria | Draft `pr-0.1` in `PREREGISTRATION.md` (23 Oct), under review |
 | 0c | Deterministic regime classifier | **DONE** — two axes, frozen at `regime-1.0`, 13 tests |
 | 0d | Research dataset schema | **DONE** — 69 evaluation + 42 setup fields, validators, 11 tests |
 | 0e | Forward logging expansion | **DONE** `c6bfcc7` — 21 diagnostic fields, candle and config hash, block class |
