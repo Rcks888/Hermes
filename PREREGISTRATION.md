@@ -78,15 +78,16 @@ of about 1.43 at a 2R target with realised RR 1.9. With 150 trades, G2 at
 win-rate system fails G2, and even a genuine 43% system passes it only about
 half the time. That is deliberate:** at this sample size a smaller edge cannot
 be told apart from zero, and a false PASS costs more than a false FAIL.
-Simulated, 20,000 runs of independent trades (drawdown in R):
+Simulated by `research/prereg_gate_power.py`, 20,000 runs of independent trades
+(drawdown in R; G2 approximated by a normal bound):
 
 | Win rate | Mean R | Trades | DD p50 | DD p95 | P(DD > 15) | P(DD > 20) | P(G2 pass, 0.025) |
 |---|---|---|---|---|---|---|---|
-| 41% | 0.19 | 150 | 11.2 | 21.4 | 0.22 | 0.07 | 0.36 |
-| 43% | 0.25 | 100 | 8.6 | 16.7 | 0.08 | 0.02 | 0.37 |
-| 43% | 0.25 | 150 | 10.1 | 18.4 | 0.13 | 0.03 | 0.56 |
+| 41% | 0.19 | 150 | 11.2 | 21.3 | 0.22 | 0.07 | 0.37 |
+| 43% | 0.25 | 100 | 8.7 | 16.5 | 0.08 | 0.02 | 0.37 |
+| 43% | 0.25 | 150 | 10.1 | 18.7 | 0.14 | 0.03 | 0.56 |
 | 43% | 0.25 | 250 | 11.7 | 20.7 | 0.23 | 0.06 | 0.78 |
-| 45% | 0.31 | 150 | 9.1 | 16.4 | 0.08 | 0.02 | 0.74 |
+| 45% | 0.31 | 150 | 9.1 | 16.4 | 0.08 | 0.01 | 0.74 |
 
 Independent trades understate clustering, so real drawdowns run deeper.
 
@@ -139,11 +140,11 @@ refute, not to prove.
 | PD2 | Minimums | Development >= 24 months and >= 100 trades; holdout >= 30 trades; below them HOLD or UNDECIDED, never FAIL | Calling a thin sample FAIL would invite a "rerun with more data", which is a forking path |
 | PD3 | Uncertainty | Month-cluster bootstrap, one-sided, `alpha_k` per M2 | Trade-level bootstrap ignores regime clustering and overstates precision |
 | PD4 | Profit factor | 1.30 point estimate, from the proposal | A PF bound duplicates G2 |
-| PD5 | Drawdown | 20 R on the equity curve, scenario S. **This is your risk appetite**, not a statistic: it is the deepest peak-to-trough you would sit through at 1% risk | 10 R, the proposal's demo gate, is exceeded by a 43% system over 150 trades about half the time, and 15 R about 13%; either would mostly test luck |
+| PD5 | Drawdown | 20 R on the equity curve, scenario S. **This is your risk appetite**, not a statistic: it is the deepest peak-to-trough you would sit through at 1% risk | 10 R, the proposal's demo gate, is exceeded by a 43% system over 150 trades about half the time, and 15 R about 14%; either would mostly test luck |
 | PD6 | Stability | Two thirds of half-year segments positive, plus a 50% concentration cap | Monthly: about 4 trades a month makes the sign noise |
 | PD7 | Benchmark | Direction-matched random entry, 95th percentile, gating | Random direction: in a bull run any long-heavy system beats it without timing skill |
 | PD8 | Sensitivity gates | Point estimate > 0 at every delay and at p90 spread; scenario agreement per C5.9 | Requiring G2 at every sensitivity multiplies the tests without a correction |
-| PD9 | Attempts | N = 3, `alpha` halving from 0.025, each committed before it runs. Cost: the baseline's G2 power drops from about 0.5 to about 0.36 at a 41% win rate and 150 trades | Unlimited attempts with a fixed `alpha` guarantees a false pass eventually; `alpha` 0.05 on the baseline alone leaves no budget for attempts |
+| PD9 | Attempts | N = 3, `alpha` halving from 0.025, each committed before it runs. Cost: the baseline's G2 power drops from about 0.5 to about 0.37 at a 41% win rate and 150 trades | Unlimited attempts with a fixed `alpha` guarantees a false pass eventually; `alpha` 0.05 on the baseline alone leaves no budget for attempts |
 | PD10 | Holdout use | Once, after a development PASS, user go-ahead logged; failure spends it | Peeking at the holdout to pick between attempts turns it into a second development set |
 
 ## 9. Freeze rule and preregistered tests
