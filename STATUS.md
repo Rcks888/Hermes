@@ -55,7 +55,8 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 Signal 3 (ROADMAP "Third signal"): executable bid 2.78 below the signal close,
 so the 0g-5 baseline resizes 0.76 -> 0.63 lots ($993.51); the alert's 0.76 lots
 would have risked about $1,199 (1.20%). Outcome is the same from either entry.
-n = 3 resolved, net -0.144R. Supports no claim about edge. Throughput about 1.6 signals
+n = 3 resolved, net -0.144R (`signal_outcome_20261023T031103Z.json`; signals 1
+and 2 reproduce the 13 Oct figures exactly). Supports no claim about edge. Throughput about 1.6 signals
 per week, which is why the replay, not forward collection, is the critical path.
 
 ## Weekly checkpoint
@@ -77,7 +78,7 @@ marker, and one line in the log below.
 | 2026-10-14 (wk Oct 5) | 483 of 480 (3 extra, probably manual reruns during the 7 Oct work: 3 repeated LONDON bars) | 1 (SHORT, SL_HIT) | 0 aborts. Funnel reconciles: 283 tradeable cycles, 260 distinct bars. Delay p50 484.0 s, p95 485.0 s (n=217 fresh). Offset UTC+3 on all 216 fresh cycles. 51 stale-tick cycles. First 0g-1 signal: delay 484.98 s, live bid 0.18 from the M1 proxy |
 | 2026-10-14 (wk Oct 12, partial, to Wed 08:53 UTC) | 228 of 228 scheduled so far | 0 | 0 aborts; the 13 Oct 11:52 failure was soak-only. 120 tradeable cycles, 112 distinct bars. Delay p50 484.0 s, p95 485.0 s. UTC+3 on all 212 fresh cycles. 16 stale-tick cycles. 2 suspect delays of about 7,680 s: the 22:45 server bar evaluated at 22:08 UTC |
 | 2026-10-23 (wk Oct 12, final) | 480 of 480 | 0 approved, 1 rejected | 1 abort (15 Oct 11:08 LONDON, broker outage). Rejection: 15 Oct 08:30 server bar, LONG, ASIA, session gate, as designed. 279 tradeable cycles, 259 distinct bars. Delay p50 484.0, p95 485.0, max 501 s (n=427). UTC+3 on all 431 fresh cycles. 48 stale-tick cycles; 4 suspect delays, all the daily-stop 22:45 bar. Quotes 479/479, latency p50 5.0 ms |
-| 2026-10-23 (wk Oct 19, to Fri 02:53 UTC) | 395 of 396 scheduled so far (1 missing, probably 22 Oct while cron was paused; to confirm) | 1 (SHORT, SL_HIT) | 11 aborts, all `mt5_not_connected`: 19 Oct 19:23, 20 Oct 16:38, and 9 in the 22 Oct lock-up. 216 tradeable cycles, 200 distinct bars. Delay p50 484.0, p95 485.0, max 487 s (n=348). UTC+3 on all 352 fresh cycles (EU DST ends 25 Oct). 32 stale-tick cycles; 4 suspect delays, all the daily-stop bar. Quotes 384/384. Signal 3 delay 483.99 s |
+| 2026-10-23 (wk Oct 19, to Fri 02:53 UTC) | 395 of 396 scheduled so far (1 missing, most likely 22 Oct 08:23 while cron was paused for recovery; the pile-up runs logged their events up to 16 min late, so a per-slot check cannot place it) | 1 (SHORT, SL_HIT) | 11 aborts, all `mt5_not_connected`: 19 Oct 19:23, 20 Oct 16:38, and 9 in the 22 Oct lock-up. 216 tradeable cycles, 200 distinct bars. Delay p50 484.0, p95 485.0, max 487 s (n=348). UTC+3 on all 352 fresh cycles (EU DST ends 25 Oct). 32 stale-tick cycles; 4 suspect delays, all the daily-stop bar. Quotes 384/384. Signal 3 delay 483.99 s |
 
 ## What runs (cron, weekdays, UTC)
 
