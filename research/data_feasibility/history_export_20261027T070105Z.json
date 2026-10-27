@@ -1,0 +1,2811 @@
+{
+ "ts": "20261027T070105Z",
+ "code_version": "452691b",
+ "mode": "export",
+ "maxbars_requested": 2000000,
+ "data_dir": "/root/Hermes/data/history/20261027T070105Z",
+ "worker": {
+  "mode": "export",
+  "started": "2026-10-27T07:01:28.969185+00:00",
+  "mt5_package": "5.0.6180",
+  "terminal": {
+   "build": 6286,
+   "maxbars": 2000000,
+   "company": "MetaQuotes Ltd.",
+   "name": "MetaTrader 5",
+   "connected": true
+  },
+  "symbol_info": {
+   "custom": false,
+   "chart_mode": 0,
+   "select": true,
+   "visible": true,
+   "session_deals": 0,
+   "session_buy_orders": 0,
+   "session_sell_orders": 0,
+   "volume": 0,
+   "volumehigh": 0,
+   "volumelow": 0,
+   "time": 1793091690,
+   "digits": 2,
+   "spread": 29,
+   "spread_float": true,
+   "ticks_bookdepth": 32,
+   "trade_calc_mode": 4,
+   "trade_mode": 4,
+   "start_time": 0,
+   "expiration_time": 0,
+   "trade_stops_level": 0,
+   "trade_freeze_level": 0,
+   "trade_exemode": 2,
+   "swap_mode": 1,
+   "swap_rollover3days": 3,
+   "margin_hedged_use_leg": true,
+   "expiration_mode": 15,
+   "filling_mode": 3,
+   "order_mode": 127,
+   "order_gtc_mode": 0,
+   "option_mode": 0,
+   "option_right": 0,
+   "bid": 4000.67,
+   "bidhigh": 4025.47,
+   "bidlow": 3997.12,
+   "ask": 4000.96,
+   "askhigh": 4025.84,
+   "asklow": 3997.47,
+   "last": 0.0,
+   "lasthigh": 0.0,
+   "lastlow": 0.0,
+   "volume_real": 0.0,
+   "volumehigh_real": 0.0,
+   "volumelow_real": 0.0,
+   "option_strike": 0.0,
+   "point": 0.01,
+   "trade_tick_value": 0.1,
+   "trade_tick_value_profit": 0.1,
+   "trade_tick_value_loss": 0.1,
+   "trade_tick_size": 0.01,
+   "trade_contract_size": 100.0,
+   "trade_accrued_interest": 0.0,
+   "trade_face_value": 0.0,
+   "trade_liquidity_rate": 0.0,
+   "volume_min": 0.01,
+   "volume_max": 100.0,
+   "volume_step": 0.01,
+   "volume_limit": 0.0,
+   "swap_long": -12.6,
+   "swap_short": -4.6,
+   "margin_initial": 0.0,
+   "margin_maintenance": 0.0,
+   "session_volume": 0.0,
+   "session_turnover": 0.0,
+   "session_interest": 0.0,
+   "session_buy_orders_volume": 0.0,
+   "session_sell_orders_volume": 0.0,
+   "session_open": 3994.09,
+   "session_close": 3998.04,
+   "session_aw": 0.0,
+   "session_price_settlement": 0.0,
+   "session_price_limit_min": 0.0,
+   "session_price_limit_max": 0.0,
+   "margin_hedged": 100.0,
+   "price_change": 0.0658,
+   "price_volatility": 0.0,
+   "price_theoretical": 0.0,
+   "price_greeks_delta": 0.0,
+   "price_greeks_theta": 0.0,
+   "price_greeks_gamma": 0.0,
+   "price_greeks_vega": 0.0,
+   "price_greeks_rho": 0.0,
+   "price_greeks_omega": 0.0,
+   "price_sensitivity": 0.0,
+   "basis": "",
+   "category": "",
+   "currency_base": "XAU",
+   "currency_profit": "USD",
+   "currency_margin": "USD",
+   "bank": "",
+   "description": "Gold vs US Dollar",
+   "exchange": "XCCY",
+   "formula": "",
+   "isin": "",
+   "name": "XAUUSD",
+   "page": "https://www.mql5.com/en/quotes/metals/xauusd",
+   "path": "Metals\\XAUUSD"
+  },
+  "server_now": "2026-10-27 09:01",
+  "export_end_exclusive": "2026-10-27 00:00",
+  "probe": [
+   {
+    "window": [
+     "2026-10-20 00:00",
+     "2026-10-27 00:00"
+    ],
+    "m15": 444,
+    "m15_first": "2026-10-20 01:00",
+    "m15_last": "2026-10-26 22:45",
+    "m15_meta": {
+     "tries": [
+      444,
+      444
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6660,
+    "m1_first": "2026-10-20 01:00",
+    "m1_last": "2026-10-26 22:59",
+    "m1_meta": {
+     "tries": [
+      6660,
+      6660
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2026-08-03 00:00",
+     "2026-08-10 00:00"
+    ],
+    "m15": 440,
+    "m15_first": "2026-08-03 01:00",
+    "m15_last": "2026-08-07 22:45",
+    "m15_meta": {
+     "tries": [
+      440,
+      440
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6600,
+    "m1_first": "2026-08-03 01:00",
+    "m1_last": "2026-08-07 22:59",
+    "m1_meta": {
+     "tries": [
+      6600,
+      6600
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2026-06-01 00:00",
+     "2026-06-08 00:00"
+    ],
+    "m15": 440,
+    "m15_first": "2026-06-01 01:00",
+    "m15_last": "2026-06-05 22:45",
+    "m15_meta": {
+     "tries": [
+      440,
+      440
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6598,
+    "m1_first": "2026-06-01 01:00",
+    "m1_last": "2026-06-05 22:59",
+    "m1_meta": {
+     "tries": [
+      6598,
+      6598
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2026-03-09 00:00",
+     "2026-03-16 00:00"
+    ],
+    "m15": 450,
+    "m15_first": "2026-03-09 01:00",
+    "m15_last": "2026-03-13 22:45",
+    "m15_meta": {
+     "tries": [
+      450,
+      450
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6722,
+    "m1_first": "2026-03-09 01:00",
+    "m1_last": "2026-03-13 22:59",
+    "m1_meta": {
+     "tries": [
+      6722,
+      6722
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2025-03-10 00:00",
+     "2025-03-17 00:00"
+    ],
+    "m15": 460,
+    "m15_first": "2025-03-10 00:00",
+    "m15_last": "2025-03-14 22:45",
+    "m15_meta": {
+     "tries": [
+      460,
+      460
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6893,
+    "m1_first": "2025-03-10 00:00",
+    "m1_last": "2025-03-14 22:56",
+    "m1_meta": {
+     "tries": [
+      6893,
+      6893
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2024-03-11 00:00",
+     "2024-03-18 00:00"
+    ],
+    "m15": 460,
+    "m15_first": "2024-03-11 00:00",
+    "m15_last": "2024-03-15 22:45",
+    "m15_meta": {
+     "tries": [
+      460,
+      460
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6892,
+    "m1_first": "2024-03-11 00:00",
+    "m1_last": "2024-03-15 22:56",
+    "m1_meta": {
+     "tries": [
+      6892,
+      6892
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2023-03-13 00:00",
+     "2023-03-20 00:00"
+    ],
+    "m15": 460,
+    "m15_first": "2023-03-13 00:00",
+    "m15_last": "2023-03-17 22:45",
+    "m15_meta": {
+     "tries": [
+      460,
+      460
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6885,
+    "m1_first": "2023-03-13 00:02",
+    "m1_last": "2023-03-17 22:57",
+    "m1_meta": {
+     "tries": [
+      6885,
+      6885
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2022-07-04 00:00",
+     "2022-07-11 00:00"
+    ],
+    "m15": 450,
+    "m15_first": "2022-07-04 01:00",
+    "m15_last": "2022-07-08 23:45",
+    "m15_meta": {
+     "tries": [
+      450,
+      450
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6734,
+    "m1_first": "2022-07-04 01:02",
+    "m1_last": "2022-07-08 23:56",
+    "m1_meta": {
+     "tries": [
+      6734,
+      6734
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2022-06-23 00:00",
+     "2022-06-30 00:00"
+    ],
+    "m15": 460,
+    "m15_first": "2022-06-23 01:00",
+    "m15_last": "2022-06-29 23:45",
+    "m15_meta": {
+     "tries": [
+      460,
+      460
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6850,
+    "m1_first": "2022-06-23 01:05",
+    "m1_last": "2022-06-29 23:54",
+    "m1_meta": {
+     "tries": [
+      6850,
+      6850
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   }
+  ],
+  "export_start": "2022-06-01 00:00",
+  "files": {
+   "M15": {
+    "file": "XAUUSD_M15.csv",
+    "rows": 103511
+   },
+   "M1": {
+    "file": "XAUUSD_M1.csv",
+    "rows": 1549410
+   }
+  },
+  "chunks": [
+   {
+    "tries": [
+     2014,
+     2014
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2022-06",
+    "rows": 2014
+   },
+   {
+    "tries": [
+     1922,
+     1922
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2022-07",
+    "rows": 1922
+   },
+   {
+    "tries": [
+     2116,
+     2116
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2022-08",
+    "rows": 2116
+   },
+   {
+    "tries": [
+     2014,
+     2014
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2022-09",
+    "rows": 2014
+   },
+   {
+    "tries": [
+     1932,
+     1932
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2022-10",
+    "rows": 1932
+   },
+   {
+    "tries": [
+     2001,
+     2001
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2022-11",
+    "rows": 2001
+   },
+   {
+    "tries": [
+     1932,
+     1932
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2022-12",
+    "rows": 1932
+   },
+   {
+    "tries": [
+     1922,
+     1922
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-01",
+    "rows": 1922
+   },
+   {
+    "tries": [
+     1830,
+     1830
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-02",
+    "rows": 1830
+   },
+   {
+    "tries": [
+     2116,
+     2116
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-03",
+    "rows": 2116
+   },
+   {
+    "tries": [
+     1748,
+     1748
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-04",
+    "rows": 1748
+   },
+   {
+    "tries": [
+     2106,
+     2106
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-05",
+    "rows": 2106
+   },
+   {
+    "tries": [
+     2014,
+     2014
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-06",
+    "rows": 2014
+   },
+   {
+    "tries": [
+     1922,
+     1922
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-07",
+    "rows": 1922
+   },
+   {
+    "tries": [
+     2116,
+     2116
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-08",
+    "rows": 2116
+   },
+   {
+    "tries": [
+     1922,
+     1922
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-09",
+    "rows": 1922
+   },
+   {
+    "tries": [
+     2024,
+     2024
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-10",
+    "rows": 2024
+   },
+   {
+    "tries": [
+     2001,
+     2001
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-11",
+    "rows": 2001
+   },
+   {
+    "tries": [
+     1838,
+     1838
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2023-12",
+    "rows": 1838
+   },
+   {
+    "tries": [
+     2015,
+     2015
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-01",
+    "rows": 2015
+   },
+   {
+    "tries": [
+     1922,
+     1922
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-02",
+    "rows": 1922
+   },
+   {
+    "tries": [
+     1840,
+     1840
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-03",
+    "rows": 1840
+   },
+   {
+    "tries": [
+     2024,
+     2024
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-04",
+    "rows": 2024
+   },
+   {
+    "tries": [
+     2106,
+     2106
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-05",
+    "rows": 2106
+   },
+   {
+    "tries": [
+     1830,
+     1830
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-06",
+    "rows": 1830
+   },
+   {
+    "tries": [
+     2107,
+     2107
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-07",
+    "rows": 2107
+   },
+   {
+    "tries": [
+     2024,
+     2024
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-08",
+    "rows": 2024
+   },
+   {
+    "tries": [
+     1922,
+     1922
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-09",
+    "rows": 1922
+   },
+   {
+    "tries": [
+     2116,
+     2116
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-10",
+    "rows": 2116
+   },
+   {
+    "tries": [
+     1913,
+     1913
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-11",
+    "rows": 1913
+   },
+   {
+    "tries": [
+     1919,
+     1919
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2024-12",
+    "rows": 1919
+   },
+   {
+    "tries": [
+     2000,
+     2000
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-01",
+    "rows": 2000
+   },
+   {
+    "tries": [
+     1830,
+     1830
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-02",
+    "rows": 1830
+   },
+   {
+    "tries": [
+     1932,
+     1932
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-03",
+    "rows": 1932
+   },
+   {
+    "tries": [
+     1932,
+     1932
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-04",
+    "rows": 1932
+   },
+   {
+    "tries": [
+     2009,
+     2009
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-05",
+    "rows": 2009
+   },
+   {
+    "tries": [
+     1922,
+     1922
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-06",
+    "rows": 1922
+   },
+   {
+    "tries": [
+     2040,
+     2040
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-07",
+    "rows": 2040
+   },
+   {
+    "tries": [
+     1932,
+     1932
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-08",
+    "rows": 1932
+   },
+   {
+    "tries": [
+     2013,
+     2013
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-09",
+    "rows": 2013
+   },
+   {
+    "tries": [
+     2109,
+     2109
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-10",
+    "rows": 2109
+   },
+   {
+    "tries": [
+     1831,
+     1831
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-11",
+    "rows": 1831
+   },
+   {
+    "tries": [
+     1997,
+     1997
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2025-12",
+    "rows": 1997
+   },
+   {
+    "tries": [
+     1922,
+     1922
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-01",
+    "rows": 1922
+   },
+   {
+    "tries": [
+     1813,
+     1813
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-02",
+    "rows": 1813
+   },
+   {
+    "tries": [
+     2006,
+     2006
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-03",
+    "rows": 2006
+   },
+   {
+    "tries": [
+     1848,
+     1848
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-04",
+    "rows": 1848
+   },
+   {
+    "tries": [
+     1843,
+     1843
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-05",
+    "rows": 1843
+   },
+   {
+    "tries": [
+     1925,
+     1925
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-06",
+    "rows": 1925
+   },
+   {
+    "tries": [
+     2013,
+     2013
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-07",
+    "rows": 2013
+   },
+   {
+    "tries": [
+     1848,
+     1848
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-08",
+    "rows": 1848
+   },
+   {
+    "tries": [
+     1930,
+     1930
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-09",
+    "rows": 1930
+   },
+   {
+    "tries": [
+     1588,
+     1588
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M15",
+    "month": "2026-10",
+    "rows": 1588
+   },
+   {
+    "tries": [
+     29964,
+     29964
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2022-06",
+    "rows": 29964
+   },
+   {
+    "tries": [
+     28750,
+     28750
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2022-07",
+    "rows": 28750
+   },
+   {
+    "tries": [
+     31625,
+     31625
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2022-08",
+    "rows": 31625
+   },
+   {
+    "tries": [
+     30112,
+     30112
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2022-09",
+    "rows": 30112
+   },
+   {
+    "tries": [
+     28908,
+     28908
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2022-10",
+    "rows": 28908
+   },
+   {
+    "tries": [
+     29946,
+     29946
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2022-11",
+    "rows": 29946
+   },
+   {
+    "tries": [
+     28928,
+     28928
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2022-12",
+    "rows": 28928
+   },
+   {
+    "tries": [
+     28782,
+     28782
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-01",
+    "rows": 28782
+   },
+   {
+    "tries": [
+     27403,
+     27403
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-02",
+    "rows": 27403
+   },
+   {
+    "tries": [
+     31681,
+     31681
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-03",
+    "rows": 31681
+   },
+   {
+    "tries": [
+     26143,
+     26143
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-04",
+    "rows": 26143
+   },
+   {
+    "tries": [
+     31513,
+     31513
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-05",
+    "rows": 31513
+   },
+   {
+    "tries": [
+     30154,
+     30154
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-06",
+    "rows": 30154
+   },
+   {
+    "tries": [
+     28758,
+     28758
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-07",
+    "rows": 28758
+   },
+   {
+    "tries": [
+     31698,
+     31698
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-08",
+    "rows": 31698
+   },
+   {
+    "tries": [
+     28799,
+     28799
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-09",
+    "rows": 28799
+   },
+   {
+    "tries": [
+     30329,
+     30329
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-10",
+    "rows": 30329
+   },
+   {
+    "tries": [
+     29987,
+     29987
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-11",
+    "rows": 29987
+   },
+   {
+    "tries": [
+     27509,
+     27509
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2023-12",
+    "rows": 27509
+   },
+   {
+    "tries": [
+     30182,
+     30182
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-01",
+    "rows": 30182
+   },
+   {
+    "tries": [
+     28801,
+     28801
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-02",
+    "rows": 28801
+   },
+   {
+    "tries": [
+     27570,
+     27570
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-03",
+    "rows": 27570
+   },
+   {
+    "tries": [
+     30331,
+     30331
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-04",
+    "rows": 30331
+   },
+   {
+    "tries": [
+     31559,
+     31559
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-05",
+    "rows": 31559
+   },
+   {
+    "tries": [
+     27423,
+     27423
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-06",
+    "rows": 27423
+   },
+   {
+    "tries": [
+     31562,
+     31562
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-07",
+    "rows": 31562
+   },
+   {
+    "tries": [
+     30333,
+     30333
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-08",
+    "rows": 30333
+   },
+   {
+    "tries": [
+     28803,
+     28803
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-09",
+    "rows": 28803
+   },
+   {
+    "tries": [
+     31691,
+     31691
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-10",
+    "rows": 31691
+   },
+   {
+    "tries": [
+     28661,
+     28661
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-11",
+    "rows": 28661
+   },
+   {
+    "tries": [
+     28757,
+     28757
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2024-12",
+    "rows": 28757
+   },
+   {
+    "tries": [
+     29944,
+     29944
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-01",
+    "rows": 29944
+   },
+   {
+    "tries": [
+     27422,
+     27422
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-02",
+    "rows": 27422
+   },
+   {
+    "tries": [
+     28951,
+     28951
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-03",
+    "rows": 28951
+   },
+   {
+    "tries": [
+     28947,
+     28947
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-04",
+    "rows": 28947
+   },
+   {
+    "tries": [
+     30048,
+     30048
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-05",
+    "rows": 30048
+   },
+   {
+    "tries": [
+     28799,
+     28799
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-06",
+    "rows": 28799
+   },
+   {
+    "tries": [
+     30414,
+     30414
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-07",
+    "rows": 30414
+   },
+   {
+    "tries": [
+     28769,
+     28769
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-08",
+    "rows": 28769
+   },
+   {
+    "tries": [
+     30091,
+     30091
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-09",
+    "rows": 30091
+   },
+   {
+    "tries": [
+     31562,
+     31562
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-10",
+    "rows": 31562
+   },
+   {
+    "tries": [
+     27370,
+     27370
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-11",
+    "rows": 27370
+   },
+   {
+    "tries": [
+     29504,
+     29504
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2025-12",
+    "rows": 29504
+   },
+   {
+    "tries": [
+     28810,
+     28810
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-01",
+    "rows": 28810
+   },
+   {
+    "tries": [
+     27180,
+     27180
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-02",
+    "rows": 27180
+   },
+   {
+    "tries": [
+     30062,
+     30062
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-03",
+    "rows": 30062
+   },
+   {
+    "tries": [
+     27720,
+     27720
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-04",
+    "rows": 27720
+   },
+   {
+    "tries": [
+     27631,
+     27631
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-05",
+    "rows": 27631
+   },
+   {
+    "tries": [
+     28860,
+     28860
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-06",
+    "rows": 28860
+   },
+   {
+    "tries": [
+     30179,
+     30179
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-07",
+    "rows": 30179
+   },
+   {
+    "tries": [
+     27720,
+     27720
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-08",
+    "rows": 27720
+   },
+   {
+    "tries": [
+     28946,
+     28946
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-09",
+    "rows": 28946
+   },
+   {
+    "tries": [
+     23819,
+     23819
+    ],
+    "dropped": 0,
+    "stable": true,
+    "tf": "M1",
+    "month": "2026-10",
+    "rows": 23819
+   }
+  ],
+  "ok": true,
+  "finished": "2026-10-27T07:03:32.911515+00:00"
+ },
+ "probe_verdict": "M1_AVAILABLE",
+ "probe_classes": [
+  "COVERED",
+  "COVERED",
+  "COVERED",
+  "COVERED",
+  "COVERED",
+  "COVERED",
+  "COVERED",
+  "COVERED",
+  "COVERED"
+ ],
+ "qc": {
+  "files": {
+   "M15": {
+    "file": "XAUUSD_M15.csv",
+    "bytes": 5381416,
+    "sha256": "4af57ead76ecebf5f9caa6ab44f3160572c10c94a3d90a3fe16a9a4834d1d377"
+   },
+   "M1": {
+    "file": "XAUUSD_M1.csv",
+    "bytes": 78909096,
+    "sha256": "6348a40ab6672aae971a40481c139a7ded163153c80dc613351c194764ff2969"
+   }
+  },
+  "data_snapshot_hash": "520a4850231da2d0c9ad8c7b6653f739c20d99f5956246395a571bcd87804fac",
+  "m15": {
+   "rows": 103511,
+   "first": "2022-06-01 01:00",
+   "last": "2026-10-26 22:45",
+   "parse_errors": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "misaligned": 0,
+   "bad_ohlc": 0,
+   "nonpositive": 0,
+   "gaps_by_missing_bars": {
+    "2-4": 759,
+    "180+": 230,
+    "5-29": 150,
+    "1": 11,
+    "30-179": 5
+   },
+   "long_gap_patterns_top": [
+    [
+     "Tue 23:45",
+     "Wed 01:00",
+     181
+    ],
+    [
+     "Wed 23:45",
+     "Thu 01:00",
+     180
+    ],
+    [
+     "Thu 23:45",
+     "Fri 01:00",
+     175
+    ],
+    [
+     "Fri 23:45",
+     "Mon 01:00",
+     166
+    ],
+    [
+     "Mon 23:45",
+     "Tue 01:00",
+     162
+    ],
+    [
+     "Fri 22:45",
+     "Mon 01:00",
+     33
+    ],
+    [
+     "Tue 22:45",
+     "Wed 01:00",
+     30
+    ],
+    [
+     "Wed 22:45",
+     "Thu 01:00",
+     30
+    ],
+    [
+     "Thu 22:45",
+     "Fri 01:00",
+     29
+    ],
+    [
+     "Mon 22:45",
+     "Tue 01:00",
+     28
+    ],
+    [
+     "Mon 21:15",
+     "Tue 01:00",
+     18
+    ],
+    [
+     "Wed 22:45",
+     "Thu 00:00",
+     15
+    ],
+    [
+     "Mon 22:45",
+     "Tue 00:00",
+     14
+    ],
+    [
+     "Tue 22:45",
+     "Wed 00:00",
+     14
+    ],
+    [
+     "Thu 22:45",
+     "Fri 00:00",
+     14
+    ],
+    [
+     "Fri 22:45",
+     "Mon 00:00",
+     8
+    ],
+    [
+     "Fri 23:45",
+     "Mon 00:00",
+     7
+    ],
+    [
+     "Thu 21:15",
+     "Fri 01:00",
+     4
+    ],
+    [
+     "Fri 23:45",
+     "Tue 01:00",
+     4
+    ],
+    [
+     "Fri 20:30",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Thu 23:45",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Mon 21:30",
+     "Tue 01:00",
+     2
+    ],
+    [
+     "Thu 22:45",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Fri 21:30",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Fri 20:00",
+     "Mon 01:00",
+     2
+    ]
+   ],
+   "long_gap_patterns_rare": [
+    [
+     "Fri 20:30",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Thu 23:45",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Mon 21:30",
+     "Tue 01:00",
+     2
+    ],
+    [
+     "Thu 22:45",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Fri 21:30",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Fri 20:00",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Tue 21:15",
+     "Wed 01:00",
+     1
+    ],
+    [
+     "Wed 21:15",
+     "Thu 01:00",
+     1
+    ],
+    [
+     "Thu 21:30",
+     "Fri 01:00",
+     1
+    ],
+    [
+     "Tue 20:30",
+     "Thu 01:00",
+     1
+    ],
+    [
+     "Tue 23:45",
+     "Thu 01:00",
+     1
+    ],
+    [
+     "Tue 04:00",
+     "Tue 07:00",
+     1
+    ],
+    [
+     "Tue 10:45",
+     "Tue 11:45",
+     1
+    ],
+    [
+     "Mon 16:15",
+     "Mon 17:30",
+     1
+    ],
+    [
+     "Thu 03:00",
+     "Thu 12:00",
+     1
+    ],
+    [
+     "Fri 04:00",
+     "Fri 10:15",
+     1
+    ],
+    [
+     "Fri 19:45",
+     "Mon 01:00",
+     1
+    ],
+    [
+     "Thu 20:00",
+     "Thu 22:00",
+     1
+    ],
+    [
+     "Wed 01:00",
+     "Wed 02:00",
+     1
+    ],
+    [
+     "Wed 20:30",
+     "Fri 01:00",
+     1
+    ],
+    [
+     "Fri 23:45",
+     "Mon 01:45",
+     1
+    ],
+    [
+     "Tue 01:00",
+     "Tue 01:45",
+     1
+    ],
+    [
+     "Wed 23:45",
+     "Fri 01:00",
+     1
+    ],
+    [
+     "Thu 21:45",
+     "Fri 03:15",
+     1
+    ],
+    [
+     "Mon 23:00",
+     "Tue 01:00",
+     1
+    ],
+    [
+     "Tue 23:00",
+     "Wed 01:00",
+     1
+    ]
+   ],
+   "long_gap_pattern_count": 45,
+   "rows_by_month": {
+    "2022-06": 2014,
+    "2022-07": 1922,
+    "2022-08": 2116,
+    "2022-09": 2014,
+    "2022-10": 1932,
+    "2022-11": 2001,
+    "2022-12": 1932,
+    "2023-01": 1922,
+    "2023-02": 1830,
+    "2023-03": 2116,
+    "2023-04": 1748,
+    "2023-05": 2106,
+    "2023-06": 2014,
+    "2023-07": 1922,
+    "2023-08": 2116,
+    "2023-09": 1922,
+    "2023-10": 2024,
+    "2023-11": 2001,
+    "2023-12": 1838,
+    "2024-01": 2015,
+    "2024-02": 1922,
+    "2024-03": 1840,
+    "2024-04": 2024,
+    "2024-05": 2106,
+    "2024-06": 1830,
+    "2024-07": 2107,
+    "2024-08": 2024,
+    "2024-09": 1922,
+    "2024-10": 2116,
+    "2024-11": 1913,
+    "2024-12": 1919,
+    "2025-01": 2000,
+    "2025-02": 1830,
+    "2025-03": 1932,
+    "2025-04": 1932,
+    "2025-05": 2009,
+    "2025-06": 1922,
+    "2025-07": 2040,
+    "2025-08": 1932,
+    "2025-09": 2013,
+    "2025-10": 2109,
+    "2025-11": 1831,
+    "2025-12": 1997,
+    "2026-01": 1922,
+    "2026-02": 1813,
+    "2026-03": 2006,
+    "2026-04": 1848,
+    "2026-05": 1843,
+    "2026-06": 1925,
+    "2026-07": 2013,
+    "2026-08": 1848,
+    "2026-09": 1930,
+    "2026-10": 1588
+   }
+  },
+  "m1": {
+   "rows": 1549410,
+   "first": "2022-06-01 01:05",
+   "last": "2026-10-26 22:59",
+   "parse_errors": 0,
+   "duplicates": 0,
+   "out_of_order": 0,
+   "misaligned": 0,
+   "bad_ohlc": 0,
+   "nonpositive": 0,
+   "gaps_by_missing_bars": {
+    "2-4": 55,
+    "30-179": 883,
+    "180+": 265,
+    "5-29": 45,
+    "1": 111
+   },
+   "long_gap_patterns_top": [
+    [
+     "Wed 23:58",
+     "Thu 01:00",
+     99
+    ],
+    [
+     "Tue 23:58",
+     "Wed 01:00",
+     95
+    ],
+    [
+     "Thu 23:58",
+     "Fri 01:00",
+     95
+    ],
+    [
+     "Mon 23:58",
+     "Tue 01:00",
+     93
+    ],
+    [
+     "Fri 23:56",
+     "Mon 01:00",
+     91
+    ],
+    [
+     "Wed 23:58",
+     "Thu 01:02",
+     35
+    ],
+    [
+     "Fri 23:56",
+     "Mon 01:02",
+     33
+    ],
+    [
+     "Tue 23:58",
+     "Wed 01:02",
+     32
+    ],
+    [
+     "Thu 23:58",
+     "Fri 01:02",
+     31
+    ],
+    [
+     "Tue 22:59",
+     "Wed 01:00",
+     30
+    ],
+    [
+     "Wed 22:59",
+     "Thu 01:00",
+     30
+    ],
+    [
+     "Thu 22:59",
+     "Fri 01:00",
+     29
+    ],
+    [
+     "Mon 22:59",
+     "Tue 01:00",
+     28
+    ],
+    [
+     "Fri 22:59",
+     "Mon 01:00",
+     27
+    ],
+    [
+     "Mon 23:58",
+     "Tue 01:02",
+     25
+    ],
+    [
+     "Tue 23:59",
+     "Wed 01:00",
+     20
+    ],
+    [
+     "Tue 23:58",
+     "Wed 01:01",
+     16
+    ],
+    [
+     "Wed 23:58",
+     "Thu 01:01",
+     16
+    ],
+    [
+     "Thu 23:58",
+     "Fri 01:01",
+     15
+    ],
+    [
+     "Mon 23:58",
+     "Tue 01:01",
+     14
+    ],
+    [
+     "Wed 23:59",
+     "Thu 01:00",
+     14
+    ],
+    [
+     "Thu 23:59",
+     "Fri 01:00",
+     14
+    ],
+    [
+     "Wed 23:54",
+     "Thu 01:05",
+     13
+    ],
+    [
+     "Thu 23:54",
+     "Fri 01:05",
+     12
+    ],
+    [
+     "Fri 23:54",
+     "Mon 01:05",
+     12
+    ]
+   ],
+   "long_gap_patterns_rare": [
+    [
+     "Mon 21:29",
+     "Tue 01:05",
+     2
+    ],
+    [
+     "Mon 21:29",
+     "Tue 01:02",
+     2
+    ],
+    [
+     "Thu 23:59",
+     "Fri 01:02",
+     2
+    ],
+    [
+     "Mon 22:58",
+     "Tue 00:02",
+     2
+    ],
+    [
+     "Tue 22:58",
+     "Wed 00:02",
+     2
+    ],
+    [
+     "Wed 22:58",
+     "Thu 00:02",
+     2
+    ],
+    [
+     "Fri 23:57",
+     "Tue 01:01",
+     2
+    ],
+    [
+     "Mon 21:29",
+     "Tue 01:01",
+     2
+    ],
+    [
+     "Thu 22:58",
+     "Fri 00:01",
+     2
+    ],
+    [
+     "Mon 22:58",
+     "Tue 00:01",
+     2
+    ],
+    [
+     "Fri 23:56",
+     "Tue 01:00",
+     2
+    ],
+    [
+     "Mon 21:30",
+     "Tue 01:00",
+     2
+    ],
+    [
+     "Fri 23:57",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Fri 21:44",
+     "Mon 01:00",
+     2
+    ],
+    [
+     "Fri 23:59",
+     "Mon 01:04",
+     2
+    ],
+    [
+     "Mon 23:59",
+     "Tue 01:04",
+     2
+    ],
+    [
+     "Mon 22:59",
+     "Tue 00:00",
+     2
+    ],
+    [
+     "Tue 22:59",
+     "Wed 00:00",
+     2
+    ],
+    [
+     "Wed 23:58",
+     "Thu 01:03",
+     1
+    ],
+    [
+     "Mon 21:29",
+     "Tue 01:03",
+     1
+    ],
+    [
+     "Fri 23:56",
+     "Mon 00:02",
+     1
+    ],
+    [
+     "Thu 22:59",
+     "Fri 00:02",
+     1
+    ],
+    [
+     "Fri 22:56",
+     "Mon 01:02",
+     1
+    ],
+    [
+     "Thu 21:29",
+     "Fri 01:02",
+     1
+    ],
+    [
+     "Fri 20:44",
+     "Mon 01:02",
+     1
+    ],
+    [
+     "Fri 23:58",
+     "Mon 01:02",
+     1
+    ],
+    [
+     "Fri 23:57",
+     "Mon 00:02",
+     1
+    ],
+    [
+     "Fri 22:57",
+     "Mon 00:02",
+     1
+    ],
+    [
+     "Tue 22:58",
+     "Wed 00:01",
+     1
+    ],
+    [
+     "Wed 22:58",
+     "Thu 00:01",
+     1
+    ],
+    [
+     "Fri 22:57",
+     "Mon 01:02",
+     1
+    ],
+    [
+     "Fri 23:57",
+     "Mon 01:05",
+     1
+    ],
+    [
+     "Thu 23:58",
+     "Mon 01:04",
+     1
+    ],
+    [
+     "Fri 23:56",
+     "Mon 01:03",
+     1
+    ],
+    [
+     "Wed 23:59",
+     "Thu 01:02",
+     1
+    ],
+    [
+     "Tue 21:29",
+     "Wed 01:02",
+     1
+    ],
+    [
+     "Fri 20:44",
+     "Mon 01:00",
+     1
+    ],
+    [
+     "Tue 23:57",
+     "Wed 01:00",
+     1
+    ],
+    [
+     "Fri 14:15",
+     "Fri 14:54",
+     1
+    ],
+    [
+     "Thu 22:58",
+     "Mon 01:00",
+     1
+    ],
+    [
+     "Wed 21:29",
+     "Thu 01:00",
+     1
+    ],
+    [
+     "Thu 21:30",
+     "Fri 01:00",
+     1
+    ],
+    [
+     "Tue 20:44",
+     "Thu 01:00",
+     1
+    ],
+    [
+     "Tue 23:58",
+     "Thu 01:00",
+     1
+    ],
+    [
+     "Tue 04:02",
+     "Tue 07:03",
+     1
+    ],
+    [
+     "Tue 10:58",
+     "Tue 11:54",
+     1
+    ],
+    [
+     "Thu 23:58",
+     "Mon 01:00",
+     1
+    ],
+    [
+     "Mon 16:17",
+     "Mon 17:39",
+     1
+    ],
+    [
+     "Thu 03:02",
+     "Thu 12:12",
+     1
+    ],
+    [
+     "Fri 04:04",
+     "Fri 10:28",
+     1
+    ],
+    [
+     "Fri 19:59",
+     "Mon 01:00",
+     1
+    ],
+    [
+     "Thu 23:54",
+     "Fri 01:04",
+     1
+    ],
+    [
+     "Mon 16:25",
+     "Mon 16:59",
+     1
+    ],
+    [
+     "Thu 20:08",
+     "Thu 22:07",
+     1
+    ],
+    [
+     "Thu 23:54",
+     "Fri 01:00",
+     1
+    ],
+    [
+     "Tue 23:59",
+     "Wed 01:03",
+     1
+    ],
+    [
+     "Wed 23:59",
+     "Thu 01:06",
+     1
+    ],
+    [
+     "Thu 01:22",
+     "Thu 01:57",
+     1
+    ],
+    [
+     "Tue 23:59",
+     "Wed 01:01",
+     1
+    ],
+    [
+     "Wed 01:05",
+     "Wed 02:05",
+     1
+    ],
+    [
+     "Wed 20:44",
+     "Fri 01:01",
+     1
+    ],
+    [
+     "Fri 01:30",
+     "Fri 02:01",
+     1
+    ],
+    [
+     "Fri 23:59",
+     "Mon 01:49",
+     1
+    ],
+    [
+     "Tue 01:04",
+     "Tue 01:51",
+     1
+    ],
+    [
+     "Wed 23:58",
+     "Fri 01:00",
+     1
+    ],
+    [
+     "Thu 21:47",
+     "Fri 03:17",
+     1
+    ],
+    [
+     "Mon 23:00",
+     "Tue 01:00",
+     1
+    ],
+    [
+     "Tue 23:00",
+     "Wed 01:00",
+     1
+    ],
+    [
+     "Thu 22:59",
+     "Mon 01:00",
+     1
+    ],
+    [
+     "Fri 20:01",
+     "Mon 01:00",
+     1
+    ],
+    [
+     "Fri 20:00",
+     "Mon 01:00",
+     1
+    ]
+   ],
+   "long_gap_pattern_count": 117,
+   "rows_by_month": {
+    "2022-06": 29964,
+    "2022-07": 28750,
+    "2022-08": 31625,
+    "2022-09": 30112,
+    "2022-10": 28908,
+    "2022-11": 29946,
+    "2022-12": 28928,
+    "2023-01": 28782,
+    "2023-02": 27403,
+    "2023-03": 31681,
+    "2023-04": 26143,
+    "2023-05": 31513,
+    "2023-06": 30154,
+    "2023-07": 28758,
+    "2023-08": 31698,
+    "2023-09": 28799,
+    "2023-10": 30329,
+    "2023-11": 29987,
+    "2023-12": 27509,
+    "2024-01": 30182,
+    "2024-02": 28801,
+    "2024-03": 27570,
+    "2024-04": 30331,
+    "2024-05": 31559,
+    "2024-06": 27423,
+    "2024-07": 31562,
+    "2024-08": 30333,
+    "2024-09": 28803,
+    "2024-10": 31691,
+    "2024-11": 28661,
+    "2024-12": 28757,
+    "2025-01": 29944,
+    "2025-02": 27422,
+    "2025-03": 28951,
+    "2025-04": 28947,
+    "2025-05": 30048,
+    "2025-06": 28799,
+    "2025-07": 30414,
+    "2025-08": 28769,
+    "2025-09": 30091,
+    "2025-10": 31562,
+    "2025-11": 27370,
+    "2025-12": 29504,
+    "2026-01": 28810,
+    "2026-02": 27180,
+    "2026-03": 30062,
+    "2026-04": 27720,
+    "2026-05": 27631,
+    "2026-06": 28860,
+    "2026-07": 30179,
+    "2026-08": 27720,
+    "2026-09": 28946,
+    "2026-10": 23819
+   }
+  },
+  "cross": {
+   "m15_bars_by_minutes_present": {
+    "1-14": 1402,
+    "15": 102109
+   },
+   "c63a_complete_mismatches": 0,
+   "c63a_list": [],
+   "c63b_envelope_failures": 0,
+   "c63b_list": [],
+   "orphan_m1_minutes": 0,
+   "orphan_m1_by_day": {},
+   "by_month": {
+    "2022-06": {
+     "m15": 2014,
+     "m1_in_bars": 29964,
+     "holes": 54,
+     "complete": 1960
+    },
+    "2022-07": {
+     "m15": 1922,
+     "m1_in_bars": 28750,
+     "holes": 45,
+     "complete": 1877
+    },
+    "2022-08": {
+     "m15": 2116,
+     "m1_in_bars": 31625,
+     "holes": 73,
+     "complete": 2043
+    },
+    "2022-09": {
+     "m15": 2014,
+     "m1_in_bars": 30112,
+     "holes": 60,
+     "complete": 1954
+    },
+    "2022-10": {
+     "m15": 1932,
+     "m1_in_bars": 28908,
+     "holes": 42,
+     "complete": 1890
+    },
+    "2022-11": {
+     "m15": 2001,
+     "m1_in_bars": 29946,
+     "holes": 41,
+     "complete": 1960
+    },
+    "2022-12": {
+     "m15": 1932,
+     "m1_in_bars": 28928,
+     "holes": 42,
+     "complete": 1890
+    },
+    "2023-01": {
+     "m15": 1922,
+     "m1_in_bars": 28782,
+     "holes": 41,
+     "complete": 1881
+    },
+    "2023-02": {
+     "m15": 1830,
+     "m1_in_bars": 27403,
+     "holes": 39,
+     "complete": 1791
+    },
+    "2023-03": {
+     "m15": 2116,
+     "m1_in_bars": 31681,
+     "holes": 47,
+     "complete": 2069
+    },
+    "2023-04": {
+     "m15": 1748,
+     "m1_in_bars": 26143,
+     "holes": 39,
+     "complete": 1709
+    },
+    "2023-05": {
+     "m15": 2106,
+     "m1_in_bars": 31513,
+     "holes": 44,
+     "complete": 2062
+    },
+    "2023-06": {
+     "m15": 2014,
+     "m1_in_bars": 30154,
+     "holes": 32,
+     "complete": 1982
+    },
+    "2023-07": {
+     "m15": 1922,
+     "m1_in_bars": 28758,
+     "holes": 41,
+     "complete": 1881
+    },
+    "2023-08": {
+     "m15": 2116,
+     "m1_in_bars": 31698,
+     "holes": 28,
+     "complete": 2088
+    },
+    "2023-09": {
+     "m15": 1922,
+     "m1_in_bars": 28799,
+     "complete": 1901,
+     "holes": 21
+    },
+    "2023-10": {
+     "m15": 2024,
+     "m1_in_bars": 30329,
+     "complete": 2001,
+     "holes": 23
+    },
+    "2023-11": {
+     "m15": 2001,
+     "m1_in_bars": 29987,
+     "complete": 1980,
+     "holes": 21
+    },
+    "2023-12": {
+     "m15": 1838,
+     "m1_in_bars": 27509,
+     "complete": 1816,
+     "holes": 22
+    },
+    "2024-01": {
+     "m15": 2015,
+     "m1_in_bars": 30182,
+     "complete": 1993,
+     "holes": 22
+    },
+    "2024-02": {
+     "m15": 1922,
+     "m1_in_bars": 28801,
+     "complete": 1901,
+     "holes": 21
+    },
+    "2024-03": {
+     "m15": 1840,
+     "m1_in_bars": 27570,
+     "complete": 1818,
+     "holes": 22
+    },
+    "2024-04": {
+     "m15": 2024,
+     "m1_in_bars": 30331,
+     "complete": 2003,
+     "holes": 21
+    },
+    "2024-05": {
+     "m15": 2106,
+     "m1_in_bars": 31559,
+     "complete": 2085,
+     "holes": 21
+    },
+    "2024-06": {
+     "m15": 1830,
+     "m1_in_bars": 27423,
+     "complete": 1811,
+     "holes": 19
+    },
+    "2024-07": {
+     "m15": 2107,
+     "m1_in_bars": 31562,
+     "complete": 2085,
+     "holes": 22
+    },
+    "2024-08": {
+     "m15": 2024,
+     "m1_in_bars": 30333,
+     "complete": 2006,
+     "holes": 18
+    },
+    "2024-09": {
+     "m15": 1922,
+     "m1_in_bars": 28803,
+     "complete": 1903,
+     "holes": 19
+    },
+    "2024-10": {
+     "m15": 2116,
+     "m1_in_bars": 31691,
+     "complete": 2082,
+     "holes": 34
+    },
+    "2024-11": {
+     "m15": 1913,
+     "m1_in_bars": 28661,
+     "complete": 1891,
+     "holes": 22
+    },
+    "2024-12": {
+     "m15": 1919,
+     "m1_in_bars": 28757,
+     "complete": 1899,
+     "holes": 20
+    },
+    "2025-01": {
+     "m15": 2000,
+     "m1_in_bars": 29944,
+     "complete": 1976,
+     "holes": 24
+    },
+    "2025-02": {
+     "m15": 1830,
+     "m1_in_bars": 27422,
+     "complete": 1810,
+     "holes": 20
+    },
+    "2025-03": {
+     "m15": 1932,
+     "m1_in_bars": 28951,
+     "complete": 1911,
+     "holes": 21
+    },
+    "2025-04": {
+     "m15": 1932,
+     "m1_in_bars": 28947,
+     "complete": 1907,
+     "holes": 25
+    },
+    "2025-05": {
+     "m15": 2009,
+     "m1_in_bars": 30048,
+     "complete": 1977,
+     "holes": 32
+    },
+    "2025-06": {
+     "m15": 1922,
+     "m1_in_bars": 28799,
+     "complete": 1900,
+     "holes": 22
+    },
+    "2025-07": {
+     "m15": 2040,
+     "m1_in_bars": 30414,
+     "complete": 1997,
+     "holes": 43
+    },
+    "2025-08": {
+     "m15": 1932,
+     "m1_in_bars": 28769,
+     "holes": 43,
+     "complete": 1889
+    },
+    "2025-09": {
+     "m15": 2013,
+     "m1_in_bars": 30091,
+     "holes": 30,
+     "complete": 1983
+    },
+    "2025-10": {
+     "m15": 2109,
+     "m1_in_bars": 31562,
+     "complete": 2080,
+     "holes": 29
+    },
+    "2025-11": {
+     "m15": 1831,
+     "m1_in_bars": 27370,
+     "complete": 1798,
+     "holes": 33
+    },
+    "2025-12": {
+     "m15": 1997,
+     "m1_in_bars": 29504,
+     "complete": 1948,
+     "holes": 49
+    },
+    "2026-01": {
+     "m15": 1922,
+     "m1_in_bars": 28810,
+     "complete": 1919,
+     "holes": 3
+    },
+    "2026-02": {
+     "m15": 1813,
+     "m1_in_bars": 27180,
+     "complete": 1810,
+     "holes": 3
+    },
+    "2026-03": {
+     "m15": 2006,
+     "m1_in_bars": 30062,
+     "complete": 2004,
+     "holes": 2
+    },
+    "2026-04": {
+     "m15": 1848,
+     "m1_in_bars": 27720,
+     "complete": 1848
+    },
+    "2026-05": {
+     "m15": 1843,
+     "m1_in_bars": 27631,
+     "complete": 1842,
+     "holes": 1
+    },
+    "2026-06": {
+     "m15": 1925,
+     "m1_in_bars": 28860,
+     "complete": 1923,
+     "holes": 2
+    },
+    "2026-07": {
+     "m15": 2013,
+     "m1_in_bars": 30179,
+     "complete": 2011,
+     "holes": 2
+    },
+    "2026-08": {
+     "m15": 1848,
+     "m1_in_bars": 27720,
+     "complete": 1848
+    },
+    "2026-09": {
+     "m15": 1930,
+     "m1_in_bars": 28946,
+     "complete": 1929,
+     "holes": 1
+    },
+    "2026-10": {
+     "m15": 1588,
+     "m1_in_bars": 23819,
+     "complete": 1587,
+     "holes": 1
+    }
+   }
+  },
+  "cross_valid": true,
+  "coverage": {
+   "m1_covered_from": "2022-06-01 01:05",
+   "m1_last": "2026-10-26 22:59",
+   "development_24_months": true,
+   "holdout_covered": true,
+   "f3": "MET",
+   "months_below_ratio": []
+  }
+ }
+}

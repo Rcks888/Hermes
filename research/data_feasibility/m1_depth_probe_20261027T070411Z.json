@@ -1,0 +1,387 @@
+{
+ "ts": "20261027T070411Z",
+ "code_version": "452691b-dirty",
+ "mode": "probe",
+ "maxbars_requested": 100000,
+ "data_dir": "/root/Hermes/data/history/20261027T070411Z",
+ "worker": {
+  "mode": "probe",
+  "started": "2026-10-27T07:04:33.788585+00:00",
+  "mt5_package": "5.0.6180",
+  "terminal": {
+   "build": 6286,
+   "maxbars": 100000,
+   "company": "MetaQuotes Ltd.",
+   "name": "MetaTrader 5",
+   "connected": true
+  },
+  "symbol_info": {
+   "custom": false,
+   "chart_mode": 0,
+   "select": true,
+   "visible": true,
+   "session_deals": 0,
+   "session_buy_orders": 0,
+   "session_sell_orders": 0,
+   "volume": 0,
+   "volumehigh": 0,
+   "volumelow": 0,
+   "time": 1793091875,
+   "digits": 2,
+   "spread": 37,
+   "spread_float": true,
+   "ticks_bookdepth": 32,
+   "trade_calc_mode": 4,
+   "trade_mode": 4,
+   "start_time": 0,
+   "expiration_time": 0,
+   "trade_stops_level": 0,
+   "trade_freeze_level": 0,
+   "trade_exemode": 2,
+   "swap_mode": 1,
+   "swap_rollover3days": 3,
+   "margin_hedged_use_leg": true,
+   "expiration_mode": 15,
+   "filling_mode": 3,
+   "order_mode": 127,
+   "order_gtc_mode": 0,
+   "option_mode": 0,
+   "option_right": 0,
+   "bid": 4000.27,
+   "bidhigh": 4025.47,
+   "bidlow": 3997.12,
+   "ask": 4000.64,
+   "askhigh": 4025.84,
+   "asklow": 3997.47,
+   "last": 0.0,
+   "lasthigh": 0.0,
+   "lastlow": 0.0,
+   "volume_real": 0.0,
+   "volumehigh_real": 0.0,
+   "volumelow_real": 0.0,
+   "option_strike": 0.0,
+   "point": 0.01,
+   "trade_tick_value": 0.1,
+   "trade_tick_value_profit": 0.1,
+   "trade_tick_value_loss": 0.1,
+   "trade_tick_size": 0.01,
+   "trade_contract_size": 100.0,
+   "trade_accrued_interest": 0.0,
+   "trade_face_value": 0.0,
+   "trade_liquidity_rate": 0.0,
+   "volume_min": 0.01,
+   "volume_max": 100.0,
+   "volume_step": 0.01,
+   "volume_limit": 0.0,
+   "swap_long": -12.6,
+   "swap_short": -4.6,
+   "margin_initial": 0.0,
+   "margin_maintenance": 0.0,
+   "session_volume": 0.0,
+   "session_turnover": 0.0,
+   "session_interest": 0.0,
+   "session_buy_orders_volume": 0.0,
+   "session_sell_orders_volume": 0.0,
+   "session_open": 3994.09,
+   "session_close": 3998.04,
+   "session_aw": 0.0,
+   "session_price_settlement": 0.0,
+   "session_price_limit_min": 0.0,
+   "session_price_limit_max": 0.0,
+   "margin_hedged": 100.0,
+   "price_change": 0.0558,
+   "price_volatility": 0.0,
+   "price_theoretical": 0.0,
+   "price_greeks_delta": 0.0,
+   "price_greeks_theta": 0.0,
+   "price_greeks_gamma": 0.0,
+   "price_greeks_vega": 0.0,
+   "price_greeks_rho": 0.0,
+   "price_greeks_omega": 0.0,
+   "price_sensitivity": 0.0,
+   "basis": "",
+   "category": "",
+   "currency_base": "XAU",
+   "currency_profit": "USD",
+   "currency_margin": "USD",
+   "bank": "",
+   "description": "Gold vs US Dollar",
+   "exchange": "XCCY",
+   "formula": "",
+   "isin": "",
+   "name": "XAUUSD",
+   "page": "https://www.mql5.com/en/quotes/metals/xauusd",
+   "path": "Metals\\XAUUSD"
+  },
+  "server_now": "2026-10-27 09:04",
+  "export_end_exclusive": "2026-10-27 00:00",
+  "probe": [
+   {
+    "window": [
+     "2026-10-20 00:00",
+     "2026-10-27 00:00"
+    ],
+    "m15": 444,
+    "m15_first": "2026-10-20 01:00",
+    "m15_last": "2026-10-26 22:45",
+    "m15_meta": {
+     "tries": [
+      444,
+      444
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6660,
+    "m1_first": "2026-10-20 01:00",
+    "m1_last": "2026-10-26 22:59",
+    "m1_meta": {
+     "tries": [
+      6660,
+      6660
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2026-08-03 00:00",
+     "2026-08-10 00:00"
+    ],
+    "m15": 440,
+    "m15_first": "2026-08-03 01:00",
+    "m15_last": "2026-08-07 22:45",
+    "m15_meta": {
+     "tries": [
+      440,
+      440
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 6600,
+    "m1_first": "2026-08-03 01:00",
+    "m1_last": "2026-08-07 22:59",
+    "m1_meta": {
+     "tries": [
+      6600,
+      6600
+     ],
+     "dropped": 0,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2026-06-01 00:00",
+     "2026-06-08 00:00"
+    ],
+    "m15": 440,
+    "m15_first": "2026-06-01 01:00",
+    "m15_last": "2026-06-05 22:45",
+    "m15_meta": {
+     "tries": [
+      440,
+      440
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 0,
+    "m1_first": null,
+    "m1_last": null,
+    "m1_meta": {
+     "tries": [
+      1,
+      1
+     ],
+     "dropped": 1,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2026-03-09 00:00",
+     "2026-03-16 00:00"
+    ],
+    "m15": 450,
+    "m15_first": "2026-03-09 01:00",
+    "m15_last": "2026-03-13 22:45",
+    "m15_meta": {
+     "tries": [
+      450,
+      450
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 0,
+    "m1_first": null,
+    "m1_last": null,
+    "m1_meta": {
+     "tries": [
+      1,
+      1
+     ],
+     "dropped": 1,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2025-03-10 00:00",
+     "2025-03-17 00:00"
+    ],
+    "m15": 460,
+    "m15_first": "2025-03-10 00:00",
+    "m15_last": "2025-03-14 22:45",
+    "m15_meta": {
+     "tries": [
+      460,
+      460
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 0,
+    "m1_first": null,
+    "m1_last": null,
+    "m1_meta": {
+     "tries": [
+      1,
+      1
+     ],
+     "dropped": 1,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2024-03-11 00:00",
+     "2024-03-18 00:00"
+    ],
+    "m15": 460,
+    "m15_first": "2024-03-11 00:00",
+    "m15_last": "2024-03-15 22:45",
+    "m15_meta": {
+     "tries": [
+      460,
+      460
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 0,
+    "m1_first": null,
+    "m1_last": null,
+    "m1_meta": {
+     "tries": [
+      1,
+      1
+     ],
+     "dropped": 1,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2023-03-13 00:00",
+     "2023-03-20 00:00"
+    ],
+    "m15": 460,
+    "m15_first": "2023-03-13 00:00",
+    "m15_last": "2023-03-17 22:45",
+    "m15_meta": {
+     "tries": [
+      460,
+      460
+     ],
+     "dropped": 0,
+     "stable": true
+    },
+    "m1": 0,
+    "m1_first": null,
+    "m1_last": null,
+    "m1_meta": {
+     "tries": [
+      1,
+      1
+     ],
+     "dropped": 1,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2022-07-04 00:00",
+     "2022-07-11 00:00"
+    ],
+    "m15": 0,
+    "m15_first": null,
+    "m15_last": null,
+    "m15_meta": {
+     "tries": [
+      1,
+      1
+     ],
+     "dropped": 1,
+     "stable": true
+    },
+    "m1": 0,
+    "m1_first": null,
+    "m1_last": null,
+    "m1_meta": {
+     "tries": [
+      1,
+      1
+     ],
+     "dropped": 1,
+     "stable": true
+    }
+   },
+   {
+    "window": [
+     "2022-06-23 00:00",
+     "2022-06-30 00:00"
+    ],
+    "m15": 0,
+    "m15_first": null,
+    "m15_last": null,
+    "m15_meta": {
+     "tries": [
+      1,
+      1
+     ],
+     "dropped": 1,
+     "stable": true
+    },
+    "m1": 0,
+    "m1_first": null,
+    "m1_last": null,
+    "m1_meta": {
+     "tries": [
+      1,
+      1
+     ],
+     "dropped": 1,
+     "stable": true
+    }
+   }
+  ],
+  "ok": true,
+  "finished": "2026-10-27T07:04:46.456640+00:00"
+ },
+ "probe_verdict": "M1_CAPPED_OR_ABSENT",
+ "probe_classes": [
+  "COVERED",
+  "COVERED",
+  "ABSENT",
+  "ABSENT",
+  "ABSENT",
+  "ABSENT",
+  "ABSENT",
+  "NO_M15",
+  "NO_M15"
+ ]
+}
