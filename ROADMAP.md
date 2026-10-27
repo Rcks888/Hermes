@@ -1015,6 +1015,54 @@ is printed as signed R. Signals 1 and 2 stand on the 13 Oct evidence.
 
 ---
 
+## Fourth signal — LONG, 23 October 2026
+
+    LONG XAUUSD @ 4022.85   SL 4016.34 (6.51)   TP 4035.87 (13.02)   1.53 lots
+    bar 2026-10-23 16:45 server (closes 14:00 UTC), NY, regime TRANSITION/NORMAL
+    ATR 7.26 (stop 0.90 ATR), spread 49, volume 9684/5882.95 = 1.65x, trend UP (2 BOS)
+    SL_HIT after 1 bar    MFE 0.00    MAE 15.75    result -1.000R
+
+Decision 14:08:05.71 UTC, delay 484.99 s, quote bid 4016.50 / ask 4017.04
+(spread 0.54, latency 5.0 ms), alert 916 ms after the decision. Probe evidence
+`signal_outcome_20261027T024014Z.json`.
+
+**The delay consumed 89% of the stop.** By the decision the ask was 5.81 below
+the signal close, so the executable stop distance was 0.70, of which 0.54 was
+spread: the bid stood 0.16 above the stop. `propose_execution` judged it
+`executable`, correctly under ec-0.2 (C5.2: nothing was crossed at E). The 0g-5
+baseline then sized **14.28 lots** for $999.60 planned risk, 9.3 times the
+alert's size, with required margin $57,363 (57% of the balance, which passes
+C4.4) and **RR 26.9**. The alert's 1.53 lots at that fill would have risked
+$107 (0.11%), so live alert sizing now misstates risk from 0.11% to 1.20%
+(signals 4, 2, 3).
+
+**Hazard for the replay (H6, proposed).** Under ec-0.2 such a fill enters
+population C at -1R or +26.9R, and the stop fills at its level. Neither is
+realistic: at 14.28 lots every 0.10 of slippage past the stop costs 0.14R, and
+the stop sits inside one spread. A few such trades could dominate total R and
+PF in either direction. Nothing in the contract bounds the executable stop
+relative to the spread or to the original stop. This is a definition gap, not a
+performance finding, and no SIMULATION has run, so it can be closed before any
+result exists. It goes to the next contract amendment (week of Nov 2, with
+TBD-5 and the retry budget). Options to review there, none chosen:
+
+- a new execution-invalid status when the executable stop is below a fixed
+  multiple of the spread at E, or below a fixed fraction of the original stop;
+- a cap on volume, for example at the signal-close volume;
+- a stop-slippage model;
+- in every case, a test built from this signal's logged quote.
+
+Whether a change also touches `PREREGISTRATION.md` pr-0.4 is checked in that
+amendment. The outcome from the executable entry needs the M1 path from 14:08
+to 14:15 UTC. With 0.16 of bid headroom a stop-out is very likely but not
+shown; the M1 export can settle it.
+
+**Running tally, n = 4: +1.856R, -1.000R, -1.000R, -1.000R, net -1.144R.**
+Supports nothing about edge, win rate or expectancy, and no parameter moves on
+it.
+
+---
+
 ## PRIORITY 0g: ENTRY TIMING AND EXECUTION CONTRACT          [NOW]
 
 **Purpose.** Prevent the replay engine from filling at a historical bar close

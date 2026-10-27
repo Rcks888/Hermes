@@ -41,7 +41,7 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 | Oct 12 – Oct 16 | catch-up funnel; 0g-6 draft -> review -> freeze | 14 Oct: funnel for weeks Oct 5 and Oct 12 reconciled, frozen-tick and nightly-swap findings, `vm.swappiness=10` applied. 13 Oct: SHORT-side spread defect fixed (`3fdef54`), both signals resolved, first live conformance point, STATUS and weekly checkpoint added, 0g-6 drafted as `EXECUTION_CONTRACT.md` ec-0.1, reviews 1-4 HOLD (10 + 8 + 3 + 2 findings), all accepted in ec-0.1r2-r5. 14 Oct: review 5 APPROVE, **ec-0.2 structure frozen** (tag `ec-0.2`). 15 Oct: second broker outage, 13 Oct probe evidence committed. Sat 17 Oct: host reboot test with Ares; MT5 build 6271 blocked on Wine 9, moved to WineHQ Wine 11.0, PASS (see Incidents) | drafting found H1-H3, which add work to the weeks of Oct 19 and Oct 26 |
 | Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | **Target partly met: 0b done 23 Oct, `pr-0.4` protocol frozen after three reviews (HOLD, HOLD, APPROVE); export not started.** 19 Oct: reboot validated on live cron (00:07 PASS), third broker outage. 20 Oct: swap timeline from host `sar`, broker-outage table, cross-process MT5 failure-state fix, `setup_vps.sh` to WineHQ; signal 3 (SHORT, NY), first live reconnect alert, fourth broker outage. 22 Oct: unattended-upgrade outage and host lock-up, MT5 pile-up controls, eMudhra/certifi fix, `requirements.lock` (see Incidents). 23 Oct: checkpoint, firewall confirmed harmless, signal 3 resolved SL_HIT, outcome-probe window defect found and fixed; signal 4 (LONG, NY), SL_HIT after 1 bar | Two unplanned host incidents (20 Oct failure state, 22 Oct lock-up) and the eMudhra check took the week. Export carried to Oct 26; later rows move one week. 0b was done on Fri 23 Oct, a free day |
 | Oct 26 – Oct 30 | **carried:** M15 and M1 CSV export and validation, M1 `MaxBars` test (TBD-2). Export and data-quality checks only: no strategy evaluation on holdout bars (2025-09-01 to 2026-09-11, `PREREGISTRATION.md` F6). Watch the offset across the EU DST change on 25 Oct (TBD-1) | Mon 26 Oct: no work. 27 Oct: checkpoint a day late; EU DST change seen (offset 3.0 -> 2.0 h), the daily quote stop moved one hour later in UTC; signal 4 resolved | moved from Oct 19; checkpoint on Tue (busy Mon) |
-| Nov 2 – Nov 6 | contract amendment after `ec-0.2` (daily quote stop TBD-5, retry-budget decision); replay engine build, controls first. Offset across the US DST change on 1 Nov | | moved one week |
+| Nov 2 – Nov 6 | contract amendment after `ec-0.2` (daily quote stop TBD-5, retry-budget decision, near-stop fills H6); replay engine build, controls first. Offset across the US DST change on 1 Nov | | moved one week |
 | Nov 9 – Nov 13 | replay engine finish; Level 2 and Level E conformance; server-offset rule (TBD-1) | | moved one week |
 | Nov 16 onward | rule-only baseline on development folds -> P1 gate | | no date for the P1 verdict until the baseline exists |
 
@@ -61,8 +61,10 @@ Signal 4: entry 4022.85, SL 4016.34, TP 4035.87, 1.53 lots, regime
 TRANSITION/NORMAL, delay 484.99 s, alert sent. MFE 0.00 and MAE 15.75 in the
 first bar, 2.4 times the stop: the -1R assumes the stop fills at its level,
 which a real stop in that bar may not have. Spread is 7.5% of risk (RR 1.79
-with spread). Executable-entry sizing still to be read from the logged
-`exec_observation`.
+with spread). **At the decision the ask was 5.81 below the signal close: the
+executable stop was 0.70 (bid 0.16 above SL), so the 0g-5 baseline sized
+14.28 lots, RR 26.9, margin $57,363**; the alert's 1.53 lots would have risked
+$107 (0.11%). Proposed hazard H6 (ROADMAP "Fourth signal").
 
 n = 4 resolved, net -1.144R (`signal_outcome_20261027T024014Z.json`; signals
 1-3 reproduce the earlier figures exactly). Supports no claim about edge.
@@ -191,7 +193,15 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
   open retry-budget decision above, which concerns riding out broker outages.
 - The live alert sizes from the signal-close stop, not the executable entry.
   The 0g-5 resize is logged as an observation only. At the executable fill the
-  alert's size would have risked 0.87% (signal 2) and 1.20% (signal 3).
+  alert's size would have risked 0.87% (signal 2), 1.20% (signal 3) and
+  0.11% (signal 4).
+- **Proposed H6, near-stop executable fills (signal 4, 27 Oct).** When the
+  delay moves price towards the stop, the 0g-5 baseline keeps $1,000 risk by
+  sizing up: signal 4 gave 14.28 lots, RR 26.9, bid 0.16 above the stop. ec-0.2
+  does not bound the executable stop against the spread or the original stop,
+  and stops fill at their level, so such trades can dominate replay R. Decide
+  in the next contract amendment (week of Nov 2), before any SIMULATION; no
+  live change.
 - Exit spread is approximated by the entry-time spread draw (contract C3.5, declared approximation).
 - `ensure_connected()` spends an unconditional 2 s reconnect backoff every run.
 - Cron `dow=1-5` misses the Sunday 22:00 UTC gold open (ASIA, untradeable; research gap only).
