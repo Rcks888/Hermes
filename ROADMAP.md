@@ -183,6 +183,7 @@ the Hermes repo.
 | Cold-start reconnect reported as a real reconnection | earlier |
 | Alert throttling did not survive process exit; a two-week outage would have sent ~2,700 messages | `bcdb1d3` |
 | Archive depth attributed to the broker when it was a client-side `MaxBars` cap; true floor 2022-06-23 | `018579f` |
+| That 2022-06-23 "floor" was itself the edge of the capped client history; the server holds at least 2022-06-01, and M1 was capped too (TBD-2) | 27 Oct, `87b53be` |
 | Range probe passed `datetime` across rpyc, producing 23 uniform failures read as an archive result | `7bff1f3` |
 | Clamped boundary bars counted as twenty years of history | `806c150` |
 | Disconnect state in module globals: count always 1 across cron processes, escalation tiers and reconnect alert dead, throttle footer cited a stale `first_seen` (also closes #3, duplicate disconnect alerts) | 20 Oct, this commit |
@@ -1555,6 +1556,15 @@ Priority 0 is complete except 0b, which is now unblocked. **No MT5
 configuration work is needed** -- the depth question is settled.
 
 ### Archive depth is final at 4.25 years
+
+> **Corrected 27 Oct 2026.** The 2022-06-23 "floor" below was the oldest bar of
+> the capped client history, not the server's. By 27 Oct a capped request for
+> July 2022 returned nothing, and with `MaxBars` 2,000,000 the server returned
+> M15 and M1 from 2022-06-01 (the export start) onwards. M1 is also capped at
+> 100,000 (about 72 trading days) and is complete to 2022-06-23 once raised.
+> TBD-2 resolved; export `20261027T070105Z`, see STATUS. The usable span for
+> P1 is unchanged, because `PREREGISTRATION.md` F1 fixes it at no earlier than
+> 2022-06-23. The text below is kept as written.
 
 `probe_archive_extent` sampled one week per year from 2026 back to 2004. Only
 2023-2026 returned bars from inside the window requested. The nineteen older

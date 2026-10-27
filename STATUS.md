@@ -22,8 +22,9 @@ live execution.
             (ec-1.0 needs TBD-1..5, built §9 tests, conformance: Data/Replay/Conf)
 ✔ 0b      preregistration PREREGISTRATION.md    pr-0.4 protocol frozen 23 Oct
             (pr-1.0 needs its §9 tests built with the replay engine)
-▶ Data    M15 + M1 history CSV export, Wine side (hard gate on replay)   <- HERE
-◻ Replay  purpose-built M15 delayed-entry engine
+✔ Data    M15 + M1 history CSV export, Wine side   exported 27 Oct, F3 met
+            (TBD-2 resolved: MaxBars raised for the export only, then restored)
+▶ Replay  purpose-built M15 delayed-entry engine   <- HERE (starts week of Nov 2)
 ◻ Conf    Level 2/3 conformance against logged events
 ◻ P1      rule-only baseline -> P1 decision gate
 ```
@@ -40,7 +41,7 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 | Oct 5 – Oct 9 | vacation; resume 7 Oct | 7 Oct: 0g opened, 0g-1 to 0g-5 done, three own bugs caught by guards and controls, cron change deferred. Second signal 7 Oct, SHORT, SL_HIT | unplanned: 0g promoted ahead of the replay |
 | Oct 12 – Oct 16 | catch-up funnel; 0g-6 draft -> review -> freeze | 14 Oct: funnel for weeks Oct 5 and Oct 12 reconciled, frozen-tick and nightly-swap findings, `vm.swappiness=10` applied. 13 Oct: SHORT-side spread defect fixed (`3fdef54`), both signals resolved, first live conformance point, STATUS and weekly checkpoint added, 0g-6 drafted as `EXECUTION_CONTRACT.md` ec-0.1, reviews 1-4 HOLD (10 + 8 + 3 + 2 findings), all accepted in ec-0.1r2-r5. 14 Oct: review 5 APPROVE, **ec-0.2 structure frozen** (tag `ec-0.2`). 15 Oct: second broker outage, 13 Oct probe evidence committed. Sat 17 Oct: host reboot test with Ares; MT5 build 6271 blocked on Wine 9, moved to WineHQ Wine 11.0, PASS (see Incidents) | drafting found H1-H3, which add work to the weeks of Oct 19 and Oct 26 |
 | Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | **Target partly met: 0b done 23 Oct, `pr-0.4` protocol frozen after three reviews (HOLD, HOLD, APPROVE); export not started.** 19 Oct: reboot validated on live cron (00:07 PASS), third broker outage. 20 Oct: swap timeline from host `sar`, broker-outage table, cross-process MT5 failure-state fix, `setup_vps.sh` to WineHQ; signal 3 (SHORT, NY), first live reconnect alert, fourth broker outage. 22 Oct: unattended-upgrade outage and host lock-up, MT5 pile-up controls, eMudhra/certifi fix, `requirements.lock` (see Incidents). 23 Oct: checkpoint, firewall confirmed harmless, signal 3 resolved SL_HIT, outcome-probe window defect found and fixed; signal 4 (LONG, NY), SL_HIT after 1 bar | Two unplanned host incidents (20 Oct failure state, 22 Oct lock-up) and the eMudhra check took the week. Export carried to Oct 26; later rows move one week. 0b was done on Fri 23 Oct, a free day |
-| Oct 26 – Oct 30 | **carried:** M15 and M1 CSV export and validation, M1 `MaxBars` test (TBD-2). Export and data-quality checks only: no strategy evaluation on holdout bars (2025-09-01 to 2026-09-11, `PREREGISTRATION.md` F6). Watch the offset across the EU DST change on 25 Oct (TBD-1) | Mon 26 Oct: no work. 27 Oct: checkpoint a day late; EU DST change seen (offset 3.0 -> 2.0 h), the daily quote stop moved one hour later in UTC; signal 4 resolved | moved from Oct 19; checkpoint on Tue (busy Mon) |
+| Oct 26 – Oct 30 | **carried:** M15 and M1 CSV export and validation, M1 `MaxBars` test (TBD-2). Export and data-quality checks only: no strategy evaluation on holdout bars (2025-09-01 to 2026-09-11, `PREREGISTRATION.md` F6). Watch the offset across the EU DST change on 25 Oct (TBD-1) | Mon 26 Oct: no work. 27 Oct: checkpoint a day late; EU DST change seen (offset 3.0 -> 2.0 h), the daily quote stop moved one hour later in UTC; signal 4 resolved. **Target met 27 Oct:** TBD-2 probe at `MaxBars` 100,000 = `M1_CAPPED_OR_ABSENT` (M1 absent from 1 Jun 2026 back, M15 absent in 2022); exporter `--maxbars` (`87b53be`, MaxBars-only `/config` file, `common.ini` never opened); at 2,000,000 = `M1_AVAILABLE`, all 9 windows covered to 2022-06-23. Export 2022-06-01 .. 2026-10-27 server: M15 103,511 rows, M1 1,549,410 rows, 0 unstable chunks, 0 structural defects, C6.3 0 mismatches / 0 envelope failures / 0 orphans, F3 met. Restored to 100,000 and verified. MT5 updated 6281 -> 6285 -> 6286 on the two restarts | moved from Oct 19; checkpoint on Tue (busy Mon) |
 | Nov 2 – Nov 6 | contract amendment after `ec-0.2` (daily quote stop TBD-5, retry-budget decision, near-stop fills H6); replay engine build, controls first. Offset across the US DST change on 1 Nov | | moved one week |
 | Nov 9 – Nov 13 | replay engine finish; Level 2 and Level E conformance; server-offset rule (TBD-1) | | moved one week |
 | Nov 16 onward | rule-only baseline on development folds -> P1 gate | | no date for the P1 verdict until the baseline exists |
@@ -119,8 +120,29 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
   - Quoted NY hours in UTC differ between summer and winter, and the replay
     inherits that from the data.
   - Watch the offset and the daily stop again across the US DST change on 1 Nov.
-- **M1 depth (contract H2).** `MaxBars` very probably caps M1 at about 72
-  trading days; a 4-year replay needs it raised or read Wine-side.
+- **M1 depth (contract H2, TBD-2) resolved 27 Oct.** The client cap, not the
+  server, limited M1: at `MaxBars` 100,000 M1 stops between 3 Aug and 1 Jun 2026;
+  at 2,000,000 M1 is complete back to 2022-06-23 (6,600-6,900 minutes a week,
+  15 per M15 bar). The cap also limits M15: the 2022-06-23 "server floor" of
+  30 Sep was the edge of the capped client history, which has since moved past
+  July 2022; the server holds M15 and M1 from at least 2022-06-01. F1 still fixes
+  the replay span at no earlier than 2022-06-23. Live runs at 100,000 (restored,
+  verified from `terminal_info`); re-export uses `--maxbars 2000000` again.
+  For the next contract amendment: record TBD-2 as resolved in C6.2/H2.
+- **History snapshot 20261027T070105Z** (`data/history/`, not in git; evidence
+  `research/data_feasibility/history_export_20261027T070105Z.json`):
+  - M15 `4af57ead...d377`, M1 `6348a40a...2969`, `data_snapshot_hash`
+    `520a4850231da2d0c9ad8c7b6653f739c20d99f5956246395a571bcd87804fac`.
+  - Server time, 2022-06-01 01:00 .. 2026-10-26 22:59. Holdout rows only
+    counted and hashed (F6).
+  - 1,402 of 103,511 M15 bars (1.4%) have 1-14 of their 15 minutes. The replay
+    handles them by C1.6 at entry and C5.8 after it; where they fall is a
+    replay-build question, not checked here.
+  - Still to do on these bars: UTC conversion per date from the daily-break
+    position (TBD-1, week of Nov 9).
+- **`-dirty` code versions on 27 Oct live cycles** (06:38, 06:53) come from
+  probe JSONs that were untracked between being written and committed on the
+  VPS. Harmless; commit evidence promptly to keep `code_version` clean.
 - **Frozen tick in the daily quote stop (found 14 Oct, confirmed by both checkpoints).**
   XAUUSD stops quoting at server 23:00 (20:00 UTC at UTC+3, 21:00 UTC at UTC+2)
   and resumes between 21:53 and 22:08 UTC. Figures below are for UTC+3. In between:
@@ -184,7 +206,9 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
   access-point switch (2–3 min after each authorisation); harmless so far.
 - **MT5 build 6281 installed 22 Oct 08:26** on the manual restart. Each later
   build installs on the next terminal restart, which 17 and 22 Oct showed is the
-  risky moment; the 22 Oct controls now bound it (see Incidents).
+  risky moment; the 22 Oct controls now bound it (see Incidents). 27 Oct: the
+  `--maxbars` restarts installed 6285 (06:47) and 6286 (07:01), both connected
+  first time; confirm the first live cycles after 07:04 at the next checkpoint.
 - **needrestart override for `xvfb.service` (22 Oct).** Verify after the next
   library upgrade: the unattended-upgrades dpkg log should list `xvfb.service`
   under "Service restarts being deferred". Xvfb then runs old libraries until a
