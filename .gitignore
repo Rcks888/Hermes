@@ -28,5 +28,9 @@ python-*-amd64.exe
 # Research probe outputs are committed as evidence, not ignored.
 # Listed here only to document the deliberate choice.
 
+# Exported history snapshots (about 110 MB); the committed evidence is the
+# manifest with SHA-256 hashes in research/data_feasibility/
+data/history/
+
 # Cross-process alert throttle state (runtime, not evidence)
 logs/alert_state.json

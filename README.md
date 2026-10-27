@@ -36,7 +36,8 @@ config/          — Settings, strategy params, news calendar
 engine/          — MT5 connector, data feed, strategy, risk, entry_observation (0g-1)
 alerts/          — Telegram notifications
 logs/            — Soak data, events.jsonl, runtime logs
-research/        — Read-only probes: signal outcome, entry timing (0g-2..0g-4)
+research/        — Read-only probes: signal outcome, entry timing (0g-2..0g-4); history export (Data step)
+data/history/    — Exported M15/M1 CSV snapshots, not committed; manifests with hashes are in research/data_feasibility/
 tests/           — Unit tests
 run_hermes.py    — Strategy cycle (alert-only)
 run_soak.py      — Gate 0: stability soak script
@@ -62,6 +63,10 @@ python tests/test_mt5_run_lock.py             # one MT5 run at a time, retry bud
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED
 python research/prereg_gate_power.py          # local, no MT5: reproduces the 0b drawdown/power table (PREREGISTRATION.md section 3)
+python research/export_history.py --self-test # local, no MT5: 19 controls for the export checks (C6.3, coverage, F3)
+python research/export_history.py --probe     # VPS: TBD-2 M1 depth probe via the Wine-side worker, holds the MT5 lock
+python research/export_history.py             # VPS: probe, M15+M1 CSV export to data/history/<ts>/, SHA-256, count-only checks (holdout sealed, F6)
+python research/export_history.py --qc DIR    # rerun hashing and checks on an existing export, no MT5
 ```
 
 Weekly: `python weekly_checkpoint.py --week=<Monday>` feeds the checkpoint log in [STATUS.md](STATUS.md). It keeps stale-tick cycles (market not quoting) out of the delay and offset statistics; `--self-test` runs its controls.
