@@ -1,6 +1,6 @@
 # Hermes: current status
 
-Last updated: 2026-10-23. This page is the entry point. Detailed reasoning and
+Last updated: 2026-10-27. This page is the entry point. Detailed reasoning and
 evidence are in `ROADMAP.md`, early history in `LOGBOOK.md`, probe outputs in
 `research/data_feasibility/`.
 
@@ -39,8 +39,8 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 | Sep 28 – Oct 2 | two-week review; vacation from Oct 1 | 30 Sep: forming-bar root cause fixed (`cf4e3d4`), 10x oversizing fixed (`495e078`), ROADMAP, P0 0c/0d/0e/0f done. 2 Oct: first signal, LONG, TP_HIT | — |
 | Oct 5 – Oct 9 | vacation; resume 7 Oct | 7 Oct: 0g opened, 0g-1 to 0g-5 done, three own bugs caught by guards and controls, cron change deferred. Second signal 7 Oct, SHORT, SL_HIT | unplanned: 0g promoted ahead of the replay |
 | Oct 12 – Oct 16 | catch-up funnel; 0g-6 draft -> review -> freeze | 14 Oct: funnel for weeks Oct 5 and Oct 12 reconciled, frozen-tick and nightly-swap findings, `vm.swappiness=10` applied. 13 Oct: SHORT-side spread defect fixed (`3fdef54`), both signals resolved, first live conformance point, STATUS and weekly checkpoint added, 0g-6 drafted as `EXECUTION_CONTRACT.md` ec-0.1, reviews 1-4 HOLD (10 + 8 + 3 + 2 findings), all accepted in ec-0.1r2-r5. 14 Oct: review 5 APPROVE, **ec-0.2 structure frozen** (tag `ec-0.2`). 15 Oct: second broker outage, 13 Oct probe evidence committed. Sat 17 Oct: host reboot test with Ares; MT5 build 6271 blocked on Wine 9, moved to WineHQ Wine 11.0, PASS (see Incidents) | drafting found H1-H3, which add work to the weeks of Oct 19 and Oct 26 |
-| Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | **Target partly met: 0b done 23 Oct, `pr-0.4` protocol frozen after three reviews (HOLD, HOLD, APPROVE); export not started.** 19 Oct: reboot validated on live cron (00:07 PASS), third broker outage. 20 Oct: swap timeline from host `sar`, broker-outage table, cross-process MT5 failure-state fix, `setup_vps.sh` to WineHQ; signal 3 (SHORT, NY), first live reconnect alert, fourth broker outage. 22 Oct: unattended-upgrade outage and host lock-up, MT5 pile-up controls, eMudhra/certifi fix, `requirements.lock` (see Incidents). 23 Oct: checkpoint, firewall confirmed harmless, signal 3 resolved SL_HIT, outcome-probe window defect found and fixed | Two unplanned host incidents (20 Oct failure state, 22 Oct lock-up) and the eMudhra check took the week. Export carried to Oct 26; later rows move one week. 0b was done on Fri 23 Oct, a free day |
-| Oct 26 – Oct 30 | **carried:** M15 and M1 CSV export and validation, M1 `MaxBars` test (TBD-2). Export and data-quality checks only: no strategy evaluation on holdout bars (2025-09-01 to 2026-09-11, `PREREGISTRATION.md` F6). Watch the offset across the EU DST change on 25 Oct (TBD-1) | | moved from Oct 19 |
+| Oct 19 – Oct 23 | 0b preregistration; M15 **and M1** CSV export and validation, including the M1 `MaxBars` test (contract TBD-2) | **Target partly met: 0b done 23 Oct, `pr-0.4` protocol frozen after three reviews (HOLD, HOLD, APPROVE); export not started.** 19 Oct: reboot validated on live cron (00:07 PASS), third broker outage. 20 Oct: swap timeline from host `sar`, broker-outage table, cross-process MT5 failure-state fix, `setup_vps.sh` to WineHQ; signal 3 (SHORT, NY), first live reconnect alert, fourth broker outage. 22 Oct: unattended-upgrade outage and host lock-up, MT5 pile-up controls, eMudhra/certifi fix, `requirements.lock` (see Incidents). 23 Oct: checkpoint, firewall confirmed harmless, signal 3 resolved SL_HIT, outcome-probe window defect found and fixed; signal 4 (LONG, NY), SL_HIT after 1 bar | Two unplanned host incidents (20 Oct failure state, 22 Oct lock-up) and the eMudhra check took the week. Export carried to Oct 26; later rows move one week. 0b was done on Fri 23 Oct, a free day |
+| Oct 26 – Oct 30 | **carried:** M15 and M1 CSV export and validation, M1 `MaxBars` test (TBD-2). Export and data-quality checks only: no strategy evaluation on holdout bars (2025-09-01 to 2026-09-11, `PREREGISTRATION.md` F6). Watch the offset across the EU DST change on 25 Oct (TBD-1) | Mon 26 Oct: no work. 27 Oct: checkpoint a day late; EU DST change seen (offset 3.0 -> 2.0 h), the daily quote stop moved one hour later in UTC; signal 4 resolved | moved from Oct 19; checkpoint on Tue (busy Mon) |
 | Nov 2 – Nov 6 | contract amendment after `ec-0.2` (daily quote stop TBD-5, retry-budget decision); replay engine build, controls first. Offset across the US DST change on 1 Nov | | moved one week |
 | Nov 9 – Nov 13 | replay engine finish; Level 2 and Level E conformance; server-offset rule (TBD-1) | | moved one week |
 | Nov 16 onward | rule-only baseline on development folds -> P1 gate | | no date for the P1 verdict until the baseline exists |
@@ -52,13 +52,22 @@ say why if it differs from the plan. Future rows are a plan, not a commitment.
 | 1 | 2026-10-02 09:45 | LONG | LONDON | 7.15 | TP_HIT, 5 bars | +1.856 |
 | 2 | 2026-10-07 17:30 | SHORT | NY | 28.24 | SL_HIT, 34 bars | -1.000 |
 | 3 | 2026-10-20 15:15 | SHORT | NY | 12.99 | SL_HIT, 5 bars | -1.000 |
+| 4 | 2026-10-23 16:45 | LONG | NY | 6.51 | SL_HIT, 1 bar | -1.000 |
 
 Signal 3 (ROADMAP "Third signal"): executable bid 2.78 below the signal close,
 so the 0g-5 baseline resizes 0.76 -> 0.63 lots ($993.51); the alert's 0.76 lots
 would have risked about $1,199 (1.20%). Outcome is the same from either entry.
-n = 3 resolved, net -0.144R (`signal_outcome_20261023T031103Z.json`; signals 1
-and 2 reproduce the 13 Oct figures exactly). Supports no claim about edge. Throughput about 1.6 signals
-per week, which is why the replay, not forward collection, is the critical path.
+Signal 4: entry 4022.85, SL 4016.34, TP 4035.87, 1.53 lots, regime
+TRANSITION/NORMAL, delay 484.99 s, alert sent. MFE 0.00 and MAE 15.75 in the
+first bar, 2.4 times the stop: the -1R assumes the stop fills at its level,
+which a real stop in that bar may not have. Spread is 7.5% of risk (RR 1.79
+with spread). Executable-entry sizing still to be read from the logged
+`exec_observation`.
+
+n = 4 resolved, net -1.144R (`signal_outcome_20261027T024014Z.json`; signals
+1-3 reproduce the earlier figures exactly). Supports no claim about edge.
+Throughput: 4 signals in the 4 weeks since the 30 Sep fix, about 1 per week,
+which is why the replay, not forward collection, is the critical path.
 
 ## Weekly checkpoint
 
@@ -80,6 +89,8 @@ marker, and one line in the log below.
 | 2026-10-14 (wk Oct 12, partial, to Wed 08:53 UTC) | 228 of 228 scheduled so far | 0 | 0 aborts; the 13 Oct 11:52 failure was soak-only. 120 tradeable cycles, 112 distinct bars. Delay p50 484.0 s, p95 485.0 s. UTC+3 on all 212 fresh cycles. 16 stale-tick cycles. 2 suspect delays of about 7,680 s: the 22:45 server bar evaluated at 22:08 UTC |
 | 2026-10-23 (wk Oct 12, final) | 480 of 480 | 0 approved, 1 rejected | 1 abort (15 Oct 11:08 LONDON, broker outage). Rejection: 15 Oct 08:30 server bar, LONG, ASIA, session gate, as designed. 279 tradeable cycles, 259 distinct bars. Delay p50 484.0, p95 485.0, max 501 s (n=427). UTC+3 on all 431 fresh cycles. 48 stale-tick cycles; 4 suspect delays, all the daily-stop 22:45 bar. Quotes 479/479, latency p50 5.0 ms |
 | 2026-10-23 (wk Oct 19, to Fri 02:53 UTC) | 395 of 396 scheduled so far (1 missing, most likely 22 Oct 08:23 while cron was paused for recovery; the pile-up runs logged their events up to 16 min late, so a per-slot check cannot place it) | 1 (SHORT, SL_HIT) | 11 aborts, all `mt5_not_connected`: 19 Oct 19:23, 20 Oct 16:38, and 9 in the 22 Oct lock-up. 216 tradeable cycles, 200 distinct bars. Delay p50 484.0, p95 485.0, max 487 s (n=348). UTC+3 on all 352 fresh cycles (EU DST ends 25 Oct). 32 stale-tick cycles; 4 suspect delays, all the daily-stop bar. Quotes 384/384. Signal 3 delay 483.99 s |
+| 2026-10-27 (wk Oct 19, final) | 479 of 480 (the 1 missing as above) | 2 (SHORT SL_HIT; LONG SL_HIT) | 11 aborts as above. 272 tradeable cycles, 252 distinct bars; funnel 207 trend, 31 candle, 26 pullback, 4 volume, 1 SL too wide, 1 VWAP, 2 to the risk gate. Delay p50 484.0, p95 485.0, max 487 s (n=416). UTC+3 on all 420 fresh cycles. 48 stale-tick cycles (NY 20, OFF 24, ASIA 4); 4 suspect delays, all the daily-stop bar. Quotes 468/468, latency p50 4.5 ms. Signal 4 delay 484.99 s. Code versions include `aeed15d-dirty`: `code_version` counts untracked files as dirty (`git status --porcelain`), most likely the uncommitted 23 Oct probe JSONs |
+| 2026-10-27 (wk Oct 26, to Tue 02:38 UTC) | 107 of 107 scheduled so far | 0 | 0 aborts. 56 tradeable cycles, 56 distinct bars. Delay p50 484.0, p95 485.0, max 486 s (n=102). **UTC+2 on all 103 fresh cycles: EU DST change seen.** 4 stale-tick cycles, all OFF (none in NY); 1 suspect delay, 4,084 s (the daily-stop 22:45 bar, 7,684 s less 3,600). Quotes 107/107, latency p50 4.8 ms. Code `dbfbe05` (VPS pulled `f436f8f`, docs only, on 27 Oct) |
 
 ## What runs (cron, weekdays, UTC)
 
@@ -94,13 +105,23 @@ first, and diff before installing. The `:08` schedule does not collide with Ares
 
 ## Known open items
 
-- **Server offset across DST (contract H1).** Watch `server_offset_seconds` in
-  the weekly checkpoint around 25 Oct and 1 Nov.
+- **Server offset across DST (contract H1).** EU DST change seen at the
+  27 Oct checkpoint: UTC+3 through 23 Oct, UTC+2 on every fresh cycle from
+  26 Oct. The daily quote stop follows server time: it is still server 23:00,
+  now 21:00 UTC, so on 26 Oct the NY hour 20:00-21:00 UTC was quoted (0 NY
+  stale cycles, against 20 in the week of Oct 19). One day only so far.
+  Consequences, no code change now:
+  - The history export needs the offset per date to convert bar times to UTC.
+    Working assumption UTC+3 in EU summer time, UTC+2 otherwise; verify it in
+    the exported bars from the position of the daily break (TBD-1).
+  - Quoted NY hours in UTC differ between summer and winter, and the replay
+    inherits that from the data.
+  - Watch the offset and the daily stop again across the US DST change on 1 Nov.
 - **M1 depth (contract H2).** `MaxBars` very probably caps M1 at about 72
   trading days; a 4-year replay needs it raised or read Wine-side.
 - **Frozen tick in the daily quote stop (found 14 Oct, confirmed by both checkpoints).**
-  XAUUSD stops quoting at server 23:00 (about 20:00 UTC) and resumes between
-  21:53 and 22:08 UTC. In between:
+  XAUUSD stops quoting at server 23:00 (20:00 UTC at UTC+3, 21:00 UTC at UTC+2)
+  and resumes between 21:53 and 22:08 UTC. Figures below are for UTC+3. In between:
   - The tick-derived offset and delay are artefacts.
   - Position 1 stays on the 22:30 server bar, which is re-evaluated 4 times in
     NY (20:08–20:53) and 4 times in OFF (21:08–21:53). The pattern is exact
