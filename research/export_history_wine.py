@@ -64,10 +64,10 @@ def format_row(r, digits):
 
 
 def fetch(mt5, tf, a, b):
-    """Rows with a <= time < b, re-requested until two calls agree.
+    """Rows with a <= time < b, re-requested until two non-empty calls agree.
 
     MT5 downloads missing history on demand, so a first call can return part
-    of a window. Rows outside [a, b) are dropped and counted: before the
+    of a window, or nothing; an empty window is retried MAX_TRIES times. Rows outside [a, b) are dropped and counted: before the
     archive starts MT5 clamps to its oldest bar instead of returning nothing.
     """
     tries, prev, rates = [], None, None
@@ -75,14 +75,14 @@ def fetch(mt5, tf, a, b):
         rates = mt5.copy_rates_range(SYMBOL, tf, a, b - 1)
         n = -1 if rates is None else len(rates)
         tries.append(n if n >= 0 else "none %s" % (mt5.last_error(),))
-        if prev is not None and n == prev:
+        if prev is not None and n == prev and n > 0:
             break
         prev = n
         time.sleep(0.5 if i == 0 else 3)
     if rates is None:
         return [], {"tries": tries, "dropped": 0, "stable": False}
     rows = [r for r in rates if a <= int(r[0]) < b]
-    stable = len(tries) >= 2 and tries[-1] == tries[-2]
+    stable = len(tries) >= 2 and tries[-1] == tries[-2] and len(rates) > 0
     return rows, {"tries": tries, "dropped": len(rates) - len(rows), "stable": stable}
 
 

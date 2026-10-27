@@ -354,6 +354,29 @@ def run_worker(mode, out_dir, terminal_path):
         return json.load(f)
 
 
+def startup_ini(maxbars):
+    """MT5 startup configuration with one setting. It holds no account data,
+    so Config/common.ini, which does, is never opened (contract H2)."""
+    return ("[Charts]\r\nMaxBars=%d\r\n" % maxbars).encode("utf-16")
+
+
+def restart_terminal(terminal_path, ini_path):
+    """Stop the terminal and start it with /config:<ini>. Caller holds the lock."""
+    subprocess.run(["pkill", "-f", r"terminal64\.exe"], capture_output=True, timeout=10)
+    for _ in range(30):
+        if subprocess.run(["pgrep", "-f", r"terminal64\.exe"], capture_output=True).returncode != 0:
+            break
+        time.sleep(1)
+    else:
+        return False
+    env = os.environ.copy()
+    env["DISPLAY"] = ":99"
+    subprocess.Popen(["wine", terminal_path, "/config:" + winpath(ini_path)], env=env,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    time.sleep(20)
+    return True
+
+
 def selftest():
     """Each check is shown to catch a planted defect before it is trusted."""
     ok = True
@@ -442,6 +465,9 @@ def selftest():
           r == [(worker.epoch(2022, 6, 1), worker.epoch(2022, 7, 1)),
                 (worker.epoch(2022, 7, 1), worker.epoch(2022, 8, 1)),
                 (worker.epoch(2022, 8, 1), worker.epoch(2022, 8, 15))], str(r))
+    ini = startup_ini(2000000).decode("utf-16")
+    check("startup ini: MaxBars only, no account keys",
+          ini == "[Charts]\r\nMaxBars=2000000\r\n" and "login" not in ini.lower(), repr(ini))
     line = worker.format_row((T, 4180.89, 4181.5, 4179.0, 4180.1, 12, 30, 0), 2)
     check("CSV row round trip", line == f"{T},4180.89,4181.50,4179.00,4180.10,12,30,0\n", line.strip())
     import tempfile
@@ -466,6 +492,8 @@ def main():
     g.add_argument("--probe", action="store_true")
     g.add_argument("--qc", metavar="DIR")
     g.add_argument("--self-test", action="store_true")
+    ap.add_argument("--maxbars", type=int, metavar="N",
+                    help="restart the terminal with /config MaxBars=N before the run")
     args = ap.parse_args()
 
     print("Self-test:")
@@ -492,19 +520,33 @@ def main():
     if not mt5_connector.acquire_run_lock(wait_seconds=LOCK_WAIT):
         print("MT5 lock held by a cron run; start again after it finishes")
         return 1
+    data_dir = DATA_DIR / ts
+    data_dir.mkdir(parents=True, exist_ok=True)
+    terminal_path = mt5_connector._load_config().get("path", "")
+    if args.maxbars:
+        if not terminal_path:
+            print("--maxbars needs mt5.path in config/settings.json")
+            return 1
+        ini = data_dir / "mt5_startup.ini"
+        ini.write_bytes(startup_ini(args.maxbars))
+        print(f"Restarting the terminal with /config MaxBars={args.maxbars} ...")
+        if not restart_terminal(terminal_path, ini):
+            print("terminal64.exe did not stop within 30 s; nothing started")
+            return 1
     ok, _ = mt5_connector.ensure_connected()
     if not ok:
         print("MT5 not connected")
         return 1
-    data_dir = DATA_DIR / ts
-    data_dir.mkdir(parents=True, exist_ok=True)
     print(f"Wine worker, mode {mode}, into {data_dir} ...")
     t0 = time.monotonic()
-    result = run_worker(mode, data_dir, mt5_connector._load_config().get("path", ""))
+    result = run_worker(mode, data_dir, terminal_path)
     print(f"  worker {'ok' if result.get('ok') else 'FAILED: ' + str(result.get('error'))}"
           f"  {time.monotonic() - t0:.0f} s  terminal {result.get('terminal')}")
+    active = (result.get("terminal") or {}).get("maxbars")
+    if args.maxbars and active != args.maxbars:
+        print(f"  MAXBARS NOT APPLIED: requested {args.maxbars}, terminal reports {active}")
     manifest = {"ts": ts, "code_version": version.get_code_version(), "mode": mode,
-                "data_dir": str(data_dir), "worker": result}
+                "maxbars_requested": args.maxbars, "data_dir": str(data_dir), "worker": result}
     if result.get("probe"):
         verdict = print_probe(result["probe"])
         manifest["probe_verdict"] = verdict

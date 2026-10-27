@@ -63,9 +63,10 @@ python tests/test_mt5_run_lock.py             # one MT5 run at a time, retry bud
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED
 python research/prereg_gate_power.py          # local, no MT5: reproduces the 0b drawdown/power table (PREREGISTRATION.md section 3)
-python research/export_history.py --self-test # local, no MT5: 19 controls for the export checks (C6.3, coverage, F3)
+python research/export_history.py --self-test # local, no MT5: 20 controls for the export checks (C6.3, coverage, F3)
 python research/export_history.py --probe     # VPS: TBD-2 M1 depth probe via the Wine-side worker, holds the MT5 lock
 python research/export_history.py             # VPS: probe, M15+M1 CSV export to data/history/<ts>/, SHA-256, count-only checks (holdout sealed, F6)
+python research/export_history.py --maxbars N --probe  # VPS: restart the terminal with a /config file holding only [Charts] MaxBars=N (common.ini never opened), then probe
 python research/export_history.py --qc DIR    # rerun hashing and checks on an existing export, no MT5
 ```
 
