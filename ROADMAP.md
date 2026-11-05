@@ -158,7 +158,7 @@ the Hermes repo.
 | # | Item | Severity | State |
 |---|---|---|---|
 | 2 | Soak spread samples are 4/hour instantaneous reads, not time-weighted. Cost model inherits any intra-bar bias | Medium | Accepted limitation, documented in 0b |
-| 12 | Broker-side MT5 outages of 4–6 min (13, 15, 19 Oct) outlast the 17 s retry budget and cost a cycle (2 tradeable so far). Longer retries move D; see STATUS | Low | Open decision, next contract amendment |
+| 12 | Broker-side MT5 outages of 4–6 min (13, 15, 19 Oct) outlast the 17 s retry budget and cost a cycle (2 tradeable so far). Longer retries move D; see STATUS | Low | Proposed in ec-0.3 draft (5 Nov) as D8: budget unchanged, declared deviation, aborted cycles E0-ineligible |
 | 4 | `ram_free < 300` is a state check, re-fires every cycle during a dip | Low | Flagged |
 | 5 | `alerts.telegram.alert_soak_status()` orphaned after periodic summary removal | Cosmetic | Deliberate — re-wire hook |
 | 6 | `price_action.scan()` never called | Cosmetic | Deliberate — V2 candidate |
@@ -1057,6 +1057,12 @@ Whether a change also touches `PREREGISTRATION.md` pr-0.4 is checked in that
 amendment. The outcome from the executable entry needs the M1 path from 14:08
 to 14:15 UTC. With 0.16 of bid headroom a stop-out is very likely but not
 shown; the M1 export can settle it.
+
+**5 Nov, ec-0.3 draft:** option (i) proposed, C4.6 status `stop_consumed` when
+the executable stop is below 0.5 of the original stop distance, fixed before
+any SIMULATION, with test 28 built from this signal's quote. Of signals 2-5
+only signal 4 (ratio 0.11) is affected. pr-0.4 is unchanged. Pending review
+(`Olympus/review_bundle_contract_ec03_v1`, AD6).
 
 **Running tally, n = 4: +1.856R, -1.000R, -1.000R, -1.000R, net -1.144R.**
 Supports nothing about edge, win rate or expectancy, and no parameter moves on
