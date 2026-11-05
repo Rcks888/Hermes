@@ -41,6 +41,7 @@ CALENDAR_RULE = "calendar-1"
 OFFSET_RULE = "offset-eu-1"
 CLOSURE_MIN_SLOTS = 2
 DAILY_MAX_SECONDS = 6 * 3600
+DAILY_START_HOURS = (21, 22, 23, 0)
 LIST_CAP = 300
 WEEKDAYS = eh.WEEKDAYS
 
@@ -157,9 +158,9 @@ class Calendar:
     def classify(self, a, b):
         if spans_saturday(a, b):
             return "weekend"
-        if b - a <= DAILY_MAX_SECONDS:
-            return "daily"
-        return "other"
+        if b - a > DAILY_MAX_SECONDS:
+            return "other"
+        return "daily" if time.gmtime(a).tm_hour in DAILY_START_HOURS else "intraday"
 
     def reopens(self):
         """[(a, b, class, regime, predicted, observed, match)] for every closure."""
@@ -176,15 +177,15 @@ class Calendar:
         by_class = Counter(r[2] for r in rows)
         tally = {}
         for _, _, cls, reg, _, _, ok in rows:
-            if cls == "other":
+            if cls in ("other", "intraday"):
                 continue
             k = tally.setdefault(reg, {"match": 0, "mismatch": 0})
             k["match" if ok else "mismatch"] += 1
         mismatches = [[stamp(a), stamp(b), cls, reg, "%02d" % p, "%02d" % o]
-                      for a, b, cls, reg, p, o, ok in rows if not ok and cls != "other"]
+                      for a, b, cls, reg, p, o, ok in rows if not ok and cls in ("daily", "weekend")]
         gap_weeks = {}
         for a, b, cls, reg, p, o, ok in rows:
-            if reg.startswith("gap") and cls != "other":
+            if reg.startswith("gap") and cls in ("daily", "weekend"):
                 wk = (server_date(b) - timedelta(days=server_date(b).weekday())).isoformat()
                 w = gap_weeks.setdefault(wk, {"match": 0, "mismatch": 0, "reopens": []})
                 w["match" if ok else "mismatch"] += 1
@@ -193,7 +194,7 @@ class Calendar:
         for a, b, cls, reg, _, _, _ in rows:
             if cls == "daily":
                 starts.setdefault(reg, Counter())[hhmm(a)] += 1
-        others = [[stamp(a), stamp(b), round((b - a) / 3600, 2)] for a, b, cls, *_ in rows if cls == "other"]
+        others = [[stamp(a), stamp(b), cls, round((b - a) / 3600, 2)] for a, b, cls, *_ in rows if cls in ("other", "intraday")]
         partial = [s for s in self.m15 if self.minutes_by_slot.get(s, 0) < 15]
         partial_hole = sum(1 for s in partial if self.hole_minutes_by_slot.get(s))
         return {
@@ -303,6 +304,9 @@ def selftest():
     check("a closure spanning Saturday is weekend; 30 h on a weekday is other",
           Calendar(set()).classify(fri + 23 * 3600, fri + 3 * 86400 + 3600) == "weekend"
           and Calendar(set()).classify(day, day + 30 * 3600) == "other")
+    check("a 3 h weekday closure from 04:03 server is intraday, not the daily break; 23:59 is daily",
+          Calendar(set()).classify(day + 4 * 3600 + 180, day + 7 * 3600 + 180) == "intraday"
+          and Calendar(set()).classify(day + 23 * 3600 + 3540, day + 25 * 3600) == "daily")
     return ok
 
 
