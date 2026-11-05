@@ -20,6 +20,12 @@ in weeks with the US on summer time and the EU not, and 01 otherwise. Under
 the alternative (server follows US DST) it would be 01 in every week, so only
 those weeks discriminate. Mismatches are listed, never corrected.
 
+calendar-1 is superseded by calendar-2 (trading_calendar.py, ec-0.3 draft v2):
+classifying a missing run from its far end and from M15 absence depends on data
+after the instant, and joint absence does not prove a closure. calendar-1 is
+kept as the broken variant of the controls and for comparison. calendar-2 is
+verified here against the export, never defined from it.
+
   python research/calendar_check.py data/history/<ts>   # writes calendar_check_<ts>.json
   python research/calendar_check.py --self-test
 """
@@ -36,6 +42,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import export_history as eh  # noqa: E402
+import trading_calendar as tc  # noqa: E402
 
 CALENDAR_RULE = "calendar-1"
 OFFSET_RULE = "offset-eu-1"
@@ -251,6 +258,78 @@ def verify_hashes(data_dir):
     return out
 
 
+def verify_calendar2(m1, m15):
+    """Verify the declared calendar-2 against the export. m1 sorted server epochs."""
+    present = set(m1)
+    first, last = m1[0], m1[-1]
+    d0 = tc.utc_date(first) - timedelta(days=2)
+    d1 = tc.utc_date(last) + timedelta(days=2)
+    sess = [(max(a, first), min(b, last + 60)) for a, b in tc.sessions(d0, d1) if b > first and a <= last]
+    expected = observed = edge_missing = 0
+    runs, run = [], None
+    holdout_hole = 0
+    for a, b in sess:
+        for m in range(a, b, 60):
+            edge = m < a + tc.EDGE_SECONDS or m >= b - tc.EDGE_SECONDS
+            if m in present:
+                observed += 1
+                if run:
+                    runs.append(run)
+                    run = None
+                continue
+            if edge:
+                edge_missing += 1
+                continue
+            expected += 1
+            if eh.HOLDOUT_START <= m < eh.HOLDOUT_END:
+                holdout_hole += 1
+            run = [run[0], m + 60] if run and run[1] == m else [m, m + 60]
+        if run:
+            runs.append(run)
+            run = None
+    in_sess = observed
+    outside, out_runs, cur = len(m1) - in_sess, [], None
+    i = 0
+    for t in m1:
+        while i < len(sess) and sess[i][1] <= t:
+            i += 1
+        if i < len(sess) and sess[i][0] <= t < sess[i][1]:
+            continue
+        cur = [cur[0], t + 60, cur[2] + 1] if cur and cur[1] == t else (out_runs.append(cur) if cur else None) or [t, t + 60, 1]
+    if cur:
+        out_runs.append(cur)
+    by_len = Counter(eh.gap_bucket((b - a) // 60) for a, b in runs)
+    absent_slots = set()
+    for a, b in sess:
+        s = -(-(a + tc.EDGE_SECONDS) // 900) * 900
+        while s + 900 <= b - tc.EDGE_SECONDS:
+            if s not in m15:
+                absent_slots.add(s)
+            s += 900
+    long_runs = []
+    for a, b in runs:
+        if b - a >= 1800:
+            slots = sum(1 for s in absent_slots if a <= s and s + 900 <= b)
+            long_runs.append([stamp(a), stamp(b), (b - a) // 60, slots,
+                              "holdout" if eh.HOLDOUT_START <= a < eh.HOLDOUT_END else "dev",
+                              "offset_uncertain" if tc.offset_uncertain(a) else ""])
+    return {
+        "calendar_rule": tc.CALENDAR_RULE, "offset_rule": tc.OFFSET_RULE,
+        "edge_seconds": tc.EDGE_SECONDS, "break_2026_from": tc.BREAK_2026_FROM.isoformat(),
+        "sessions": len(sess),
+        "observed_minutes_in_sessions": in_sess,
+        "observed_minutes_outside_sessions": outside,
+        "outside_runs": [[stamp(a), stamp(b), n] for a, b, n in out_runs][:LIST_CAP],
+        "outside_run_count": len(out_runs),
+        "missing_in_edge_band": edge_missing,
+        "hole_minutes": expected, "hole_minutes_in_holdout_count_only": holdout_hole,
+        "hole_runs_by_length": dict(by_len),
+        "hole_runs_30min_plus": long_runs,
+        "m15_slots_absent_in_scheduled_time": len(absent_slots),
+        "m15_slots_absent_in_holdout_count_only": sum(1 for s in absent_slots if eh.HOLDOUT_START <= s < eh.HOLDOUT_END),
+    }
+
+
 def selftest():
     ok = True
 
@@ -307,6 +386,27 @@ def selftest():
     check("a 3 h weekday closure from 04:03 server is intraday, not the daily break; 23:59 is daily",
           Calendar(set()).classify(day + 4 * 3600 + 180, day + 7 * 3600 + 180) == "intraday"
           and Calendar(set()).classify(day + 23 * 3600 + 3540, day + 25 * 3600) == "daily")
+    tue = eh.worker.epoch(2024, 3, 12)
+    outage = (tue + 10 * 3600, tue + 10 * 3600 + 1800)
+    m1 = [t for t in range(tue, tue + 20 * 3600, 60) if not outage[0] <= t < outage[1]]
+    m15b = {s for s in range(tue, tue + 20 * 3600, 900) if not outage[0] <= s < outage[1]}
+    v = verify_calendar2(m1, m15b)
+    c1 = Calendar(m15b)
+    for t in m1:
+        c1.add(t)
+    check("feed outage, 30 min with M1 and M15 both absent in scheduled time: calendar-2 hole with 2 absent M15 slots; "
+          "broken variant calendar-1 calls it a closure",
+          v["hole_minutes"] == 30 and v["m15_slots_absent_in_scheduled_time"] == 2 and len(c1.closures) == 1,
+          f"c2 holes {v['hole_minutes']} slots {v['m15_slots_absent_in_scheduled_time']}, c1 closures {len(c1.closures)}")
+    t_mid = outage[0] + 300
+    trunc = Calendar(m15b)
+    for t in m1:
+        if t <= t_mid:
+            trunc.add(t)
+    sess = tc.sessions(date(2024, 3, 11), date(2024, 3, 13))
+    check("causality: at 10:05 inside the outage calendar-2 says open from the clock alone; "
+          "calendar-1 on data truncated at 10:05 has no classification, it needs the minute after the run",
+          tc.classify(t_mid, sess) == "open" and not trunc.closures and trunc.hole_minutes == 0 and c1.closures)
     return ok
 
 
@@ -329,6 +429,16 @@ def main():
         print("HASH MISMATCH: snapshot is not the one in the manifest; nothing checked")
         return 2
     s = run(data_dir)
+    m1 = list(read_times(data_dir / "XAUUSD_M1.csv"))
+    v2 = verify_calendar2(m1, set(read_times(data_dir / "XAUUSD_M15.csv")))
+    print(f"calendar-2: sessions {v2['sessions']}  observed in sessions {v2['observed_minutes_in_sessions']}  "
+          f"observed outside sessions {v2['observed_minutes_outside_sessions']} in {v2['outside_run_count']} runs")
+    print(f"  outside runs, first: {v2['outside_runs'][:20]}")
+    print(f"  missing in edge band {v2['missing_in_edge_band']}  holes {v2['hole_minutes']} "
+          f"(holdout {v2['hole_minutes_in_holdout_count_only']})  runs {v2['hole_runs_by_length']}")
+    print(f"  M15 slots absent in scheduled time {v2['m15_slots_absent_in_scheduled_time']} "
+          f"(holdout {v2['m15_slots_absent_in_holdout_count_only']})")
+    print(f"  hole runs of 30 min or more ({len(v2['hole_runs_30min_plus'])}): {v2['hole_runs_30min_plus']}")
     print(f"M1 {s['m1_first']} .. {s['m1_last']} (server)  closures {s['closures_by_class']}")
     print(f"reopen vs {OFFSET_RULE}, daily and weekend closures: {s['reopen_vs_offset_rule_by_regime']}")
     for wk, w in sorted(s["gap_weeks"].items()):
@@ -341,7 +451,7 @@ def main():
           f"closure only {s['partial_m15_bars_closure_only']}")
     ts = data_dir.name
     out = eh.OUT_DIR / f"calendar_check_{ts}.json"
-    out.write_text(json.dumps({"snapshot": ts, "hashes": hashes, "summary": s}, indent=1))
+    out.write_text(json.dumps({"snapshot": ts, "hashes": hashes, "calendar_2": v2, "calendar_1_superseded": s}, indent=1))
     print(f"Written: {out}")
     return 0
 

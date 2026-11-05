@@ -69,7 +69,8 @@ python research/export_history.py --probe     # VPS: TBD-2 M1 depth probe via th
 python research/export_history.py             # VPS: probe, M15+M1 CSV export to data/history/<ts>/, SHA-256, count-only checks (holdout sealed, F6)
 python research/export_history.py --maxbars N --probe  # VPS: restart the terminal with a /config file holding only [Charts] MaxBars=N (common.ini never opened), then probe
 python research/export_history.py --qc DIR    # rerun hashing and checks on an existing export, no MT5
-python research/calendar_check.py DIR         # local, no MT5: TBD-1/TBD-5 closures vs holes (calendar-1) and reopen hour vs offset-eu-1, timestamps only; checks hashes against the manifest
+python research/trading_calendar.py           # declared calendar-2 + offset-eu-1 (clock only, no data); self-test; the replay imports it
+python research/calendar_check.py DIR         # local, no MT5: verifies calendar-2 against the export (observed-outside runs, holes, absent M15 slots), reopen hour vs offset-eu-1, timestamps only; checks hashes against the manifest; calendar-1 kept as the broken variant
 python research/broker_spec_snapshot.py       # VPS: versioned XAUUSD/account spec, swap fields and a 1-lot margin probe (C4.2, C4.4, C3.7), holds the MT5 lock
 ```
 

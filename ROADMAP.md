@@ -1058,11 +1058,12 @@ amendment. The outcome from the executable entry needs the M1 path from 14:08
 to 14:15 UTC. With 0.16 of bid headroom a stop-out is very likely but not
 shown; the M1 export can settle it.
 
-**5 Nov, ec-0.3 draft:** option (i) proposed, C4.6 status `stop_consumed` when
-the executable stop is below 0.5 of the original stop distance, fixed before
-any SIMULATION, with test 28 built from this signal's quote. Of signals 2-5
-only signal 4 (ratio 0.11) is affected. pr-0.4 is unchanged. Pending review
-(`Olympus/review_bundle_contract_ec03_v1`, AD6).
+**5 Nov, ec-0.3 draft:** v1 proposed a `stop_consumed` filter at 0.5 of the
+original stop. Review 1 held it: it changes population C, so it is a policy
+change outside the frozen rule-change menu, and the threshold was informed by
+this signal. v2 withdraws it. The baseline is unchanged, H6 stays open, and a
+report-only diagnostic R1 (q = executable / original stop distance) enters no
+gate. Any near-stop policy goes through PREREGISTRATION's change process.
 
 **Running tally, n = 4: +1.856R, -1.000R, -1.000R, -1.000R, net -1.144R.**
 Supports nothing about edge, win rate or expectancy, and no parameter moves on
