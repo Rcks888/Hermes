@@ -168,13 +168,37 @@ def clear_alert(key):
             _save_alert_state(state)
 
 
-def alert_disconnected(consecutive_failures=1):
+AUTH_FAILED_HINT = (
+    "Cause: MT5 authorisation failed (-6). Broker-side outages of 2-6 min clear "
+    "by themselves. If it persists, the terminal log on the VPS says whether the "
+    "account was rejected ('Invalid account'); then check the login and investor "
+    "password in config/settings.json (VNC to test in the GUI). Restarting the "
+    "rpyc bridge does not fix this.")
+
+
+def alert_disconnected(consecutive_failures=1, reason=None):
     """Escalating notification, throttled per tier and across processes.
 
     The previous implementation used a module-level flag, which could not work:
     run_hermes and run_soak are separate cron invocations, so the flag was
     always unset at entry and the critical tier re-fired every cycle from both.
+
+    reason "mt5_auth_failed" (29 Oct) replaces the bridge-restart advice, which
+    cannot help an authorisation failure, with the checks that can.
     """
+    if reason == "mt5_auth_failed":
+        if consecutive_failures == 1:
+            key, head = "mt5_disconnected_first", "⚠️ HERMES — MT5 authorisation failed, skipping cycle (1st failure)"
+        elif consecutive_failures < 4:
+            key, head = "mt5_disconnected_ongoing", (
+                f"⚠️ HERMES — MT5 authorisation still failing "
+                f"({consecutive_failures} consecutive failures)")
+        else:
+            key, head = "mt5_disconnected_critical", (
+                f"🚨 HERMES CRITICAL HALT — MT5 authorisation failing for "
+                f"{consecutive_failures} consecutive cycles")
+        send_throttled(key, f"{head}\n{AUTH_FAILED_HINT}")
+        return
     if consecutive_failures == 1:
         send_throttled(
             "mt5_disconnected_first",

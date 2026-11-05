@@ -60,6 +60,7 @@ python tests/test_entry_observation.py        # 27 unit tests, no MT5 needed
 python tests/test_mt5_failure_state.py        # cross-process outage count and reconnect, no MT5 needed
 python tests/test_alert_throttle.py           # Telegram throttle state across cron processes, incl. concurrent runs
 python tests/test_mt5_run_lock.py             # one MT5 run at a time, retry budget, stuck-terminal kill (22 Oct)
+python tests/test_mt5_login.py                # credentials passed to mt5.initialize(), account check, own abort reason and alert text for -6 (29 Oct)
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED
 python research/prereg_gate_power.py          # local, no MT5: reproduces the 0b drawdown/power table (PREREGISTRATION.md section 3)
@@ -71,6 +72,8 @@ python research/export_history.py --qc DIR    # rerun hashing and checks on an e
 ```
 
 Weekly: `python weekly_checkpoint.py --week=<Monday>` feeds the checkpoint log in [STATUS.md](STATUS.md). It keeps stale-tick cycles (market not quoting) out of the delay and offset statistics; `--self-test` runs its controls.
+
+`CYCLE_ABORTED` reasons for MT5: `mt5_busy` (lock held), `mt5_auth_failed` (-6), `mt5_ipc_timeout` (-10003), `mt5_wrong_account` (terminal on another account), `mt5_not_connected` (anything else); the event also carries `last_error`. Before 5 Nov every MT5 failure was logged as `mt5_not_connected`.
 
 ## Docs
 

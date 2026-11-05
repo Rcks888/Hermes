@@ -226,10 +226,13 @@ def main():
     if reconnect_info and reconnect_info.get("reconnected"):
         telegram.alert_reconnected(reconnect_info["downtime_seconds"])
     if not connected:
-        failures = reconnect_info.get("consecutive_failures", 1) if reconnect_info else 1
-        telegram.alert_disconnected(failures)
-        logger.error("Hermes cycle skipped: MT5 not connected")
-        log_event({"event": "CYCLE_ABORTED", "session": session, "reason": "mt5_not_connected", "consecutive_failures": failures})
+        info = reconnect_info or {}
+        failures = info.get("consecutive_failures", 1)
+        reason = info.get("reason", "mt5_not_connected")
+        telegram.alert_disconnected(failures, reason=reason)
+        logger.error(f"Hermes cycle skipped: MT5 not connected ({reason}, {info.get('last_error')})")
+        log_event({"event": "CYCLE_ABORTED", "session": session, "reason": reason,
+                   "last_error": info.get("last_error"), "consecutive_failures": failures})
         return
 
     instrument = params.get("instrument", "XAUUSD")

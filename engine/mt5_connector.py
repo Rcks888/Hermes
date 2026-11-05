@@ -39,6 +39,8 @@ MT5_LOCK = Path(__file__).parent.parent / "logs" / "mt5.lock"
 MT5_LOCK_WAIT_SECONDS = 50
 RETRY_BUDGET_SECONDS = 240
 IPC_TIMEOUT_CODE = -10003
+AUTH_FAILED_CODE = -6
+WRONG_ACCOUNT_CODE = "wrong_account"
 
 _lock_handle = None
 _last_init_error = None
@@ -83,6 +85,22 @@ def _is_ipc_timeout(error):
         return error is not None and int(error[0]) == IPC_TIMEOUT_CODE
     except (TypeError, ValueError, IndexError):
         return False
+
+
+def failure_reason(error):
+    """CYCLE_ABORTED reason for the last initialize() error of a failed run."""
+    if not error:
+        return "mt5_not_connected"
+    if error[0] == WRONG_ACCOUNT_CODE:
+        return "mt5_wrong_account"
+    if _is_ipc_timeout(error):
+        return "mt5_ipc_timeout"
+    try:
+        if int(error[0]) == AUTH_FAILED_CODE:
+            return "mt5_auth_failed"
+    except (TypeError, ValueError, IndexError):
+        pass
+    return "mt5_not_connected"
 
 
 def _kill_stuck_terminals():
@@ -252,8 +270,13 @@ def initialize():
         logger.error(f"rpyc connect failed: {e}")
         return False
 
+    # Credentials go to initialize() itself (29 Oct). Without them the terminal
+    # retries the login it has saved; once that was rejected every run failed
+    # here with -6 and the separate login() that followed was never reached.
+    # The account check then replaces that login() call.
     try:
-        if not mt5.initialize(path=cfg.get("path", "")):
+        if not mt5.initialize(path=cfg.get("path", ""), login=cfg["login"],
+                              password=cfg["password"], server=cfg["server"]):
             _last_init_error = tuple(mt5.last_error())
             logger.error(f"MT5 initialize failed: {_last_init_error}")
             return False
@@ -262,12 +285,18 @@ def initialize():
         return False
 
     try:
-        if not mt5.login(login=cfg["login"], password=cfg["password"], server=cfg["server"]):
-            logger.error(f"MT5 login failed: {mt5.last_error()}")
-            mt5.shutdown()
-            return False
+        account = mt5.account_info()
+        current = None if account is None else account.login
     except Exception as e:
-        logger.error(f"MT5 login error: {e}")
+        current = None
+        logger.error(f"MT5 account check error: {e}")
+    if current != cfg["login"]:
+        _last_init_error = (WRONG_ACCOUNT_CODE, f"terminal on account {current}, configured {cfg['login']}")
+        logger.error(f"MT5 wrong account: {_last_init_error}")
+        try:
+            mt5.shutdown()
+        except Exception:
+            pass
         return False
 
     logger.info(f"MT5 connected: account={cfg['login']} server={cfg['server']}")
@@ -328,7 +357,9 @@ def ensure_connected():
     if failures >= 4:
         logger.critical(f"CRITICAL: {failures} consecutive failed slots. Manual intervention needed.")
 
-    return False, {"consecutive_failures": failures, "rpyc_restarted": rpyc_restarted}
+    return False, {"consecutive_failures": failures, "rpyc_restarted": rpyc_restarted,
+                   "reason": failure_reason(_last_init_error),
+                   "last_error": None if _last_init_error is None else list(_last_init_error)}
 
 
 def get_server_time_offset():
