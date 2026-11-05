@@ -1060,7 +1060,36 @@ shown; the M1 export can settle it.
 
 **Running tally, n = 4: +1.856R, -1.000R, -1.000R, -1.000R, net -1.144R.**
 Supports nothing about edge, win rate or expectancy, and no parameter moves on
-it.
+it. (n = 5 after 4 Nov, below.)
+
+---
+
+## Fifth signal — LONG, 4 November 2026
+
+    LONG XAUUSD @ 4039.22   SL 4027.76 (11.46)   TP 4062.15 (22.93)   0.87 lots
+    bar 2026-11-04 15:15 server (closes 13:30 UTC), NY, regime TRANSITION/NORMAL
+    spread 13
+    TP_HIT after 14 bars    MFE 28.55    MAE 10.02    result +1.967R
+
+Logged 13:38:05 UTC, delay 483.98 s, ask 4042.36 at the decision, alert
+1,615 ms after the decision (signals 3 and 4: 819 and 916 ms). First signal
+after the EU and US DST changes. Probe evidence
+`signal_outcome_20261105T060032Z.json`.
+
+The ask was 3.14 above the signal close, against the trade, so the executable
+buy was worse: stop distance 14.60, target distance 19.79, RR 1.355 instead of
+2.001. The 0g-5 baseline sizes 0.68 lots, $992.80 at risk, margin $2,748.80.
+The alert's 0.87 lots at that fill would have risked about $1,270 (1.27%), so
+live alert sizing now misstates risk from 0.11% to 1.27% (signals 4, 2, 3, 5).
+The outcome does not depend on the entry: the lowest bid, 4029.20, stayed 1.44
+above the stop, and the bid reached 4067.77, through the target. **From the
+executable entry the result is +1.355R, not +1.967R**: the delay cost 0.61R on
+a winner. A sample of one, recorded for the replay's
+E1 conformance, not evidence about delay cost.
+
+**Running tally, n = 5: +1.856R, -1.000R, -1.000R, -1.000R, +1.967R, net
++0.823R** on the signal-close basis. Supports nothing about edge, win rate or
+expectancy, and no parameter moves on it.
 
 ---
 
