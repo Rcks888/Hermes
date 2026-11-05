@@ -24,17 +24,20 @@ Schedule, New York time (the CME metals session):
   server 23:00. This is the one element dated from the broker's data, not from
   exchange rules. Every date from 7 to 30 March 2026 gives the same schedule,
   because in those gap weeks server 23:00 is 17:00 New York.
-EDGE_SECONDS after an open and before a close is a tolerance band: a missing
-minute there is not a hole, and an observed one is used.
+There is no tolerance band: every scheduled minute absent from M1 is a hole
+(contract C5.8), at a session edge as anywhere else.
+
+Inside OFFSET_UNCERTAIN a minute is scheduled iff it is scheduled under UTC+2
+or under UTC+3 (contract C1.3a(ii)); `Schedule` implements this union.
 """
 
+import bisect
 import calendar as _cal
 import sys
 from datetime import date, datetime, timedelta, timezone
 
 CALENDAR_RULE = "calendar-2"
 OFFSET_RULE = "offset-eu-1"
-EDGE_SECONDS = 300
 BREAK_2026_FROM = date(2026, 3, 9)
 OFFSET_UNCERTAIN = (_cal.timegm((2026, 3, 9, 0, 0, 0)), _cal.timegm((2026, 3, 12, 0, 0, 0)))
 OPEN_NY_MIN = 18 * 60
@@ -88,13 +91,13 @@ def server_to_utc(t):
     return t - 3600 * offset_hours(utc_date(t - 3 * 3600))
 
 
-def utc_to_server(u):
-    return u + 3600 * offset_hours(utc_date(u))
+def utc_to_server(u, fixed=None):
+    return u + 3600 * (fixed if fixed is not None else offset_hours(utc_date(u)))
 
 
-def ny_to_server(d, minutes):
+def ny_to_server(d, minutes, fixed=None):
     u = epoch(d) + 60 * minutes + 3600 * (4 if us_summer(d) else 5)
-    return utc_to_server(u)
+    return utc_to_server(u, fixed)
 
 
 def server_to_ny_minutes(d, t):
@@ -139,40 +142,75 @@ def holidays(y):
     return h
 
 
-def session(d, hol=None):
-    """(open, close) in server epochs for New York trading day d, or None."""
+def session(d, hol=None, fixed=None):
+    """(open, close) in server epochs for New York trading day d, or None.
+    fixed: a constant offset in hours instead of offset-eu-1."""
     hol = holidays(d.year) if hol is None else hol
     if d.weekday() > 4 or hol.get(d) == "full":
         return None
     close = hol.get(d, CLOSE_NY_MIN)
-    t_close = ny_to_server(d, close)
+    t_close = ny_to_server(d, close, fixed)
     if d >= BREAK_2026_FROM:
         t_close = min(t_close, epoch(d) + 23 * 3600)
-    return ny_to_server(d - timedelta(days=1), OPEN_NY_MIN), t_close
+    return ny_to_server(d - timedelta(days=1), OPEN_NY_MIN, fixed), t_close
 
 
-def sessions(first, last):
+def sessions(first, last, fixed=None):
     """All sessions whose trading day lies in [first, last] (New York dates)."""
     out, d, cache = [], first, {}
     while d <= last:
         hol = cache.setdefault(d.year, holidays(d.year))
-        s = session(d, hol)
+        s = session(d, hol, fixed)
         if s:
             out.append(s)
         d += timedelta(days=1)
     return out
 
 
-def classify(t, sess):
-    """'open' | 'edge' | 'closed' for the server minute t; sess from sessions()."""
-    for a, b in sess:
-        if a <= t < b:
-            return "edge" if t < a + EDGE_SECONDS or t >= b - EDGE_SECONDS else "open"
-    return "closed"
+def merge(intervals):
+    out = []
+    for a, b in sorted(intervals):
+        if out and a <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return [tuple(x) for x in out]
 
 
-def offset_uncertain(t):
-    return OFFSET_UNCERTAIN[0] <= t < OFFSET_UNCERTAIN[1]
+def clip(intervals, lo, hi):
+    return [(max(a, lo), min(b, hi)) for a, b in intervals if b > lo and a < hi]
+
+
+class Schedule:
+    """Scheduled server time between New York dates first and last.
+
+    Outside the uncertain window: the offset-eu-1 sessions. Inside it: the union
+    of the sessions computed under UTC+2 and under UTC+3 (C1.3a(ii)).
+    union=False is the broken variant that uses offset-eu-1 alone everywhere."""
+
+    def __init__(self, first, last, window=OFFSET_UNCERTAIN, union=True):
+        base = sessions(first, last)
+        self.window = window
+        if union and window:
+            lo, hi = window
+            outside = clip(base, -2 ** 62, lo) + clip(base, hi, 2 ** 62)
+            inside = clip(sessions(first, last, 2) + sessions(first, last, 3), lo, hi)
+            base = outside + inside
+        self.intervals = merge(base)
+        self.starts = [a for a, _ in self.intervals]
+
+    def scheduled(self, t):
+        i = bisect.bisect_right(self.starts, t) - 1
+        return i >= 0 and t < self.intervals[i][1]
+
+
+def classify(t, sched):
+    """'open' | 'closed' for the server minute t."""
+    return "open" if sched.scheduled(t) else "closed"
+
+
+def offset_uncertain(t, window=OFFSET_UNCERTAIN):
+    return window[0] <= t < window[1]
 
 
 def selftest():
@@ -217,13 +255,31 @@ def selftest():
     check("2026 winter (live 3 Nov): opens 01:00, closes 23:00 server",
           s(2026, 11, 3) == ("11-03 01:00", "11-03 23:00"), str(s(2026, 11, 3)))
     check("Feb 2026, before the change: closes 00:00 server", s(2026, 2, 3)[1] == "02-04 00:00")
-    sess = sessions(date(2024, 7, 1), date(2024, 7, 8))
-    check("classify: open, edge after an open and before a close, closed in the break and on Saturday",
-          classify(_cal.timegm((2024, 7, 2, 10, 0, 0)), sess) == "open"
-          and classify(_cal.timegm((2024, 7, 2, 1, 3, 0)), sess) == "edge"
-          and classify(_cal.timegm((2024, 7, 2, 23, 57, 0)), sess) == "edge"
-          and classify(_cal.timegm((2024, 7, 3, 0, 30, 0)), sess) == "closed"
-          and classify(_cal.timegm((2024, 7, 6, 12, 0, 0)), sess) == "closed")
+    sch = Schedule(date(2024, 7, 1), date(2024, 7, 8))
+    ts = lambda *a: _cal.timegm(a + (0,))
+    check("classify: no tolerance band; the first and last minute of a session are scheduled; break and Saturday closed",
+          classify(ts(2024, 7, 2, 10, 0), sch) == "open" and classify(ts(2024, 7, 2, 1, 0), sch) == "open"
+          and classify(ts(2024, 7, 2, 23, 59), sch) == "open" and classify(ts(2024, 7, 3, 0, 30), sch) == "closed"
+          and classify(ts(2024, 7, 6, 12, 0), sch) == "closed")
+    w = (ts(2025, 3, 11, 0, 0), ts(2025, 3, 13, 0, 0))
+    u, b = Schedule(date(2025, 3, 9), date(2025, 3, 14), w), Schedule(date(2025, 3, 9), date(2025, 3, 14), w, union=False)
+    only3 = merge(clip(sessions(date(2025, 3, 9), date(2025, 3, 14), 3), *w))
+    in3 = lambda t: any(a <= t < z for a, z in only3)
+    check("union, synthetic window 11-13 Mar 2025 (gap week): 23:30 is closed under UTC+2 (offset-eu-1), open under "
+          "UTC+3, so the union schedules it; the broken variant (offset-eu-1 alone) does not",
+          u.scheduled(ts(2025, 3, 11, 23, 30)) and not b.scheduled(ts(2025, 3, 11, 23, 30)) and in3(ts(2025, 3, 11, 23, 30)))
+    check("union, same window: 00:30 is open under UTC+2 and closed under UTC+3, so the union schedules it; "
+          "a UTC+3-only variant does not",
+          u.scheduled(ts(2025, 3, 12, 0, 30)) and b.scheduled(ts(2025, 3, 12, 0, 30)) and not in3(ts(2025, 3, 12, 0, 30)))
+    check("union applies only inside the window: 10 Mar 23:30 (before it) follows offset-eu-1, closed",
+          not u.scheduled(ts(2025, 3, 10, 23, 30)))
+    r = Schedule(date(2026, 3, 8), date(2026, 3, 13))
+    r3 = merge(clip(sessions(date(2026, 3, 8), date(2026, 3, 13), 3), *OFFSET_UNCERTAIN))
+    check("real window 9-11 Mar 2026: 00:05-01:00 is scheduled (UTC+2 reopens 00:00, UTC+3 at 01:00); "
+          "23:01-24:00 is closed under both, because the 2026 close is server 23:00",
+          r.scheduled(ts(2026, 3, 9, 0, 5)) and r.scheduled(ts(2026, 3, 10, 0, 30))
+          and not any(a <= ts(2026, 3, 10, 0, 30) < z for a, z in r3)
+          and not r.scheduled(ts(2026, 3, 9, 23, 30)) and not r.scheduled(ts(2026, 3, 10, 23, 30)))
     check("OFFSET_UNCERTAIN covers server 9 Mar 00:00 to 12 Mar 00:00 2026 only",
           offset_uncertain(_cal.timegm((2026, 3, 9, 0, 0, 0))) and offset_uncertain(_cal.timegm((2026, 3, 11, 23, 59, 0)))
           and not offset_uncertain(_cal.timegm((2026, 3, 12, 0, 0, 0))))

@@ -15,9 +15,13 @@
  "calendar_2": {
   "calendar_rule": "calendar-2",
   "offset_rule": "offset-eu-1",
-  "edge_seconds": 300,
+  "union_in_uncertain_window": true,
+  "uncertain_window": [
+   "2026-03-09 Mon 00:00",
+   "2026-03-12 Thu 00:00"
+  ],
   "break_2026_from": "2026-03-09",
-  "sessions": 1137,
+  "scheduled_intervals": 1137,
   "observed_minutes_in_sessions": 1549180,
   "observed_minutes_outside_sessions": 230,
   "outside_runs": [
@@ -138,13 +142,12 @@
    ]
   ],
   "outside_run_count": 23,
-  "missing_in_edge_band": 2289,
-  "hole_minutes": 3066,
-  "hole_minutes_in_holdout_count_only": 1442,
+  "hole_minutes": 5355,
+  "hole_minutes_in_holdout_count_only": 1659,
   "hole_runs_by_length": {
-   "2-4": 46,
-   "5-29": 44,
-   "1": 101,
+   "2-4": 425,
+   "5-29": 165,
+   "1": 809,
    "30-179": 18,
    "180+": 3
   },
@@ -199,9 +202,9 @@
    ],
    [
     "2025-07-04 Fri 20:00",
-    "2025-07-04 Fri 21:25",
-    85,
-    5,
+    "2025-07-04 Fri 21:30",
+    90,
+    6,
     "dev",
     ""
    ],
@@ -246,10 +249,10 @@
     ""
    ],
    [
-    "2025-12-29 Mon 01:05",
+    "2025-12-29 Mon 01:00",
     "2025-12-29 Mon 01:49",
-    44,
-    2,
+    49,
+    3,
     "holdout",
     ""
    ],
@@ -263,63 +266,68 @@
    ],
    [
     "2026-02-26 Thu 21:48",
-    "2026-02-26 Thu 23:55",
-    127,
-    7,
-    "holdout",
-    ""
-   ],
-   [
-    "2026-02-27 Fri 01:05",
-    "2026-02-27 Fri 03:17",
+    "2026-02-27 Fri 00:00",
     132,
     8,
     "holdout",
     ""
    ],
    [
-    "2026-03-09 Mon 00:05",
+    "2026-02-27 Fri 01:00",
+    "2026-02-27 Fri 03:17",
+    137,
+    9,
+    "holdout",
+    ""
+   ],
+   [
+    "2026-03-09 Mon 00:00",
     "2026-03-09 Mon 01:00",
-    55,
-    3,
+    60,
+    4,
     "holdout",
     "offset_uncertain"
    ],
    [
-    "2026-03-10 Tue 00:05",
+    "2026-03-10 Tue 00:00",
     "2026-03-10 Tue 01:00",
-    55,
-    3,
+    60,
+    4,
     "holdout",
     "offset_uncertain"
    ],
    [
-    "2026-03-11 Wed 00:05",
+    "2026-03-11 Wed 00:00",
     "2026-03-11 Wed 01:00",
-    55,
-    3,
+    60,
+    4,
     "holdout",
     "offset_uncertain"
    ],
    [
     "2026-06-19 Fri 20:02",
-    "2026-06-19 Fri 21:25",
-    83,
-    4,
+    "2026-06-19 Fri 21:30",
+    88,
+    5,
     "holdout",
     ""
    ],
    [
     "2026-07-03 Fri 20:01",
-    "2026-07-03 Fri 21:25",
-    84,
-    4,
+    "2026-07-03 Fri 21:30",
+    89,
+    5,
     "holdout",
     ""
    ]
   ],
-  "m15_slots_absent_in_scheduled_time": 139,
-  "m15_slots_absent_in_holdout_count_only": 53
+  "m15_slots_absent_in_scheduled_time": 148,
+  "m15_slots_absent_in_holdout_count_only": 61,
+  "same_without_union": {
+   "hole_minutes": true,
+   "m15_slots_absent_in_scheduled_time": true,
+   "observed_minutes_outside_sessions": true
+  }
  },
  "calendar_1_superseded": {
   "calendar_rule": "calendar-1",

@@ -258,27 +258,26 @@ def verify_hashes(data_dir):
     return out
 
 
-def verify_calendar2(m1, m15):
-    """Verify the declared calendar-2 against the export. m1 sorted server epochs."""
+def verify_calendar2(m1, m15, window=tc.OFFSET_UNCERTAIN, union=True):
+    """Verify the declared calendar-2 against the export. m1 sorted server epochs.
+    Scheduled time is tc.Schedule: offset-eu-1, and the UTC+2/UTC+3 union inside
+    the uncertain window; union=False is the broken variant."""
     present = set(m1)
     first, last = m1[0], m1[-1]
     d0 = tc.utc_date(first) - timedelta(days=2)
     d1 = tc.utc_date(last) + timedelta(days=2)
-    sess = [(max(a, first), min(b, last + 60)) for a, b in tc.sessions(d0, d1) if b > first and a <= last]
-    expected = observed = edge_missing = 0
+    sched = tc.Schedule(d0, d1, window, union)
+    sess = tc.clip(sched.intervals, first, last + 60)
+    expected = observed = 0
     runs, run = [], None
     holdout_hole = 0
     for a, b in sess:
         for m in range(a, b, 60):
-            edge = m < a + tc.EDGE_SECONDS or m >= b - tc.EDGE_SECONDS
             if m in present:
                 observed += 1
                 if run:
                     runs.append(run)
                     run = None
-                continue
-            if edge:
-                edge_missing += 1
                 continue
             expected += 1
             if eh.HOLDOUT_START <= m < eh.HOLDOUT_END:
@@ -301,8 +300,8 @@ def verify_calendar2(m1, m15):
     by_len = Counter(eh.gap_bucket((b - a) // 60) for a, b in runs)
     absent_slots = set()
     for a, b in sess:
-        s = -(-(a + tc.EDGE_SECONDS) // 900) * 900
-        while s + 900 <= b - tc.EDGE_SECONDS:
+        s = a - a % 900
+        while s < b:
             if s not in m15:
                 absent_slots.add(s)
             s += 900
@@ -312,16 +311,16 @@ def verify_calendar2(m1, m15):
             slots = sum(1 for s in absent_slots if a <= s and s + 900 <= b)
             long_runs.append([stamp(a), stamp(b), (b - a) // 60, slots,
                               "holdout" if eh.HOLDOUT_START <= a < eh.HOLDOUT_END else "dev",
-                              "offset_uncertain" if tc.offset_uncertain(a) else ""])
+                              "offset_uncertain" if tc.offset_uncertain(a, window) else ""])
     return {
         "calendar_rule": tc.CALENDAR_RULE, "offset_rule": tc.OFFSET_RULE,
-        "edge_seconds": tc.EDGE_SECONDS, "break_2026_from": tc.BREAK_2026_FROM.isoformat(),
-        "sessions": len(sess),
+        "union_in_uncertain_window": union, "uncertain_window": [stamp(window[0]), stamp(window[1])],
+        "break_2026_from": tc.BREAK_2026_FROM.isoformat(),
+        "scheduled_intervals": len(sess),
         "observed_minutes_in_sessions": in_sess,
         "observed_minutes_outside_sessions": outside,
         "outside_runs": [[stamp(a), stamp(b), n] for a, b, n in out_runs][:LIST_CAP],
         "outside_run_count": len(out_runs),
-        "missing_in_edge_band": edge_missing,
         "hole_minutes": expected, "hole_minutes_in_holdout_count_only": holdout_hole,
         "hole_runs_by_length": dict(by_len),
         "hole_runs_30min_plus": long_runs,
@@ -403,10 +402,22 @@ def selftest():
     for t in m1:
         if t <= t_mid:
             trunc.add(t)
-    sess = tc.sessions(date(2024, 3, 11), date(2024, 3, 13))
+    sess = tc.Schedule(date(2024, 3, 11), date(2024, 3, 13))
     check("causality: at 10:05 inside the outage calendar-2 says open from the clock alone; "
           "calendar-1 on data truncated at 10:05 has no classification, it needs the minute after the run",
           tc.classify(t_mid, sess) == "open" and not trunc.closures and trunc.hole_minutes == 0 and c1.closures)
+    d = eh.worker.epoch(2025, 3, 11)
+    w = (d, d + 2 * 86400)
+    gap = (d + 23 * 3600, d + 86400)
+    m1w = [t for t in range(d + 3600, d + 86400 + 22 * 3600, 60) if not gap[0] <= t < gap[1]]
+    m15w = {s for s in range(d + 3600, d + 86400 + 22 * 3600, 900) if not gap[0] <= s < gap[1]}
+    vu, vb = verify_calendar2(m1w, m15w, w), verify_calendar2(m1w, m15w, w, union=False)
+    check("union in verification, synthetic window 11-13 Mar 2025: 23:00-24:00 absent is a hole with 4 absent "
+          "M15 slots (scheduled under UTC+3); broken variant (offset-eu-1 alone) calls it closed",
+          vu["hole_minutes"] == 60 and vu["m15_slots_absent_in_scheduled_time"] == 4
+          and vb["hole_minutes"] == 0 and vb["m15_slots_absent_in_scheduled_time"] == 0,
+          f"union {vu['hole_minutes']}/{vu['m15_slots_absent_in_scheduled_time']}, "
+          f"broken {vb['hole_minutes']}/{vb['m15_slots_absent_in_scheduled_time']}")
     return ok
 
 
@@ -431,10 +442,14 @@ def main():
     s = run(data_dir)
     m1 = list(read_times(data_dir / "XAUUSD_M1.csv"))
     v2 = verify_calendar2(m1, set(read_times(data_dir / "XAUUSD_M15.csv")))
-    print(f"calendar-2: sessions {v2['sessions']}  observed in sessions {v2['observed_minutes_in_sessions']}  "
+    print(f"calendar-2: scheduled intervals {v2['scheduled_intervals']}  observed in sessions {v2['observed_minutes_in_sessions']}  "
           f"observed outside sessions {v2['observed_minutes_outside_sessions']} in {v2['outside_run_count']} runs")
     print(f"  outside runs, first: {v2['outside_runs'][:20]}")
-    print(f"  missing in edge band {v2['missing_in_edge_band']}  holes {v2['hole_minutes']} "
+    vb = verify_calendar2(m1, set(read_times(data_dir / "XAUUSD_M15.csv")), union=False)
+    v2["same_without_union"] = {k: vb[k] == v2[k] for k in ("hole_minutes", "m15_slots_absent_in_scheduled_time",
+                                                             "observed_minutes_outside_sessions")}
+    print(f"  union vs offset-eu-1 alone in the real window, identical: {v2['same_without_union']}")
+    print(f"  holes {v2['hole_minutes']} "
           f"(holdout {v2['hole_minutes_in_holdout_count_only']})  runs {v2['hole_runs_by_length']}")
     print(f"  M15 slots absent in scheduled time {v2['m15_slots_absent_in_scheduled_time']} "
           f"(holdout {v2['m15_slots_absent_in_holdout_count_only']})")
