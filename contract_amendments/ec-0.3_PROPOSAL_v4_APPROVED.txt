@@ -1,0 +1,492 @@
+HERMES EXECUTION CONTRACT - PROPOSED AMENDMENT ec-0.3 (DRAFT v4, 2026-11-06)
+==========================================================================
+
+Base: EXECUTION_CONTRACT.md ec-0.2 (structure frozen 2026-10-14), included as
+EXECUTION_CONTRACT_ec-0.2.txt. Clause numbers refer to it.
+
+v4 answers review 3 (HOLD; see section 0b). v3 answered review 2 (HOLD). In review 2, F1, F2, F4 and F5 were closed, F3
+stayed open, and AD1 and AD4-AD7 were approved. Two blocking findings, G1 and
+G2, are both accepted; section 0a maps them to their changes. Section 0 keeps
+the review-1 responses. Sections 1-7 are the full amendment, so earlier drafts
+need not be read. Every change from v2 is marked [v3], and every change from
+v3 is marked [v4].
+
+What this amendment is NOT:
+- not ec-1.0, not a replay result, not live authorisation;
+- no change to the 0g-5 baseline or to PREREGISTRATION.md pr-0.4 (section 8);
+- no value below was chosen from strategy outcomes. The calendar and offset
+  evidence reads timestamps only (no price, return or volume). pr-0.4 F6
+  permits this on holdout bars.
+
+
+0. Response to review 1
+-----------------------
+F1  calendar-1 classified a missing run from its far end and from M15
+    absence, so the label of an instant could depend on later data.
+    ACCEPTED. calendar-1 is withdrawn. calendar-2 is a declared schedule: a
+    function of the clock only, written from published exchange rules plus one
+    dated broker change. The export verifies it and never defines it. Whether
+    a minute is scheduled is therefore known at that minute. A control shows
+    calendar-1 cannot classify an instant inside a run until the run ends.
+    -> A3, C1.8, test 26.
+
+F2  Joint absence of M1 and M15 does not prove a closure; "the broker
+    published no prices" overstated the evidence.
+    ACCEPTED. The sentence is withdrawn. Under calendar-2 any absence in
+    scheduled time is a hole, whatever M15 shows, and an absent M15 bar
+    there is C5.8(a), PATH_UNKNOWN. A control shows a 30-minute feed outage
+    with both series absent is a hole under calendar-2 and a closure under
+    calendar-1. The cost is stated in A3: 148 M15 slots absent in scheduled
+    time [v3, was 139], against 11 under calendar-1.
+    -> A3, test 26.
+
+F3  The offset exception handled the session of D only.
+    ACCEPTED. The offset enters C1.7 (Mon-Fri UTC), C2.2 (session of D), the
+    session used for the spread distribution (C3.2), the UTC fields of the
+    record (section 7) and, new in this amendment, the calendar itself. The
+    exception no longer compares quantities. Every opportunity in the window
+    is excluded, and inside the window a minute is scheduled if it is
+    scheduled under either offset. So an uncertain offset can never turn a
+    gap into a closure.
+    -> A2, C1.3a, test 5.
+
+F4  The quote-stop E0 exemption was self-contradictory and weakened E0.
+    ACCEPTED. Withdrawn. E0 eligibility is as in ec-0.2. A frozen-tick cycle
+    with execution fields is E0-eligible and must reproduce them from its
+    logged inputs.
+    -> A5.
+
+F5  C4.6 (stop_consumed) changes which trades enter population C. It is a
+    policy change outside the frozen rule-change menu, and the threshold was
+    informed by observed live setups. The rationale also had two errors: the
+    ratio depends on the spread model, and a volume cap does not break R
+    accounting.
+    ACCEPTED, all three parts. C4.6 is withdrawn and the baseline is
+    unchanged. H6 stays open as a declared hazard with a report-only
+    diagnostic that enters no gate. Corrections:
+      (a) the executable stop distance is measured from the executable entry.
+          For LONG that is the ask, which in replay is the bid plus the spread
+          draw (C3.3), so any rule on it depends on the spread model;
+      (b) a volume cap keeps R accounting intact, because C4.3 already scales
+          cash by each trade's planned stop-loss cash. What it changes is the
+          0g-5 sizing policy, which is the same category of change as a filter.
+    Any policy for near-stop fills goes through pr-0.4's own change process,
+    not through the contract.
+    -> A6, test 28.
+
+0b. Response to review 3 [v4]
+-----------------------------
+In review 3, F3 was closed. G2 was closed for the edge band. G1 stayed open
+because the source and the control outputs were not attached. AD2 was
+approved at document level and AD3 held. One blocking finding, H1:
+H1  v3's C5.4 released a hole only under C5.8(c), and forbade bridging any
+    other hole. Frozen C5.9 scenario C requires C5.4 to apply after a
+    PATH_UNKNOWN bar, which is not a C5.8(c) decision. The two contradicted
+    each other.
+    ACCEPTED. C5.9 is unchanged. C5.4 (A3) now names both release routes:
+    C5.8(c), and PATH_UNKNOWN under scenario C. Release takes effect at K.
+    The text also states that under S, T, (d) and (e) the trade ends at K, so
+    nothing is left to bridge. Consecutive B bars are decided in turn, and
+    PATH_UNKNOWN is counted once per trade. New replay test 26(vi) has
+    fixtures for all three paths. Its broken variants include the v3 wording.
+G1  Implementation evidence. Attached: trading_calendar.py, calendar_check.py,
+    SELFTEST_OUTPUT.txt (the verbatim output of both self-tests and of the
+    full verification run, with the union and without it) and
+    SOURCE_SHA256.txt (hashes of the two sources at the commit named in it).
+    Also found while editing: in v3 the last sentence of C1.8 ("ec-1.0
+    requires the verification output...") had been displaced to the end of
+    C5.4. It is back in C1.8, unchanged.
+
+Decision items: AD3 is re-asked. AD2 now carries document-level approval and
+needs only G1 closed. AD1 and AD4-AD7 carry.
+
+0a. Response to review 2 [v3]
+-----------------------------
+G1  The OFFSET_UNCERTAIN union was specified (C1.3a(ii)) but not implemented:
+    sessions() and classify() used offset-eu-1 alone, and test 5(b) was not
+    established.
+    ACCEPTED. trading_calendar.Schedule now implements it: inside the window,
+    scheduled time is the union of the sessions computed under UTC+2 and
+    under UTC+3; outside, offset-eu-1. classify() and calendar_check.py both
+    use Schedule. Controls, each run against a broken variant:
+      - trading_calendar.py, synthetic window 11-13 Mar 2025, a gap week where
+        the offsets disagree at both edges of the break. Server 23:30 is
+        closed under UTC+2 and open under UTC+3: the union schedules it, and
+        offset-eu-1 alone does not. Server 00:30 is the reverse case: the
+        union schedules it, and UTC+3 alone does not.
+      - calendar_check.py: the same window with 23:00-24:00 absent in both M1
+        and M15 gives a 60-minute hole and 4 absent slots under the union, and
+        nothing under offset-eu-1 alone.
+    Writing the code exposed an error in v2's test 5(b), now corrected. Its
+    fixture (23:01-24:00 on 9 Mar 2026) is closed under both offsets, because
+    from 9 Mar 2026 the close is server 23:00 whichever offset applies. In the
+    real window the offsets differ only at the reopen: 00:00 under UTC+2,
+    01:00 under UTC+3. The union therefore schedules 00:00-01:00 on 9, 10 and
+    11 March, and those absences are holes with 4 absent M15 slots each.
+    This also equals the offset-eu-1 schedule there; calendar_check.py
+    reports both and confirms they are identical. The union matters in
+    general, not for this particular window. See A2.
+G2  Missing minutes in the 5-minute edge band had no defined exit treatment;
+    2,289 of them were excluded from the hole count.
+    ACCEPTED. The edge band is removed. Every scheduled minute absent from M1
+    is a hole, with no exception, so C5.8 governs it. Across a closure, C5.4
+    is clarified so the two clauses meet without a gap or an overlap. The hole
+    counts in A3 are restated: 5,355 hole minutes and 148 absent M15 slots,
+    against 3,066 and 139 in v2. The edge flag of C1.9 is gone.
+    See A3 and A5.
+
+Decision items: AD2 and AD3 are re-asked. AD1 and AD4-AD7 carry their review-2
+approval. AD5's text changes only by deleting the edge flag.
+
+(Review-1 notes follow.) Decision items in v2: AD2, AD3, AD5 and AD6 re-asked. AD1, AD4 and AD7 carry
+their review-1 approval; their text is unchanged except one sentence in D8
+(A7) that ties it to §8 as written.
+
+
+1. A1 - TBD-2, M1 coverage: RESOLVED (AD1 approved in review 1)
+--------------------------------------------------------------
+- MaxBars 100000 caps M1 at about 72 trading days (probe 06:23:53Z,
+  M1_CAPPED_OR_ABSENT). With MaxBars 2000000 every one of 9 windows back to
+  2022-06-23 is COVERED (probe 06:47:01Z, M1_AVAILABLE).
+- Export 20261027T070105Z, server 2022-06-01 00:00 .. 2026-10-27 00:00:
+  M15 103,511 rows (sha256 4af57ead...d377), M1 1,549,410 rows
+  (sha256 6348a40a...2969), data_snapshot_hash 520a4850...7804fac. Structural
+  checks 0 failures. C6.3(a) 0 mismatches, C6.3(b) 0 envelope failures,
+  0 orphan minutes. F3 met. MaxBars restored to 100000 (probe 07:04:11Z).
+  Both hashes match the manifest on a second machine.
+Text: C6.1 span and hashes as above. C6.2: M1 available over the same span,
+remainder unchanged. H2 closed.
+Boundary as the reviewer stated: the CSVs were not supplied, so their content
+was not independently verified.
+
+
+2. A2 - TBD-1, server offset rule (AD2 re-asked)
+-----------------------------------------------
+Rule offset-eu-1: server = UTC+3 while EU summer time is in force (last
+Sunday of March to last Sunday of October, by UTC date), UTC+2 otherwise.
+
+Evidence (unchanged from v1):
+- Live: 10,799 s to 23 Oct; 7,199.5 s from 26 Oct; still UTC+2 after the
+  US change on 1 Nov.
+- Historical: reopen hours after 1,132 daily and weekend breaks, assuming the
+  18:00 New York reopen. Matches 709/709 both-summer, 347/348 both-winter and
+  72/75 gap-week reopens. Only gap weeks discriminate between an EU-following
+  and a US-following server; 15 of 16 match on every reopen. The four
+  mismatches are a 26-27 Feb 2026 outage, and the reopens of 9, 10 and 11
+  March 2026 at 01:00 instead of 00:00.
+
+On 9-11 March the timestamps fit both UTC+2 with an hour-late reopen and
+UTC+3, so the offset there is not determined.
+
+Proposed text.
+  C1.3  offset(t) per offset-eu-1 (offset_rule_version "offset-eu-1").
+  C1.3a OFFSET_UNCERTAIN window, server 2026-03-09 00:00 to 2026-03-12 00:00
+        (from the first unexplained reopen to the next reopen that agrees
+        with the rule). Inside it, offset(t) is not used for any decision:
+        (i)  Opportunities. Every M15 bar whose decision instant D falls in
+             the window is recorded in population B as `quote_unavailable`,
+             detail `offset_uncertain`, and counted. The record carries UTC
+             fields under both offsets. Nothing is compared first, so it
+             makes no difference whether C1.7, C2.2, the spread session or
+             the timestamps would have agreed.
+        (ii) Open trades. Exit resolution, slot release, the daily loss count
+             (server date), equity marks and rollover (server 00:00) do not
+             use the offset. The calendar does. Inside the window a minute is
+             scheduled if it is scheduled under UTC+2 or under UTC+3
+             (trading_calendar.Schedule) [v3]. An
+             absence there is a hole (C5.8), so an absent M15 bar gives
+             PATH_UNKNOWN. The gap rule C5.4 never applies on the strength of
+             an assumed offset.
+  Test 5 (extended). Bars before and after each EU change in 2025 and 2026,
+        including a gap-week bar (2025-10-27), map to the right UTC.
+        (a) A bar with D in the window gives `offset_uncertain`, including
+            one where both offsets give the same session.
+        (b) [v3, corrected] Union schedule. In a gap-week window, a minute
+            scheduled under only one of the two offsets is scheduled. If it is
+            absent in M1 and M15 with a trade open, the trade becomes
+            PATH_UNKNOWN. Fixtures: server 23:30 and 00:30 in the synthetic
+            window 11-13 Mar 2025. In the real window, server 00:00-01:00 on
+            9-11 Mar 2026 (open under UTC+2, closed under UTC+3) is scheduled.
+            23:01-24:00 there is closed under both offsets, because of the
+            2026 server-23:00 close.
+        Broken variants, each of which must fail: a fixed UTC+3 offset (old
+        hazard H1); comparing sessions only, which fails (a); offset-eu-1 alone
+        in the window, which fails the 23:30 fixture; and UTC+3 alone, which
+        fails the 00:30 fixture. The schedule part of (b) is implemented and
+        passing in trading_calendar.py and calendar_check.py. The PATH_UNKNOWN
+        part is a replay test, to be built with the engine.
+  H1    closed.
+Scale: the window holds about 170 tradeable bars, all in the sealed holdout.
+Their signal count is not inspected.
+
+AD2  Accept offset-eu-1 and C1.3a as defined?
+
+
+3. A3 - TBD-5, trading calendar (AD3 re-asked)
+---------------------------------------------
+The Python API exposes no session schedule, so the calendar is declared from
+published exchange rules, as follows. Code: trading_calendar.py.
+
+calendar-2, New York time (the CME metals session), all clock-only:
+- Trading day X, Monday to Friday, opens at 18:00 on the calendar day before X
+  and closes at 17:00 on X.
+- Full closures (no trading day X): Good Friday; 25 December and 1 January,
+  moved to Monday if on a Sunday.
+- Early close 14:30 New York on MLK Day, Presidents Day, Memorial Day,
+  Juneteenth and Independence Day (both observed), Labor Day and Thanksgiving.
+- Early close 13:45 New York on the Friday after Thanksgiving and on 24
+  December when that is a weekday.
+- Broker change, the one dated element. From server date 2026-03-09 the
+  close is the earlier of the above and server 23:00. That is 16:00 New York
+  in EU summer, as seen live (the "daily quote stop"). Any date from 7 to
+  30 March 2026 gives the identical schedule, because in those weeks server
+  23:00 equals 17:00 New York. The date is therefore not fitted to a single
+  day. The export dates the change; it could not have been known from
+  exchange rules.
+- [v3] No tolerance band. Every scheduled minute absent from M1 is a hole,
+  including the first and last minutes of a session.
+- Server times follow offset-eu-1, with the union of C1.3a inside the window
+  (trading_calendar.Schedule).
+Use: an observed M1 minute is always used, whatever the schedule says. The
+schedule decides only (a) whether an absent minute is a hole (scheduled) or
+outside trading (closed), and (b) the entry label of A5.
+
+Verification against export 20261027T070105Z (calendar_check.py, timestamps
+only; nothing below changed the rules):
+  [v3: recomputed with no edge band and with the union; the union changes no
+  count for this export.]
+  scheduled intervals 1,137; M1 minutes observed in scheduled time 1,549,180.
+  Observed outside sessions: 230 minutes in 23 runs, all listed. They are:
+    - 5 single minutes stamped exactly at an early close or at the 2026 close;
+    - 120 minutes after 13:45 on Black Friday 2024 and 2025 (traded to 14:45);
+    - 105 sparse minutes on the evening of Thanksgiving 2025.
+    They are used as observed. The rules were not refitted to them.
+  Holes: 5,355 minutes (1,659 of them in the holdout, counted only). By run
+    length: 1 minute 809 runs; 2-4: 425; 5-29: 165; 30-179: 18; 180 or more: 3.
+    Most 1-4 minute runs sit at a session edge: the broker's last minute
+    before 17:00, and reopens at 01:01-01:05 in 2022-2023. Their M15 bars are
+    present, so they resolve under C5.8(b)-(e) from the bar envelope, and
+    none is PATH_UNKNOWN on its own.
+  M15 slots absent in scheduled time, the C5.8(a) cases: 148, of which 61 are
+    in the holdout and 87 in development (v2: 139). Under calendar-1 the count
+    was 11; the difference is the cost of F2.
+  The 21 hole runs of 30 minutes or more are listed in the output. Development
+    runs: 2023-12-29 (38 min); 2025-01-07 (180 and 55 min); Memorial Day 2025
+    16:18 (81 min); 2025-07-03 03:03-12:12 and 2025-07-04 04:05-10:28 (549 and
+    383 min, 59 slots between them); Independence Day 2025 from 20:00 (90 min).
+    Holdout runs: late reopens around Christmas 2025 (30-59 min each); the
+    26-27 Feb 2026 outage (132 and 137 min); 9-11 Mar 2026 (60 min each,
+    4 slots each, OFFSET_UNCERTAIN); Juneteenth and Independence Day 2026
+    from 20:00 (88 and 89 min).
+  Three Friday holidays (2025-07-04, 2026-06-19, 2026-07-03) closed at
+    13:00 New York, earlier than the 14:30 rule. They are left as holes and
+    not refitted. A trade open there becomes PATH_UNKNOWN.
+Stated consequence, not a result: more PATH_UNKNOWN cases than ec-0.2's
+reading implied. The 1% cap (C5.9, pr-0.4 G9/H5) may bind, which gives HOLD.
+That is the intended effect of not assuming a closure. No trade overlap was
+computed, because that would need the strategy run.
+
+Proposed text.
+  C1.8  Expected minutes per calendar-2 (calendar_rule_version "calendar-2"),
+        imported from trading_calendar.py, a function of the clock only.
+        An expected minute absent from M1 is a hole (C5.8) even if its M15
+        bar is also absent, and whether or not it lies at a session edge
+        [v3]. Time outside the schedule is a closure. Observed minutes are
+        used whatever the schedule says. ec-1.0 requires the verification
+        output (observed-outside runs, hole runs of 30 min or more) reviewed
+        and its counts recorded, as for C6.3.
+  C5.4  [v4, clarified] Applies between consecutive observed M1 bars, across
+        any closure, when every hole between them is released. A hole is
+        released when the M15 bar B that contains it has been decided at K
+        with the trade still open, which happens in exactly two ways:
+          (1) C5.8(c): the envelope shows neither trigger was reached in B;
+          (2) C5.9 scenario C: B was decided PATH_UNKNOWN (C5.8(a) or (b)) and
+              is taken to contain no touch.
+        Release takes effect at K. The next observed bar's open then prices a
+        gap through the SL, at that open, as C5.9 C already requires ("as if
+        it followed directly"). In every other decision the trade ends at K
+        and nothing remains to bridge: C5.8(d) or (e), and PATH_UNKNOWN under
+        scenarios S and T. An unreleased hole is never bridged; C5.8 decides
+        its bar first, at K. If several consecutive bars contain holes, each
+        is its own B and is decided in turn at its own K. C5.4 applies only
+        once all of them are released.
+        PATH_UNKNOWN is a property of the trade, counted once (C5.9 1% cap),
+        however many of its bars are B under scenario C.
+        Consequences at session edges:
+          - A hole before a close (for example the broker's missing 23:59 bar)
+            is decided at K, the close of its M15 bar. If it is released, C5.4
+            covers the closure from that bar to the reopen.
+          - A hole after a reopen (for example data from 01:05 for a 01:00
+            open) lies in the reopen's M15 bar. In case (d) an SL exits at the
+            worse of the level and the first observed post-hole open that
+            attains it, which keeps the gap price. If that M15 bar is absent,
+            case (a) applies and the trade is PATH_UNKNOWN. In C, C5.4 then
+            prices the first observed bar after it.
+        ec-0.2's C5.4 already said "no hole between them", and taken literally
+        that contradicted C5.9 C. v4 removes the contradiction: C5.9 is
+        unchanged, and C5.4 now defines when a hole stops blocking it,
+        listing C5.9 C explicitly. (v3 listed only C5.8(c), the conflict found
+        in review 3.)
+  Test 26 (new).
+        (i)  Schedule fixtures: both-summer 2025, gap week 2024, Independence
+             Day 2024, 24-26 Dec 2024, Good Friday 2024 across the EU change,
+             Christmas 2022 on a Sunday, February 2026, summer 2026 (close
+             server 23:00), the live gap week of 27 Oct 2026 and the live
+             winter week of 3 Nov 2026.
+        (ii) A feed outage of 30 min with M1 and M15 both absent in scheduled
+             time is a hole with 2 absent slots. Broken variant: calendar-1,
+             which calls it a closure.
+        (iii) Causality: at an instant inside that outage, calendar-2
+             classifies from the clock alone, while calendar-1 on data
+             truncated at that instant has no classification.
+        (iv) [v3] The first and last minutes of a session are scheduled
+             (no band), and the union fixtures of test 5(b).
+        (v)  [v3, replay test] Release under C5.8(c). A trade is open over a
+             close whose 23:59 bar is absent. The 23:45 bar is decided under
+             C5.8 at 00:00. If (c), a reopen bar opening beyond the SL exits
+             at that open (C5.4). A trade is open over a reopen whose data
+             start at 01:05. The 01:00 bar is decided under C5.8, and an SL in
+             case (d) exits at the 01:05 open if that is worse than the level.
+        (vi) [v4, replay test] Release under C5.9 C. A trade is long with SL
+             level L. M15 bars 10:00 and 10:15 and M1 10:00-10:29 are absent
+             in scheduled time. The 10:30 bar opens below L.
+               S: exit at K = 10:15 at L, -1R, booked at 10:15.
+               T: exit at 10:15 at the TP level.
+               C: the 10:00 bar is released at 10:15 and the 10:15 bar at
+                  10:30. The exit is at the 10:30 open (worse than -1R),
+                  booked as any observed exit (C2.6), never before 10:30.
+             The trade is counted as PATH_UNKNOWN once in each path.
+             Second fixture: same, but the 10:30 open is between L and the
+             TP. In C the trade continues on observed data from 10:30.
+        Broken variants, each of which must fail at least one of (v)-(vi):
+        C5.4 bridging an unreleased hole, which exits at the 10:30 open
+        before 10:15 is decided; release by C5.8(c) only, the v3 wording,
+        which leaves C with no rule at 10:30; release at the bar's open
+        instead of K; a hole at an edge ignored; and PATH_UNKNOWN counted
+        per bar.
+        All of (i)-(iv) pass today: (i) and (iv) in trading_calendar.py, (ii)
+        and (iii) and the verification part of the union in calendar_check.py
+        --self-test, each against its broken variant. The outputs are
+        attached (SELFTEST_OUTPUT.txt). (v) and (vi) need the engine. The
+        replay's own test 26 must import the module.
+
+AD3  Accept calendar-2, including the dated 2026 change and leaving the rule
+     contradictions unfitted?
+
+
+4. A4 - rollover instant (AD4 approved in review 1, unchanged)
+-------------------------------------------------------------
+C3.7: rollover at server 00:00 of each server date. A trade crosses it if open
+then, including inside a closure. Triple-swap weekday = `swap_rollover3days`
+from the broker-spec snapshot. Declared, not verified, and used only for the
+labelled current-rate estimate. Snapshot values still PENDING (the user runs
+broker_spec_snapshot.py on the VPS); they will be added before the freeze.
+The complete swap specification is not closed until then.
+
+
+5. A5 - entry instant with no M1 bar (AD5 re-asked)
+--------------------------------------------------
+Facts. Since March 2026 the day's last bar, server 22:45, closes at 23:00, so
+D = 23:08 falls inside the 2026 close. In EU summer D is 20:08 UTC, which is
+NY session and therefore tradeable.
+
+Proposed text.
+  C1.9  If an M1 bar is stamped E, entry proceeds per C1.6 whatever the
+        schedule says. If none is stamped E:
+          - E outside the schedule (calendar-2): `quote_unavailable`, detail
+            `market_closed`;
+          - E in scheduled time: `quote_unavailable`, detail
+            `m1_minute_unavailable` [v3: no edge flag].
+        Both go to population B. Neither is ever deferred to a later minute
+        or the reopen. The label is a function of E and of the M1 bar
+        stamped E, both available at E (C2.6).
+  E0    unchanged from ec-0.2. The v1 `quote_stop` exemption is withdrawn.
+        Frozen-tick cycles with execution fields are E0-eligible.
+  Test 27 (new).
+        (a) E = server 23:08 on 2026-06-02, no M1 bar: `market_closed`.
+        (b) E = 10:00 on a weekday, no M1 bar: `m1_minute_unavailable`.
+        (c) E = 21:00 on 2024-11-29, scheduled closed but observed: fills at
+            that minute's open.
+        Broken variant: the first M1 open at or after E, which fills (a) at
+        the reopen and must fail.
+
+AD5  Accept C1.9?
+
+
+6. A6 - hazard H6, near-stop executable fills (AD6 re-asked)
+-----------------------------------------------------------
+Fact (signal 4). The executable stop distance was 0.70 against an original
+6.51. The baseline sized 14.28 lots, RR 26.9. Under ec-0.2 such a trade
+enters population C and its stop fills at the level (C3.8). For small
+executable stops, C3.8's zero stop slippage is materially optimistic. That is
+a known limitation of the cost model, not something this amendment fixes.
+
+Proposed: no change to eligibility, sizing or costs. C4.6 is withdrawn.
+  H6    stays OPEN in section 12, worded as above.
+  R1 (report-only diagnostic, new in section 7):
+        q = executable_sl_distance / |signal_close - original_sl|, per trade
+        in population C. Every SIMULATION report shows the count and the
+        share of total R for q < 0.25 and for q < 0.5, and the largest
+        |R| trade. The cut points are descriptive only. They are never gates
+        or thresholds, never enter a verdict, and nothing is fitted from them.
+  Test 28 (new). Signal 4's logged quote gives q = 0.11 and stays
+        `executable` with 14.28 lots. Signal 5 gives q = 1.27 with 0.68 lots.
+        Both enter population C. Broken variant: any q filter, which drops
+        signal 4 and must fail.
+  Route for a policy change. A near-stop rule (filter, volume cap or slippage
+        model) changes the 0g-5 baseline. It goes through PREREGISTRATION.md's
+        change process, never through the contract. If the reviewer judges
+        that even R1, being descriptive, needs a pr-0.4 version, R1 is dropped
+        rather than versioned.
+
+AD6  Accept H6 open with R1 report-only, and no eligibility change?
+
+
+7. A7 - retry budget (AD7 approved in review 1)
+----------------------------------------------
+  D8  The live retry budget is unchanged at 17 s. The replay assumes every bar
+      is evaluated (C1.7) and does not model live outages, a declared
+      deviation; live loses about 0.2-2% of cycles. Aborted cycles carry no
+      execution fields, so they are E0-ineligible by §8 as written. This is
+      not a new exemption. Any change to the live budget must keep D at bar
+      close + 480 s, or else go through a contract version.
+
+
+8. Effect on PREREGISTRATION.md pr-0.4 (checked; no change)
+----------------------------------------------------------
+- The 0g-5 baseline and the population-C eligibility rules are unchanged,
+  since C4.6 is withdrawn.
+- New population-B statuses are `market_closed` (C1.9), and
+  `offset_uncertain` (C1.3a, C1.9). Each records a missing
+  input or an undetermined clock, not a policy choice. They apply equally to
+  the B2 random benchmark through B2.4. Before this amendment the same
+  opportunities would already have failed C1.6 with `m1_minute_unavailable`,
+  or had no defined UTC.
+- calendar-2 raises the expected PATH_UNKNOWN count. pr-0.4 G9/H5 already
+  cap it at 1% and give HOLD otherwise. Nothing is relaxed.
+- F-rows fix dates, so the C6.1 start correction (06-23 -> 06-01) moves no
+  fold.
+- F6: every holdout fact here comes from timestamps only.
+
+
+9. Section 14 entry (on approval)
+--------------------------------
+r6 / ec-0.3. A1-A7. New: C1.3a, C1.9, D8, R1, tests 26-28. Changed: C1.3,
+C1.8, C3.7, C5.4 (clarified, v3/v4), C6.1, C6.2, test 5. C5.9 unchanged.
+Review 2 findings G1-G2 and review 3 finding H1 are recorded with their
+responses as in sections 0a and 0b. Closed: H1, H2. H6 added, open. Resolved:
+TBD-1, TBD-2, and TBD-5 except the snapshot values. Review 1 findings F1-F5
+are recorded with their responses as in section 0.
+
+
+10. Files
+--------
+  README_REVIEW.txt                       what to review
+  PROPOSAL_ec-0.3.txt                     this file
+  EXECUTION_CONTRACT_ec-0.2.txt           the frozen base
+  trading_calendar.py                     calendar-2 and offset-eu-1, clock-only, with self-test
+  calendar_check.py                       verification against the export; calendar-1 kept as broken variant
+  calendar_check_20261027T070105Z.txt     its output (key calendar_2), renamed from .json
+  history_export_20261027T070105Z.txt     export QC (A1)
+  m1_depth_probe_*.txt                    the three probes (A1)
+  broker_spec_snapshot.py                 A4 snapshot code (output pending)
