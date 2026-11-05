@@ -83,6 +83,7 @@ Weekly: `python weekly_checkpoint.py --week=<Monday>` feeds the checkpoint log i
 - [STATUS.md](STATUS.md) — entry point: current state, weekly timeline, checkpoints
 - [ROADMAP.md](ROADMAP.md) — priorities, evidence and decisions
 - [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) — 0g-6 replay execution contract (`ec-0.2`, structure frozen; `ec-1.0` pending its TBDs)
+- [contract_amendments/ec-0.3_PROPOSAL_v4_APPROVED.txt](contract_amendments/ec-0.3_PROPOSAL_v4_APPROVED.txt) — amendment `ec-0.3`, approved in review 4 (6 Nov); applied to EXECUTION_CONTRACT.md at the freeze, once the A4 broker-spec values are in
 - [PREREGISTRATION.md](PREREGISTRATION.md) — 0b P1 success criteria, folds, sealed holdout and attempt budget (`pr-0.4` protocol frozen 23 Oct; `pr-1.0` when its tests pass; no historical SIMULATION result before `pr-1.0`)
 - [HERMES_BRIEF.md](HERMES_BRIEF.md) — Project brief and strategy overview
 - [HERMES_PROPOSAL.md](HERMES_PROPOSAL.md) — Full technical proposal
