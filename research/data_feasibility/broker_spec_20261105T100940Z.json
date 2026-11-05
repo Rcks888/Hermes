@@ -1,0 +1,48 @@
+{
+ "ts": "20261105T100940Z",
+ "code_version": "b90c0be",
+ "broker_spec_version": "bs-39eef15e09e9",
+ "sha256": "39eef15e09e9646cb46b68aecbf3adef69eabf5561d0e38510cc7d66c983ae3e",
+ "spec": {
+  "symbol": {
+   "name": "XAUUSD",
+   "point": 0.01,
+   "digits": 2,
+   "trade_contract_size": 100.0,
+   "trade_tick_size": 0.01,
+   "trade_tick_value": 0.1,
+   "volume_min": 0.01,
+   "volume_max": 100.0,
+   "volume_step": 0.01,
+   "trade_calc_mode": 4,
+   "trade_mode": 4,
+   "trade_stops_level": 0,
+   "trade_freeze_level": 0,
+   "filling_mode": 3,
+   "currency_base": "XAU",
+   "currency_profit": "USD",
+   "currency_margin": "USD",
+   "margin_initial": 0.0,
+   "margin_maintenance": 0.0,
+   "swap_mode": 1,
+   "swap_long": -12.6,
+   "swap_short": -4.6,
+   "swap_rollover3days": 3
+  },
+  "account": {
+   "server": "MetaQuotes-Demo",
+   "currency": "USD",
+   "leverage": 100,
+   "margin_mode": 2,
+   "trade_mode": 0
+  },
+  "margin_probe": {
+   "order": "BUY",
+   "volume": 1.0,
+   "price": 4124.57,
+   "margin": 4124.57,
+   "margin_rate": 0.01
+  },
+  "swap_triple_weekday": "Wednesday"
+ }
+}
