@@ -1098,6 +1098,34 @@ E1 conformance, not evidence about delay cost.
 +0.823R** on the signal-close basis. Supports nothing about edge, win rate or
 expectancy, and no parameter moves on it.
 
+## Sixth signal — LONG, 5 November 2026
+
+    LONG XAUUSD @ 4124.40   SL 4118.58 (5.82)   TP 4136.03 (11.63)   1.71 lots
+    bar 2026-11-05 16:00 server (closes 14:15 UTC), NY, regime RANGE/LOW
+    spread 13
+    SL_HIT after 2 bars    MFE 11.53    MAE 28.56    result -1.000R
+
+Logged 14:23:05 UTC, delay 484.99 s, ask 4125.92 at the decision, alert
+843 ms after the decision. Probe evidence
+`signal_outcome_20261110T085530Z.json` (`e7da99e`).
+
+The bid rose to 0.10 below the target before the stop was hit. That is a
+description of one path, not a reason to move the target.
+
+The ask was 1.52 above the signal close, against the trade: executable stop
+distance 7.34, target distance 10.11, RR 1.377 instead of 1.998. The 0g-5
+baseline sizes 1.36 lots, $998.24 at risk, margin $5,611.25. The alert's 1.71
+lots at that fill would have risked about $1,255 (1.26%), inside the range
+already seen (0.11% to 1.27%). The stop level does not move with the entry, so
+the result is -1R from either entry.
+
+The -6 alert that night was not the cycle after this signal: it was the
+23:08 UTC cycle (5 Nov), one cycle, cleared by the next.
+
+**Running tally, n = 6: +1.856R, -1.000R, -1.000R, -1.000R, +1.967R,
+-1.000R, net -0.177R** on the signal-close basis. Supports nothing about edge,
+win rate or expectancy, and no parameter moves on it.
+
 ---
 
 ## PRIORITY 0g: ENTRY TIMING AND EXECUTION CONTRACT          [NOW]
