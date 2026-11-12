@@ -118,6 +118,56 @@ def strategy_window(m15, signal_bar_open, count=200):
     return m15.frame(i0, i + 1)
 
 
+def minutes_of(m1, b0):
+    """Observed M1 bars of the M15 slot b0 as (t, o, h, l, c)."""
+    i0, i1 = m1.span(b0, b0 + M15)
+    return [(int(m1.time[i]), float(m1.open[i]), float(m1.high[i]), float(m1.low[i]), float(m1.close[i]))
+            for i in range(i0, i1)]
+
+
+def rebuild(minutes):
+    """M15 OHLC from its observed minutes (C6.3(a))."""
+    return (minutes[0][1], max(m[2] for m in minutes), min(m[3] for m in minutes), minutes[-1][4])
+
+
+def envelope_valid(bar, minutes):
+    """C6.3(b) on an M15 bar dict and its observed minutes."""
+    if any(h > bar["high"] or l < bar["low"] for _, _, h, l, _ in minutes):
+        return False
+    if minutes and minutes[0][0] == bar["time"] and minutes[0][1] != bar["open"]:
+        return False
+    if minutes and minutes[-1][0] == bar["time"] + M15 - M1 and minutes[-1][4] != bar["close"]:
+        return False
+    return True
+
+
+def c63(m15, m1, sched, t0, t1):
+    """Both C6.3 checks on the M15 bars with open in [t0, t1), sealed.
+    Returns {"complete", "mismatch", "with_holes", "envelope_fail", "orphan"},
+    the last three as lists of bar opens; orphan = M15 bar with no M1 minute."""
+    guard(t0, t1)
+    out = {"complete": 0, "mismatch": [], "with_holes": 0, "envelope_fail": [], "orphan": []}
+    i0, i1 = m15.span(t0, t1)
+    for i in range(i0, i1):
+        b0 = int(m15.time[i])
+        bar = m15.bar(b0)
+        minutes = minutes_of(m1, b0)
+        if not minutes:
+            out["orphan"].append(b0)
+            continue
+        seen = {m[0] for m in minutes}
+        holes = any(sched.scheduled(t) and t not in seen for t in range(b0, b0 + M15, M1))
+        if holes:
+            out["with_holes"] += 1
+            if not envelope_valid(bar, minutes):
+                out["envelope_fail"].append(b0)
+        else:
+            out["complete"] += 1
+            if rebuild(minutes) != (bar["open"], bar["high"], bar["low"], bar["close"]):
+                out["mismatch"].append(b0)
+    return out
+
+
 def sha256(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
