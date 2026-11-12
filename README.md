@@ -33,7 +33,8 @@ chmod +x setup_vps.sh
 
 ```
 config/          — Settings, strategy params, news calendar
-engine/          — MT5 connector, data feed, strategy, risk, entry_observation (0g-1)
+engine/          — MT5 connector, data feed, strategy, risk, entry_observation (0g-1), pipeline (C2.1, shared with the replay)
+replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapshot hashes, holdout seal), clock, spread, entry
 alerts/          — Telegram notifications
 logs/            — Soak data, events.jsonl, runtime logs
 research/        — Read-only probes: signal outcome, entry timing (0g-2..0g-4); history export (Data step)
@@ -61,6 +62,9 @@ python tests/test_mt5_failure_state.py        # cross-process outage count and r
 python tests/test_alert_throttle.py           # Telegram throttle state across cron processes, incl. concurrent runs
 python tests/test_mt5_run_lock.py             # one MT5 run at a time, retry budget, stuck-terminal kill (22 Oct)
 python tests/test_mt5_login.py                # credentials passed to mt5.initialize(), account check, own abort reason and alert text for -6 (29 Oct)
+python tests/test_pipeline_parity.py          # C2.1: engine/pipeline.py reproduces the old inline run_hermes sequence (synthetic + post-holdout windows; --full every window; --controls)
+python tests/test_replay_contract.py          # ec-0.3 §9 contract tests built so far (1, 2, 4-8, 14, 15, 17, 27, 28, holdout seal); PENDING until tests/fixtures/live_signal_events.jsonl exists
+python tests/test_replay_contract.py --controls  # each test under its broken variants; every variant must fail
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED
 python research/prereg_gate_power.py          # local, no MT5: reproduces the 0b drawdown/power table (PREREGISTRATION.md section 3)

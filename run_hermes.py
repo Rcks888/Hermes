@@ -20,9 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from engine import mt5_connector
 from engine import data_feed
-from engine import market_structure
-from engine import indicators
-from engine import strategy
+from engine import pipeline
 from engine import risk_manager
 from engine import version
 from engine import regime as regime_mod
@@ -94,16 +92,7 @@ def load_settings():
         return json.load(f)
 
 
-def get_session_tag(utc_hour):
-    myt_hour = (utc_hour + 8) % 24
-    if 7 <= myt_hour < 15:
-        return "ASIA"
-    elif 15 <= myt_hour < 20:
-        return "LONDON"
-    elif 20 <= myt_hour or myt_hour < 5:
-        return "NY"
-    else:
-        return "OFF"
+get_session_tag = pipeline.get_session_tag
 
 
 def is_duplicate_signal(signal_key):
@@ -254,27 +243,16 @@ def main():
     sym_info = mt5_connector.get_symbol_info(instrument)
     spread_points = sym_info["spread"] if sym_info else None
 
-    structure = market_structure.analyze(candles, params.get("swing_lookback", 3))
-
-    candles = indicators.calculate_vwap(candles)
-    candles = indicators.volume_average(candles, params.get("volume_avg_period", 20))
-    candles = indicators.calculate_atr(candles)
-
-    zones = indicators.find_sr_zones(
-        candles, structure["swing_highs"], structure["swing_lows"],
-        params.get("sr_zone_cluster_pct", 0.5),
-        params.get("sr_min_touches", 2),
-    )
-
     # 0g-1. Observational timing only. The stopwatch records; it decides
     # nothing. Durations come from a monotonic clock so an NTP correction
     # cannot masquerade as bridge latency.
     sw = entry_observation.Stopwatch()
-    sw.mark("evaluation_start_time")
 
-    diag = {}
-    signal, reason = strategy.evaluate(candles, structure, zones, params, diag)
-    sw.mark("evaluation_end_time")
+    # C2.1: the same pipeline function the replay calls.
+    result = pipeline.evaluate_closed_bars(candles, params, stopwatch=sw)
+    candles = result["candles"]
+    diag = result["diag"]
+    signal, reason = result["signal"], result["reason"]
 
     # Bar identity and raw inputs. A candle hash lets replay prove it read the
     # same bar rather than merely a bar with the same timestamp.
