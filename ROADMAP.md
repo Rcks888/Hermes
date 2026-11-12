@@ -158,7 +158,7 @@ the Hermes repo.
 | # | Item | Severity | State |
 |---|---|---|---|
 | 2 | Soak spread samples are 4/hour instantaneous reads, not time-weighted. Cost model inherits any intra-bar bias | Medium | Accepted limitation, documented in 0b |
-| 12 | Broker-side MT5 outages of 4–6 min (13, 15, 19 Oct) outlast the 17 s retry budget and cost a cycle (2 tradeable so far). Longer retries move D; see STATUS | Low | Proposed in ec-0.3 draft (5 Nov) as D8: budget unchanged, declared deviation, aborted cycles E0-ineligible |
+| 12 | Broker-side MT5 outages of 4–6 min (13, 15, 19 Oct) outlast the 17 s retry budget and cost a cycle (2 tradeable so far). Longer retries move D; see STATUS | Low | Frozen in ec-0.3 (12 Nov) as D8: budget unchanged, declared deviation, aborted cycles E0-ineligible |
 | 4 | `ram_free < 300` is a state check, re-fires every cycle during a dip | Low | Flagged |
 | 5 | `alerts.telegram.alert_soak_status()` orphaned after periodic summary removal | Cosmetic | Deliberate — re-wire hook |
 | 6 | `price_action.scan()` never called | Cosmetic | Deliberate — V2 candidate |
@@ -1064,6 +1064,7 @@ change outside the frozen rule-change menu, and the threshold was informed by
 this signal. v2 withdraws it. The baseline is unchanged, H6 stays open, and a
 report-only diagnostic R1 (q = executable / original stop distance) enters no
 gate. Any near-stop policy goes through PREREGISTRATION's change process.
+Frozen in ec-0.3 on 12 Nov (contract §7 R1, §12 H6, test 28).
 
 **Running tally, n = 4: +1.856R, -1.000R, -1.000R, -1.000R, net -1.144R.**
 Supports nothing about edge, win rate or expectancy, and no parameter moves on
@@ -1527,8 +1528,10 @@ and consumes a preregistered strategy-change attempt.
 **Drafted 13 October as [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md), `ec-0.1`;
 reviews 1 to 4 returned HOLD with ten, eight, three and two findings, all
 accepted in `ec-0.1r2` to `ec-0.1r5` (its §14). Review 5 approved, and the
-structure is frozen as `ec-0.2` on 14 October. `ec-1.0` still needs TBD-1 to
-TBD-5, the §9 tests built, and conformance evidence.** The contract supersedes the outline below wherever they differ.
+structure is frozen as `ec-0.2` on 14 October. Amendment `ec-0.3` (TBD-1, TBD-2,
+TBD-5, C1.9, H6/R1, D8) was approved on 6 November after four reviews and
+frozen on 12 November (contract §14 r6). `ec-1.0` still needs TBD-3, TBD-4,
+the §9 tests 1-28 built, and conformance evidence.** The contract supersedes the outline below wherever they differ.
 It surfaced three hazards that change the plan: the server offset is not a
 constant across DST (H1), `MaxBars` very probably caps M1 at about 72 trading
 days, which reopens the earlier decision not to raise it (H2), and the live
