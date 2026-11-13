@@ -34,7 +34,7 @@ chmod +x setup_vps.sh
 ```
 config/          — Settings, strategy params, news calendar
 engine/          — MT5 connector, data feed, strategy, risk, entry_observation (0g-1), pipeline (C2.1, shared with the replay)
-replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapshot hashes, holdout seal, C6.3), clock, spread, entry, exits (C5.1-C5.10, S/T/C paths)
+replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapshot hashes, holdout seal, C6.3), clock, spread, entry, exits (C5.1-C5.10, S/T/C paths), portfolio (CONFORMANCE/SIMULATION, risk gate, C2.5 ordering, C5.9 scenario agreement)
 alerts/          — Telegram notifications
 logs/            — Soak data, events.jsonl, runtime logs
 research/        — Read-only probes: signal outcome, entry timing (0g-2..0g-4); history export (Data step)
@@ -63,7 +63,7 @@ python tests/test_alert_throttle.py           # Telegram throttle state across c
 python tests/test_mt5_run_lock.py             # one MT5 run at a time, retry budget, stuck-terminal kill (22 Oct)
 python tests/test_mt5_login.py                # credentials passed to mt5.initialize(), account check, own abort reason and alert text for -6 (29 Oct)
 python tests/test_pipeline_parity.py          # C2.1: engine/pipeline.py reproduces the old inline run_hermes sequence (synthetic + post-holdout windows; --full every window; --controls)
-python tests/test_replay_contract.py          # ec-0.3 §9 contract tests built so far (1-10, 13-18, 20, 22, 26(v)-(vi), 27, 28, holdout seal); 14 and 28 read tests/fixtures/live_signal_events.jsonl (the 6 live SIGNAL_APPROVED events, exported from the VPS 12 Nov)
+python tests/test_replay_contract.py          # ec-0.3 §9 contract tests 1-22 and 24-28 plus the holdout seal (23 comes with conformance); 14 and 28 read tests/fixtures/live_signal_events.jsonl (the 6 live SIGNAL_APPROVED events, exported from the VPS 12 Nov)
 python tests/test_replay_contract.py --controls  # each test under its broken variants; every variant must fail
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED

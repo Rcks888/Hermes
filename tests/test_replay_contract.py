@@ -11,14 +11,20 @@ historical SIMULATION result is produced (PREREGISTRATION.md pr-0.4).
 Tests needing tests/fixtures/live_signal_events.jsonl report PENDING until it
 exists; PENDING is not a pass.
 
-Built so far: 1-10, 13-18, 20, 22, 26 (v)-(vi), 27, 28, 5(b) PATH_UNKNOWN part
-(test_05b) and the holdout seal of pr-0.4 test 1 (strategy window only).
+Built: 1-22, 24-28, 5(b) PATH_UNKNOWN part (test_05b) and the holdout seal of
+pr-0.4 test 1 (strategy window only). Test 23 (E0 eligibility) is built with
+conformance (section 8).
 """
 import calendar
+import dataclasses
+import hashlib
 import json
+import logging
 import math
+import random
 import sys
-from datetime import date
+import types
+from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -31,7 +37,7 @@ sys.path.insert(0, str(ROOT / "research"))
 import trading_calendar as tc  # noqa: E402
 from engine import entry_observation as eo  # noqa: E402
 from engine.pipeline import get_session_tag  # noqa: E402
-from replay import clock, data, entry, exits, spread  # noqa: E402
+from replay import clock, data, entry, exits, portfolio, spread  # noqa: E402
 
 PARAMS = json.loads((ROOT / "config" / "strategy_params.json").read_text())
 FIXTURE = ROOT / "tests" / "fixtures" / "live_signal_events.jsonl"
@@ -524,6 +530,306 @@ def test_seal_strategy_window():
         raise AssertionError(f"strategy window ending {bar} touched the holdout")
 
 
+# ---------------------------------------------------------------- groups C and E
+
+SNAPSHOT_SIGNALS = ("2026-10-02 09:45:00+00:00", "2026-10-07 17:30:00+00:00",
+                    "2026-10-20 15:15:00+00:00", "2026-10-23 16:45:00+00:00")
+NOT_COVERED = ("2026-11-04 15:15:00+00:00", "2026-11-05 16:00:00+00:00")
+
+
+def _bar_epoch(bar_time):
+    """Server epoch of a logged bar_time (server clock labelled +00:00)."""
+    return int(datetime.fromisoformat(bar_time).timestamp())
+
+
+def _candle_hash(candles):
+    """run_hermes.main's candle hash, used as the comparator."""
+    last = candles.iloc[-1]
+    o = {k: round(float(last[k]), 2) for k in ("open", "high", "low", "close")}
+    return hashlib.sha256(f"{last['datetime']}|{o['open']}|{o['high']}|{o['low']}|{o['close']}|"
+                          f"{float(last.get('volume') or 0)}".encode()).hexdigest()[:16]
+
+
+def test_12_strategy_parity_live_signals():
+    """Every live signal the snapshot covers. An approved event logs no
+    blocked_at key; its gate outcome is reason 'Approved' with blocked_class
+    None, compared here. The gate runs in CONFORMANCE state on the logged
+    spread_points: the spread artefact is TBD-3, and this test is strategy
+    parity, not spread."""
+    events = live_events()
+    snap = snapshot()
+    covered = []
+    for ev in events:
+        b = _bar_epoch(ev["bar_time"])
+        if snap["m15"].index(b) is None:
+            assert ev["bar_time"] in NOT_COVERED, ev["bar_time"]
+            continue
+        covered.append(ev["bar_time"])
+        res = portfolio.signal_at(snap["m15"], b, PARAMS)
+        sig = res["signal"]
+        assert sig is not None, (ev["bar_time"], res["reason"])
+        got = (sig["direction"], sig["entry"], sig["sl"], sig["tp"], _candle_hash(res["candles"]))
+        want = (ev["direction"], ev["entry"], ev["sl"], ev["tp"], ev["candle_hash"])
+        assert got == want, (ev["bar_time"], got, want)
+        assert res["diag"] == ev["diag"], ev["bar_time"]
+        d = clock.decision_instant(b, clock.BASELINE_DELAY)
+        held, losses = portfolio.gate_state(portfolio.Book(), clock.entry_instant(d), portfolio.CONFORMANCE)
+        session = clock.session_of(d)
+        ok, reason, details = portfolio.risk_gate(sig, ev["spread_points"], session, PARAMS,
+                                                  SPEC.symbol_info, len(held), losses)
+        assert (session, ok, reason, ev["blocked_class"]) == (ev["session"], True, ev["reason"], None), \
+            (ev["bar_time"], session, reason)
+        assert details["position_size"] == ev["position_size"], (ev["bar_time"], details)
+    assert tuple(covered) == SNAPSHOT_SIGNALS, covered
+
+
+MODEL30 = spread.SpreadModel({s: [30] for s in spread.SESSIONS})
+DAY = (2025, 2, 4)
+WED = (2025, 2, 5)
+DIP = (3000.0, 3000.5, 2989.0, 2999.0)
+SPIKE = (3000.0, 3021.0, 2999.5, 3020.5)
+
+
+def at(hh, mm, day=DAY):
+    """Server time on a winter Tuesday: server 10:00 is 08:00 UTC, LONDON."""
+    return srv(*day, hh, mm)
+
+
+def long_signal(**kw):
+    return dict({"direction": "LONG", "entry": 3000.0, "sl": 2990.0, "tp": 3020.0,
+                 "sl_distance": 10.0, "atr": 8.0, "symbol": "XAUUSD"}, **kw)
+
+
+def opp(bar_open, delay=None):
+    o = {"bar_open": bar_open, "signal": long_signal()}
+    if delay is not None:
+        o["delay"] = delay
+    return o
+
+
+def ctx(mins, m15_set=None, m15_drop=()):
+    m1, m15 = build(mins, m15_set, m15_drop)
+    return portfolio.Context(m1, m15, clock.schedule(date(2025, 2, 2), date(2025, 2, 7)),
+                             MODEL30, PARAMS, SPEC)
+
+
+def by_e(run):
+    return {r["E"]: r for r in run.records}
+
+
+def _approve_live(signal, spread_points, session, open_count, daily_losses):
+    """risk_manager.approve itself, with trades.json and MT5 positions stubbed."""
+    import engine
+    from engine import risk_manager
+    now = datetime.now(timezone.utc).isoformat()
+    trades = [{"outcome": "SL_HIT", "signal_bar_time": now}] * daily_losses
+    stub = types.SimpleNamespace(get_positions=lambda instrument: [object()] * open_count)
+    with mock.patch.object(risk_manager, "_load_trades", lambda: trades), \
+            mock.patch.object(engine, "data_feed", stub, create=True), \
+            mock.patch.dict(sys.modules, {"engine.data_feed": stub}), \
+            mock.patch.object(logging.getLogger("hermes.risk"), "disabled", True):
+        return risk_manager.approve(signal, {"balance": portfolio.BALANCE}, spread_points, session,
+                                    PARAMS, SPEC.symbol_info)
+
+
+GATE_CASES = (
+    (long_signal(), 30, "LONDON", 0, 0), (long_signal(), 30, "LONDON", 1, 3),
+    (long_signal(), 30, "LONDON", 1, 0), (long_signal(), 60, "NY", 0, 0),
+    (long_signal(), 30, "ASIA", 0, 2), (long_signal(atr=2.0), 30, "LONDON", 0, 0),
+    (long_signal(sl_distance=2000.0, atr=1000.0), 30, "LONDON", 0, 0))
+
+
+def test_11_slot_gate_by_mode():
+    c = ctx(flat(at(10, 8), at(11, 0)))
+    opps = [opp(at(9, 45)), opp(at(10, 0))]
+    first, second = at(10, 8), at(10, 23)
+    conf = by_e(portfolio.run(opps, c, portfolio.CONFORMANCE))
+    assert conf[first]["result"].exit_time is None, "fixture: the first trade is still open"
+    assert [conf[e]["population"] for e in (first, second)] == ["C", "C"], "CONFORMANCE does not block"
+    sim = by_e(portfolio.run(opps, c, portfolio.SIMULATION))
+    assert sim[first]["population"] == "C"
+    r = sim[second]
+    assert (r["approved"], r["reason"], r["population"], r["open_trades"]) == \
+        (False, "Max open trades reached", "A", 1), (r["reason"], r["population"])
+    for sig, points, session, n_open, n_loss in GATE_CASES:
+        got = portfolio.risk_gate(sig, points, session, PARAMS, SPEC.symbol_info, n_open, n_loss)
+        want = _approve_live(sig, points, session, n_open, n_loss)
+        assert got == want, (points, session, n_open, n_loss, got, want)
+
+
+def test_19_exit_at_e_frees_slot_and_loss_on_exit_date():
+    mins = flat(at(10, 8), at(11, 0))
+    mins[at(10, 37)] = DIP
+    r = by_e(portfolio.run([opp(at(9, 45)), opp(at(10, 0)), opp(at(10, 15))], ctx(mins)))
+    assert r[at(10, 8)]["result"].exit_time == at(10, 38)
+    assert r[at(10, 23)]["reason"] == "Max open trades reached"
+    assert (r[at(10, 38)]["approved"], r[at(10, 38)]["population"]) == (True, "C"), "X = E frees the slot"
+    reopen = at(1, 0, WED)
+    mins = flat(at(22, 38), at(23, 59) + 60)
+    mins[reopen] = (2985.0, 2986.0, 2984.0, 2985.5)
+    mins.update(flat(at(10, 8, WED), at(10, 30, WED)))
+    r = by_e(portfolio.run([opp(at(22, 15)), opp(at(9, 45, WED))], ctx(mins)))
+    loss = r[at(22, 38)]["result"]
+    assert (loss.outcome, loss.exit_time, loss.is_loss) == ("SL_HIT", reopen + 60, True), loss.outcome
+    assert r[at(10, 8, WED)]["daily_losses"] == 1, "a loss counts on the server date of X, not of entry"
+
+
+def _k_fixture(drop=False, prior_losses=False):
+    """Trade entered 09:38; bar 10:00 has a hole at 10:02 and an SL touch at
+    10:12; second setups at E = 10:08, 10:13 and 10:15; TP reachable at 10:40."""
+    mins = flat(at(9, 0), at(10, 50))
+    del mins[at(10, 2)]
+    mins[at(10, 12)] = DIP
+    mins[at(10, 40)] = SPIKE
+    opps = [opp(at(9, 15)), opp(at(9, 45)), opp(at(9, 45), delay=780), opp(at(10, 0), delay=0)]
+    if prior_losses:
+        mins[at(9, 14)] = DIP
+        mins[at(9, 29)] = DIP
+        opps += [opp(at(8, 45)), opp(at(9, 0))]
+    return ctx(mins, m15_drop=(at(10, 0),) if drop else ()), opps
+
+
+def test_21_chronology_at_k():
+    main, e08, e13, e15 = at(9, 38), at(10, 8), at(10, 13), at(10, 15)
+    slot, limit = "Max open trades reached", "Daily loss limit reached"
+    c, opps = _k_fixture()
+    for sc in exits.SCENARIOS:
+        r = by_e(portfolio.run(opps, c, scenario=sc))
+        res = r[main]["result"]
+        assert (res.outcome, res.exit_time) == ("SL_HIT", e15), ("(a) booked at K, not 10:13", sc, res.exit_time)
+        assert [r[e]["reason"] for e in (e08, e13, e15)] == [slot, slot, "Approved"], (sc, r[e13]["reason"])
+    c, opps = _k_fixture(drop=True)
+    for sc, want in (("S", "Approved"), ("T", "Approved"), ("C", slot)):
+        r = by_e(portfolio.run(opps, c, scenario=sc))
+        assert r[main]["result"].path_unknown
+        assert r[e15]["reason"] == want, ("(b)", sc, r[e15]["reason"])
+    assert by_e(portfolio.run(opps, c, scenario="C"))[main]["result"].exit_time == at(10, 41)
+    c, opps = _k_fixture(prior_losses=True)
+    r = by_e(portfolio.run(opps, c))
+    assert [r[e]["reason"] for e in (at(9, 8), at(9, 23), main)] == ["Approved"] * 3
+    assert (r[e08]["reason"], r[e08]["daily_losses"]) == (slot, 2)
+    assert (r[e15]["open_trades"], r[e15]["reason"]) == (0, limit), ("(c)", r[e15]["reason"])
+    c, opps = _k_fixture(drop=True, prior_losses=True)
+    for sc, want in (("S", limit), ("T", "Approved"), ("C", slot)):
+        r = by_e(portfolio.run(opps, c, scenario=sc))
+        assert r[e15]["reason"] == want, ("(c) with (b)", sc, r[e15]["reason"])
+
+
+def _path(sc, rows):
+    return portfolio.Run(portfolio.SIMULATION, sc, [
+        {"population": "C", "result": exits.Result(sc, outcome=o, r=r, path_unknown=pu)} for o, r, pu in rows])
+
+
+def _sign_verdict(run):
+    return "PASS" if sum(res.r for res in run.results()) > 0 else "FAIL"
+
+
+def test_24_scenario_agreement_hold():
+    def base(top):
+        return [("TP_HIT", 1.0, False)] * 49 + [("SL_HIT", -1.0, False)] * 49 + [("TP_HIT", top, False)]
+
+    def paths(rows, s, t, c, rows_c=None):
+        return {"S": _path("S", rows + [("PATH_UNKNOWN", s, True)]),
+                "T": _path("T", rows + [("PATH_UNKNOWN", t, True)]),
+                "C": _path("C", (rows_c or rows) + [("TP_HIT", c, True)])}
+    v, rows = portfolio.scenario_agreement(paths(base(0.5), -1.0, 2.0, 1.0), _sign_verdict)
+    assert (v, rows["S"]["verdict"], rows["T"]["verdict"]) == (portfolio.HOLD, "FAIL", "PASS"), (v, rows)
+    v, rows = portfolio.scenario_agreement(paths(base(5.0), -1.0, 2.0, 1.0), _sign_verdict)
+    assert v == "PASS" and all(r["share"] == 0.01 for r in rows.values()), ("1% is allowed", v, rows)
+    two = base(5.0)
+    two[49] = ("SL_HIT", -1.0, True)
+    v, rows = portfolio.scenario_agreement(paths(base(5.0), -1.0, 2.0, 1.0, rows_c=two), _sign_verdict)
+    assert (v, rows["C"]["share"], rows["S"]["share"]) == (portfolio.HOLD, 0.02, 0.01), (v, rows)
+    assert {r["verdict"] for r in rows.values()} == {"PASS"}
+
+
+def _arbitrary(rng):
+    o, c = 3000 + rng.uniform(-30, 30), 3000 + rng.uniform(-30, 30)
+    return (o, max(o, c) + rng.uniform(0, 10), min(o, c) - rng.uniform(0, 10), c)
+
+
+def _scramble(c, t, seed):
+    """C2.6 metamorphic input: M1 after t arbitrary (values, and presence
+    except for the last bar); M1 stamped t keeps only its open; every M15 bar
+    not closed by t arbitrary or absent. 'Not closed by t' (stamp > t - 900)
+    contains the bar stamped t that section 9 test 25 names."""
+    rng = random.Random(seed)
+    m1, m15 = c.m1, c.m15
+    end = int(m1.time[-1])
+    mins = {}
+    for i in range(len(m1)):
+        tt = int(m1.time[i])
+        row = (float(m1.open[i]), float(m1.high[i]), float(m1.low[i]), float(m1.close[i]))
+        if tt < t:
+            mins[tt] = row
+        elif tt == t:
+            o, cl = row[0], row[0] + rng.uniform(-25, 25)
+            mins[tt] = (o, max(o, cl) + rng.uniform(0, 10), min(o, cl) - rng.uniform(0, 10), cl)
+        elif tt == end or rng.random() > 0.15:
+            mins[tt] = _arbitrary(rng)
+    for tt in range(t + 60, end, 60):
+        if tt not in mins and c.sched.scheduled(tt) and rng.random() < 0.3:
+            mins[tt] = _arbitrary(rng)
+    bars = {int(m15.time[i]): (float(m15.open[i]), float(m15.high[i]), float(m15.low[i]), float(m15.close[i]))
+            for i in range(len(m15)) if int(m15.time[i]) <= t - 900}
+    for s in range(int(m15.time[0]) - int(m15.time[0]) % 900, end + 60, 900):
+        if s > t - 900 and rng.random() > 0.2:
+            bars[s] = _arbitrary(rng)
+    m1s = data.Bars.from_rows(60, [(k,) + mins[k] for k in sorted(mins)])
+    m15s = data.Bars.from_rows(900, [(k,) + bars[k] for k in sorted(bars)])
+    return dataclasses.replace(c, m1=m1s, m15=m15s)
+
+
+def _view(paths, t):
+    """Everything decided or booked at or before t, per path."""
+    out = {}
+    for sc, run in paths.items():
+        dec, booked, cases, held, marks = [], [], [], [], []
+        for r in run.records:
+            if r["E"] > t:
+                continue
+            ex = r.get("exec") or {}
+            dec.append((r["bar_open"], r["E"], r.get("reason"), r.get("population"),
+                        ex.get("execution_validity_status"), ex.get("proposed_volume"), ex.get("required_margin")))
+            res = r.get("result")
+            if res is None:
+                continue
+            if portfolio.frees_slot(res.exit_time, t):
+                booked.append((r["E"], res.outcome, res.exit_time, round(res.exit_leg, 9), res.is_loss))
+            else:
+                held.append(r["E"])
+            cases += [(r["E"],) + d for d in res.decisions if d[1] <= t]
+            marks += [(r["E"], mt, round(v, 9)) for mt, v in res.marks if mt <= t]
+        out[sc] = (dec, booked, cases, held, marks)
+    return out
+
+
+def test_25_causality_metamorphic():
+    for n, (c, opps) in enumerate((_k_fixture(prior_losses=True), _k_fixture(drop=True, prior_losses=True))):
+        base = portfolio.run_paths(opps, c)
+        assert any(r["result"].decisions for r in base["S"].population("C")), "fixture: a C5.8 decision"
+        instants = range(at(9, 0), at(10, 50), 60)
+        changed = 0
+        for t in instants:
+            alt = portfolio.run_paths(opps, _scramble(c, t, 100000 * n + t // 60))
+            assert _view(base, t) == _view(alt, t), (n, t)
+            changed += _view(base, at(10, 50)) != _view(alt, at(10, 50))
+        assert changed > len(instants) // 2, ("fixture: the scramble must change what follows t", changed)
+    snap = snapshot()
+    b = _bar_epoch(SNAPSHOT_SIGNALS[1])
+    d = clock.decision_instant(b, clock.BASELINE_DELAY)
+    m15 = snap["m15"]
+    rng = np.random.default_rng(25)
+    later = m15.time > d - 900
+    cols = [a.copy() for a in (m15.open, m15.high, m15.low, m15.close, m15.volume)]
+    for a in cols:
+        a[later] = rng.uniform(1000, 5000, int(later.sum()))
+    m15s = data.Bars(900, m15.time, *cols[:4], volume=cols[4], spread=m15.spread)
+    a, z = portfolio.signal_at(m15, b, PARAMS), portfolio.signal_at(m15s, b, PARAMS)
+    assert (a["signal"], a["reason"], a["diag"]) == (z["signal"], z["reason"], z["diag"]), \
+        "the strategy decision at D reads only M15 bars closed by D"
+
+
 # ---------------------------------------------------------------- broken variants
 
 def _decision_without_close(bar_open, delay):
@@ -682,6 +988,27 @@ def _path_unknown_per_bar(results):
     return sum(1 for r in results for d in r.decisions if d[2] in exits.UNRESOLVABLE)
 
 
+def _risk_gate_slot_first(signal, spread_points, session, params, symbol_info, open_count, daily_losses,
+                          balance=portfolio.BALANCE, _f=portfolio.risk_gate):
+    if open_count >= params.get("max_open_trades", 1):
+        return False, "Max open trades reached", {}
+    return _f(signal, spread_points, session, params, symbol_info, open_count, daily_losses, balance)
+
+
+def _decide_b_at_touch(res, trade, m1, m15, sched, b0, post, first_hole, scenario, _f=exits._decide_b):
+    step = _f(res, trade, m1, m15, sched, b0, post, first_hole, scenario)
+    touch = [m for m in post if m[0] > first_hole and trade.sl_hit(m[3], m[2])]
+    if step == "exit" and res.outcome == "SL_HIT" and touch:
+        res.exit_time = touch[0][0] + 60
+    return step
+
+
+def _window_shifted(by):
+    def window(m15, signal_bar_open, count=200, _f=data.strategy_window):
+        return _f(m15, signal_bar_open + by, count)
+    return window
+
+
 def _guard_off(t0, t1):
     return None
 
@@ -744,6 +1071,30 @@ VARIANTS = {
         ("PATH_UNKNOWN counted per bar", exits, "path_unknown_count", _path_unknown_per_bar)],
     "test_05b_union_hole_is_path_unknown": [
         ("offset-eu-1 alone in the window", clock, "schedule", _schedule_eu1_alone)],
+    "test_12_strategy_parity_live_signals": [
+        ("strategy window ending one bar early", data, "strategy_window", _window_shifted(-900)),
+        ("probe-local session_of", clock, "session_of", _probe_session)],
+    "test_11_slot_gate_by_mode": [
+        ("CONFORMANCE reads the book", portfolio, "gate_state",
+         lambda book, e, mode: (book.open_at(e), book.losses_on(e))),
+        ("SIMULATION ignores the book", portfolio, "gate_state", lambda book, e, mode: ([], 0)),
+        ("slot checked before the loss limit", portfolio, "risk_gate", _risk_gate_slot_first)],
+    "test_19_exit_at_e_frees_slot_and_loss_on_exit_date": [
+        ("slot freed only if X < E", portfolio, "frees_slot", lambda x, e: x is not None and x < e),
+        ("loss counted on the entry date", portfolio, "counts_as_loss",
+         lambda p, e: p.result.is_loss and portfolio.frees_slot(p.result.exit_time, e)
+         and portfolio.server_date(p.entry_time) == portfolio.server_date(e))],
+    "test_21_chronology_at_k": [
+        ("C5.8 exit booked at the observed touch", exits, "_decide_b", _decide_b_at_touch),
+        ("S stop not counted as a loss", exits.Result, "is_loss",
+         property(lambda self: self.outcome == "SL_HIT"))],
+    "test_24_scenario_agreement_hold": [
+        ("verdict of S only", portfolio, "verdicts_agree", lambda rows: True),
+        ("1% cap exclusive", portfolio, "within_cap", lambda s: s is not None and s < portfolio.PU_CAP),
+        ("cap checked on S only", portfolio, "cap_ok", lambda rows: portfolio.within_cap(rows["S"]["share"]))],
+    "test_25_causality_metamorphic": [
+        ("C5.8 exit booked before K", exits, "decision_time", lambda b0: b0 + 600),
+        ("strategy window ending one bar late", data, "strategy_window", _window_shifted(900))],
     "test_seal_strategy_window": [
         ("seal disabled", data, "guard", _guard_off)],
 }
