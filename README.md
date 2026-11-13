@@ -34,7 +34,7 @@ chmod +x setup_vps.sh
 ```
 config/          — Settings, strategy params, news calendar
 engine/          — MT5 connector, data feed, strategy, risk, entry_observation (0g-1), pipeline (C2.1, shared with the replay)
-replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapshot hashes, holdout seal, C6.3), clock, spread, entry, exits (C5.1-C5.10, S/T/C paths), portfolio (CONFORMANCE/SIMULATION, risk gate, C2.5 ordering, C5.9 scenario agreement)
+replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapshot hashes, holdout seal, C6.3), clock, spread, entry, exits (C5.1-C5.10, S/T/C paths), portfolio (CONFORMANCE/SIMULATION, risk gate, C2.5 ordering, C5.9 scenario agreement), gates (pr-0.4 P1 gate evaluator G1-G9, month-cluster bootstrap U1-U3, F5 segments; constructed inputs only until pr-1.0)
 alerts/          — Telegram notifications
 logs/            — Soak data, events.jsonl, runtime logs
 research/        — Read-only probes: signal outcome, entry timing (0g-2..0g-4); history export (Data step)
@@ -65,6 +65,8 @@ python tests/test_mt5_login.py                # credentials passed to mt5.initia
 python tests/test_pipeline_parity.py          # C2.1: engine/pipeline.py reproduces the old inline run_hermes sequence (synthetic + post-holdout windows; --full every window; --controls)
 python tests/test_replay_contract.py          # ec-0.3 §9 contract tests 1-22 and 24-28 plus the holdout seal (23 comes with conformance); 14 and 28 read tests/fixtures/live_signal_events.jsonl (the 6 live SIGNAL_APPROVED events, exported from the VPS 12 Nov)
 python tests/test_replay_contract.py --controls  # each test under its broken variants; every variant must fail
+python tests/test_prereg.py                   # pr-0.4 §9 protocol tests 3 (bootstrap golden vector, tests/fixtures/prereg_u3_golden.json) and 4 (gate evaluator); 1, 2, 5-7 follow
+python tests/test_prereg.py --controls        # same, under broken variants
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED
 python research/prereg_gate_power.py          # local, no MT5: reproduces the 0b drawdown/power table (PREREGISTRATION.md section 3)
