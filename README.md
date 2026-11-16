@@ -29,6 +29,16 @@ chmod +x setup_vps.sh
 # 6. Add cron for 15-min soak cycles
 ```
 
+## MT5 GUI on the VPS (VNC through an SSH tunnel)
+
+The firewall allows inbound TCP 22 only, so VNC never listens on a public port. Start just after a :08/:23/:38/:53 cycle.
+
+1. VPS, SSH session 1: `x11vnc -display :99 -localhost -once -nopw -quiet` (waits at `PORT=5900`; the DPMS warning is harmless; exits when the viewer disconnects).
+2. Laptop PowerShell, keep open: `ssh -L 5900:localhost:5900 root@134.209.103.20`
+3. RealVNC Viewer: `localhost:5900` (the unencrypted warning is fine inside the tunnel).
+
+Do not restart the terminal from the GUI unless intended: a pending MT5 build installs on restart.
+
 ## Project Structure
 
 ```
