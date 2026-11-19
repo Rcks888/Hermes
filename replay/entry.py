@@ -5,6 +5,7 @@ Sizing and validity come from engine.entry_observation.propose_execution, the
 function live logs from (C4.1). Nothing here reimplements it. The only
 addition is the margin comparison of C4.4, which live never makes.
 """
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -35,9 +36,31 @@ class MarginCalculator:
         return volume * self.contract_size * price * self.margin_rate
 
 
+class BrokerSpecInvalid(ValueError):
+    """A broker-spec file whose content does not match its recorded hash."""
+
+
+def spec_hash(spec):
+    """SHA-256 of the canonical JSON of the spec, as
+    research/broker_spec_snapshot.canonical_hash writes it."""
+    return hashlib.sha256(json.dumps(spec, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def verify_spec(raw, digest):
+    """The recorded sha256 and broker_spec_version are those of the content."""
+    if raw.get("sha256") != digest or raw.get("broker_spec_version") != "bs-" + digest[:12]:
+        raise BrokerSpecInvalid(f"broker spec content hash {digest} != recorded "
+                                f"{raw.get('sha256')} / {raw.get('broker_spec_version')}")
+
+
 class BrokerSpec:
+    """A broker-spec snapshot. sha256 is computed from the content, never read
+    from the file; the file's own hash and version label must agree with it."""
+
     def __init__(self, raw):
         self.raw = raw
+        self.sha256 = spec_hash(raw["spec"])
+        verify_spec(raw, self.sha256)
         sym = raw["spec"]["symbol"]
         self.version = raw["broker_spec_version"]
         self.point = sym["point"]

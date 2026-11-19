@@ -49,12 +49,16 @@ Interpretations, to be confirmed in review (none changes a frozen clause):
   scan produced it, for B2 the draw of exactly one portfolio index below
   N_PORTFOLIOS. A per-opportunity delay, a dropped or added signal, another
   portfolio's draw or a second portfolio in one book all differ from it.
-- K6 [v3]. Inputs are bound, not supplied: unseal() requires the inputs'
-  identity (data_snapshot_hash, broker_spec_version, spread_model_hash,
-  config_hash) to equal the identity recorded in the development verdict,
-  and records it. holdout_run.load_inputs builds them from the
-  manifest-checked snapshot, the broker spec file and the frozen spread
-  artefact. Disclosed limit: these are in-process Python checks. They stop a
+- K6 [v4]. Inputs are bound, not supplied: unseal() requires the inputs'
+  identity (data_snapshot_hash, broker_spec_version, broker_spec_sha256,
+  spread_model_hash, config_hash) to equal the identity recorded in the
+  development verdict, and records it. holdout_run.load_inputs builds them
+  from the manifest-checked snapshot, the broker spec file and the frozen
+  spread artefact. Every hash in the identity is computed from content:
+  broker_spec_sha256 is the SHA-256 of the spec as loaded (entry.spec_hash),
+  and entry.BrokerSpec refuses a file whose recorded sha256 or version label
+  differs from it, so no field read by the replay (contract size, margin
+  rate, volume limits, point, digits) can change under the same label. Disclosed limit: these are in-process Python checks. They stop a
   holdout run that deviates by mistake through the public path; they cannot
   stop code that deliberately builds a Permit or Inputs by hand. The
   procedure closes that: the holdout is run only by the committed command
@@ -141,7 +145,8 @@ class Unseal:
 def identity_of(snapshot_hash, spec, model, params):
     """K6: the identity of a set of inputs."""
     return {"data_snapshot_hash": snapshot_hash, "broker_spec_version": spec.version,
-            "spread_model_hash": model.hash, "config_hash": attempts.config_hash(params)}
+            "broker_spec_sha256": spec.sha256, "spread_model_hash": model.hash,
+            "config_hash": attempts.config_hash(params)}
 
 
 def identity_ok(rec, identity):

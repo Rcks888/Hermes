@@ -15,7 +15,9 @@ Built: all seven. 1 seal and unseal (replay/holdout.py), 2 fold boundary
 segments, paths), 5 random benchmark B2 (replay/benchmark.py; 5b is its
 downstream part), 6 attempt ledger (replay/attempts.py), 7 holdout run family
 through the single entry point (replay/holdout_run.py; 7b engine identity
-from git, 7c the entry point's own opportunities and B2).
+from git, 7c the entry point's own opportunities and B2, 7d broker-spec
+content identity, 7e the family run once, 7f the run log as evidence, 7g its
+lossless encoding).
 """
 import calendar
 import dataclasses
@@ -37,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from replay import attempts, benchmark, clock, data, entry, exits, folds, gates, holdout, holdout_run, portfolio, spread  # noqa: E402,E501
+from research import broker_spec_snapshot as bss  # noqa: E402
 
 GOLDEN = json.loads((ROOT / "tests" / "fixtures" / "prereg_u3_golden.json").read_text())
 SCENARIOS = exits.SCENARIOS
@@ -345,6 +348,7 @@ def test_1_seal():
                 raises(holdout.HoldoutRefused, holdout.unseal, verdict, go, NO_DATA, log, VERDICTS.get,
                        go_lookup, conf)
         for ident in (dict(IDENT, data_snapshot_hash="another-export"), dict(IDENT, broker_spec_version="bs-0"),
+                      dict(IDENT, broker_spec_sha256="0" * 64),
                       dict(IDENT, spread_model_hash=spread.constant_model(MODEL30, 0.9).hash), {}):
             raises(holdout.HoldoutRefused, holdout.unseal, "5a5a5a5", "60a4ead",
                    dataclasses.replace(NO_DATA, identity=ident), log, VERDICTS.get, go_lookup, typed)
@@ -359,7 +363,7 @@ def test_1_seal():
         check(e["verdict_commit"] == "5a5a5a5" and e["config_hash"] == BASE_HASH and e["engine_commit"] == ENGINE
               and e["go_ahead_commit"] == "60a4ead" and e["go_ahead"] == GO and e["ts"]
               and e["spread_hashes"]["draw"] == MODEL30.hash and e["identity"] == IDENT, f"unseal entry {e}")
-        p = holdout_run.Session(u, inputs_of(market({h0: FLAT}, MON, MON))).permit(holdout.RunSpec(BASE_HASH))
+        p = session_on(market({h0: FLAT}, MON, MON), u).permit(holdout.RunSpec(BASE_HASH))
         data.guard(h0, h0 + 900, p)
         raises(data.HoldoutSealed, data.guard, h0, h0 + 900, object())
         for verdict in ("5a5a5a5", "b0b0b0b"):
@@ -423,8 +427,7 @@ def test_2_fold_boundary():
     check(close(res.mtm_r, want, 1e-9), f"mtm_r {res.mtm_r} != {want}")
     check(gates.closed_trades(dev) == [], "an OPEN trade entered the closed-trade statistics")
     raises(data.HoldoutSealed, folds.run_fold, opps, c, folds.HOLDOUT)
-    with tempfile.TemporaryDirectory() as d:
-        s = holdout_run.Session(unsealed(Path(d) / "u.jsonl"), inputs_of(c))
+    s = session_on(c)
     with strategy_stub({o["bar_open"]: o["signal"] for o in opps}):
         try:
             ho = s.strategy(holdout.RunSpec(BASE_HASH))[0]
@@ -586,9 +589,16 @@ def holdout_case():
     return c, sigs
 
 
-def session_on(c):
-    with tempfile.TemporaryDirectory() as d:
-        return holdout_run.Session(unsealed(Path(d) / "u.jsonl"), inputs_of(c))
+SCRATCH = tempfile.TemporaryDirectory()
+
+
+def session_on(c, u=None, opened=True):
+    """A Session on its own unseal log and run log; opened unless asked not to."""
+    d = Path(tempfile.mkdtemp(dir=SCRATCH.name))
+    s = holdout_run.Session(u or unsealed(d / "u.jsonl"), inputs_of(c), d / "runs.jsonl")
+    if opened:
+        s.open()
+    return s
 
 
 @running(ENGINE)
@@ -674,16 +684,161 @@ def test_7c_entry_point():
                                   folds.HOLDOUT)]
         check([b[0] for b in bars] == want and all(b[1:] == (FLAT[3], 8.0) for b in bars),
               f"evaluated bars {bars[:3]}..., want {len(want)} bars from {want[:1]}")
-        with tempfile.TemporaryDirectory() as d:
-            log = Path(d) / "runs.jsonl"
-            out = s.run_family(log, n=3)
-            lines = [json.loads(x) for x in log.read_text().splitlines()]
-    specs = holdout_run.family(BASE_HASH) + [R(BASE_HASH, kind="random", scenario=sc) for sc in SCENARIOS]
-    check(set(out) == set(specs) and len(lines) == len(specs) == 11, f"family runs {len(out)}, log lines {len(lines)}")
-    check([ln["spec"] for ln in lines] == [sp.__dict__ for sp in specs] and all(ln["engine_commit"] == ENGINE
-                                                                               for ln in lines), "run log")
+        s = session_on(c0, opened=False)
+        out = s.run_family(n=3)
+    lines = [json.loads(x) for x in s.log_path.read_text().splitlines()]
+    specs = holdout_run.full_family(BASE_HASH)
+    check(set(out) == set(specs) and len(specs) == 11 and len(lines) == 13,
+          f"family runs {len(out)}, log lines {len(lines)}")
+    check([ln["event"] for ln in lines] == ["family_start"] + ["run"] * 11 + ["family_complete"]
+          and [ln["spec"] for ln in lines[1:-1]] == [sp.__dict__ for sp in specs]
+          and all(ln["engine_commit"] == ENGINE for ln in lines), "run log")
     check(all(len(out[R(BASE_HASH, kind="random", scenario=sc)][0]) == 3 for sc in SCENARIOS), "B2 portfolios")
     check(len(out[R(BASE_HASH)].records) == 2, "family primary run")
+
+
+def logged(spec, line):
+    """A run line's evidence decoded, or the reason it cannot be."""
+    try:
+        return holdout_run.from_evidence(spec, line["evidence"])
+    except (KeyError, TypeError, ValueError) as e:
+        return f"{type(e).__name__}: {e}"
+
+
+def family_on(c0, sigs):
+    s = session_on(c0, opened=False)
+    with strategy_stub(sigs):
+        out = s.run_family(n=3)
+    return s, out
+
+
+def rewrite(path, lines, rehash=False):
+    """The run log with these JSON lines; rehash: the complete line rehashed."""
+    if rehash:
+        lines[-1] = dict(lines[-1], run_sha256=holdout_run.line_hashes(
+            [json.dumps(x, sort_keys=True) for x in lines[1:-1]]))
+    Path(path).write_text("".join(json.dumps(x, sort_keys=True) + "\n" for x in lines))
+
+
+@running(ENGINE)
+def test_7e_run_once():
+    """K7: the family is started once, on an empty log; each run once;
+    permits only while open; closed only when complete."""
+    c0, sigs = holdout_case()
+    R = holdout.RunSpec
+    s, out = family_on(c0, sigs)
+    before = s.log_path.read_text()
+    with strategy_stub(sigs):
+        raises(holdout.HoldoutRefused, s.run_family, 3)
+        again = holdout_run.Session(s.unseal, inputs_of(c0), s.log_path)
+        raises(holdout.HoldoutRefused, again.run_family, 3)
+        check(s.log_path.read_text() == before, "a refused second family wrote the run log")
+        raises(holdout.HoldoutRefused, s.permit, R(BASE_HASH))
+        cut = s.log_path.parent / "interrupted.jsonl"
+        cut.write_text(before.splitlines(keepends=True)[0])
+        raises(holdout.HoldoutRefused, holdout_run.Session(s.unseal, inputs_of(c0), cut).run_family, 3)
+        check(cut.read_text() == before.splitlines(keepends=True)[0], "an interrupted family was restarted")
+        fresh = session_on(c0, opened=False)
+        raises(holdout.HoldoutRefused, fresh.permit, R(BASE_HASH))
+        raises(holdout.HoldoutRefused, fresh.strategy, R(BASE_HASH, spread="p90"))
+        fresh.open()
+        fresh.strategy(R(BASE_HASH, spread="p90"))
+        raises(holdout.HoldoutRefused, fresh.strategy, R(BASE_HASH, spread="p90"))
+        fresh.random("T", 3)
+        raises(holdout.HoldoutRefused, fresh.random, "T", 3)
+        n = len(fresh.log_path.read_text().splitlines())
+        check(n == 4, f"{n} log lines after start, p90, primary, B2 T: a refused rerun was logged")
+        raises(holdout.HoldoutRefused, fresh.close)
+        check(not holdout_run.complete(holdout_run.log_lines(fresh.log_path)), "an incomplete family was closed")
+
+
+@running(ENGINE)
+def test_7f_run_evidence():
+    """K8: the run log alone rebuilds every run of the family, equal to what
+    the session returned; an incomplete, altered, reordered or foreign log
+    is refused."""
+    c0, sigs = holdout_case()
+    s, out = family_on(c0, sigs)
+    lines = holdout_run.log_lines(s.log_path)
+    for ln in lines[1:-1]:
+        spec = holdout.RunSpec(**ln["spec"])
+        got = logged(spec, ln)
+        if spec.kind == "random":
+            check(got == out[spec], f"{spec}: logged B2 {str(got)[:80]} != the session's")
+        else:
+            check(isinstance(got, portfolio.Run) and (got.mode, got.scenario, got.records)
+                  == (out[spec].mode, out[spec].scenario, out[spec].records),
+                  f"{spec}: logged run {str(got)[:80]} != the session's")
+    ulog = s.log_path.parent / "u.jsonl"
+    fam = holdout_run.read_family(s.log_path, ulog)
+    check(list(fam) == holdout_run.full_family(BASE_HASH), "read_family runs")
+    primary = fam[holdout.RunSpec(BASE_HASH)]
+    check(gates.closed_trades(primary) == gates.closed_trades(out[holdout.RunSpec(BASE_HASH)])
+          and gates.equity_curve(primary.results()) == gates.equity_curve(out[holdout.RunSpec(BASE_HASH)].results())
+          and primary.results(), "P1 inputs from the log differ from the session's")
+    bad = s.log_path.parent / "bad.jsonl"
+    rewrite(bad, lines[:-1])
+    raises(holdout.HoldoutRefused, holdout_run.read_family, bad, ulog)
+    edited = json.loads(json.dumps(lines))
+    rec = next(r for r in edited[1]["evidence"]["records"] if "result" in r)
+    rec["result"]["fields"]["r"] = 9.0
+    rewrite(bad, edited)
+    raises(holdout.HoldoutRefused, holdout_run.read_family, bad, ulog)
+    swapped = lines[:1] + [lines[2], lines[1]] + lines[3:]
+    rewrite(bad, swapped, rehash=True)
+    raises(holdout.HoldoutRefused, holdout_run.read_family, bad, ulog)
+    foreign = s.log_path.parent / "u_other.jsonl"
+    foreign.write_text(json.dumps(dict(s.unseal.entry, ts="2000-01-01T00:00:00Z"), sort_keys=True) + "\n")
+    raises(holdout.HoldoutRefused, holdout_run.read_family, s.log_path, foreign)
+
+
+def test_7g_evidence_lossless():
+    """K8: encode/decode returns every field of a record and its trade,
+    sets, tuples and numbers included; what it cannot hold is refused."""
+    res = exits.Result("S", "SL_HIT", 1757000000, 2990.0, -1.0, -0.4, True, {"AMBIGUOUS", "S_STOP"},
+                       [(1756999800, 2, "c")], 3, [(1756999860, 0.25), (1756999920, -0.5)],
+                       [(1756999860, -0.1), (1756999920, -0.9)])
+    rec = {"bar_open": 1756999800, "window": (0, 3600), "evaluated": True, "status": None,
+           "signal": long_signal(), "u": np.float64(0.375), "exec": {"required_margin": 1200.5, "lots": 0.4},
+           "levels": {"fill": 3000.3, "triggers": (2990.0, 3020.0)}, "population": "C", "result": res}
+    back = holdout_run.decode(json.loads(json.dumps(holdout_run.encode([rec]))))[0]
+    check(back == rec, f"decoded record differs: {back}")
+    r = back["result"]
+    check(isinstance(r, exits.Result) and r.flags == {"AMBIGUOUS", "S_STOP"} and isinstance(r.flags, set)
+          and r.marks[0] == (1756999860, 0.25) and isinstance(r.marks[0], tuple)
+          and r.adverse_marks == res.adverse_marks and r.decisions == [(1756999800, 2, "c")]
+          and back["window"] == (0, 3600) and isinstance(back["window"], tuple), f"decoded trade {r}")
+    for x in (object(), {1: "a"}, {"__set__": []}, exits.Trade("LONG", 1.0, 0.5, 2.0, 0.1, 0)):
+        raises(TypeError, holdout_run.encode, x)
+
+
+@running(ENGINE)
+def test_7d_broker_spec_identity():
+    """K6: the broker spec is verified against its content, and its identity
+    changes with any field the replay reads, the version label kept."""
+    for p in sorted((ROOT / "research" / "data_feasibility").glob("broker_spec_*.json")):
+        raw = json.loads(p.read_text())
+        spec = entry.BrokerSpec(raw)
+        check(spec.sha256 == raw["sha256"] == bss.canonical_hash(raw["spec"]), f"{p.name}: content hash")
+    raw = json.loads(entry.BROKER_SPEC.read_text())
+    edits = {"contract size": ("symbol", "trade_contract_size", 10.0), "volume max": ("symbol", "volume_max", 1.0),
+             "digits": ("symbol", "digits", 3), "margin rate": ("margin_probe", "margin_rate", 0.05)}
+    for label, (part, field, value) in edits.items():
+        bad = json.loads(json.dumps(raw))
+        bad["spec"][part][field] = value
+        raises(entry.BrokerSpecInvalid, entry.BrokerSpec, bad)
+        relabelled = dict(bad, sha256=entry.spec_hash(bad["spec"]))
+        raises(entry.BrokerSpecInvalid, entry.BrokerSpec, relabelled)
+        with mock.patch.object(entry, "verify_spec", lambda r, d: None):
+            forged = entry.BrokerSpec(bad)
+        check(holdout.identity_of("synthetic-snapshot", forged, MODEL30, PARAMS)
+              != holdout.identity_of("synthetic-snapshot", SPEC, MODEL30, PARAMS),
+              f"{label} changed under the same broker_spec_version, identity unchanged")
+        with tempfile.TemporaryDirectory() as d:
+            ins = dataclasses.replace(NO_DATA, spec=forged, identity=holdout.identity_of(
+                "synthetic-snapshot", forged, MODEL30, PARAMS))
+            raises(holdout.HoldoutRefused, holdout.unseal, "5a5a5a5", "60a4ead", ins, Path(d) / "u.jsonl",
+                   VERDICTS.get, go_lookup, typed)
 
 
 def test_7b_engine_identity():
@@ -856,6 +1011,38 @@ def _scan_all_bars(ctx, fold, cache=None):
     return opps, bars + [(int(last) + 900, bars[-1][1], bars[-1][2])]
 
 
+def _identity_label_only(snapshot_hash, spec, model, params):
+    return {"data_snapshot_hash": snapshot_hash, "broker_spec_version": spec.version,
+            "spread_model_hash": model.hash, "config_hash": attempts.config_hash(params)}
+
+
+def _evidence_summary(spec, result):
+    if spec.kind == "random":
+        return {"portfolios": len(result[0])}
+    return {"records": len(result.records), "population_C": len(result.population("C"))}
+
+
+def _encode_untagged(x):
+    if dataclasses.is_dataclass(x) and not isinstance(x, type):
+        return {"__dataclass__": type(x).__name__,
+                "fields": {f.name: _encode_untagged(getattr(x, f.name)) for f in dataclasses.fields(x)}}
+    if isinstance(x, (set, frozenset, tuple, list)):
+        return [_encode_untagged(v) for v in x]
+    if isinstance(x, dict):
+        return {k: _encode_untagged(v) for k, v in x.items()}
+    return x.item() if isinstance(x, np.generic) else x
+
+
+_real_encode = holdout_run.encode
+
+
+def _encode_lenient(x):
+    try:
+        return _real_encode(x)
+    except TypeError:
+        return str(x)
+
+
 _real_draw_signals = benchmark.draw_signals
 
 
@@ -913,6 +1100,20 @@ VARIANTS = {
         ("scan stops at the first signal", folds, "strategy_opportunities", _scan_first_signal),
         ("B2 bars past the data", folds, "strategy_opportunities", _scan_all_bars),
         ("family incomplete", holdout_run, "family", lambda h: _real_family(h)[:3])],
+    "test_7d_broker_spec_identity": [
+        ("recorded hash not checked", entry, "verify_spec", lambda raw, digest: None),
+        ("identity binds the label only", holdout, "identity_of", _identity_label_only)],
+    "test_7e_run_once": [
+        ("family restartable", holdout_run, "family_started", lambda p: False),
+        ("run made twice", holdout_run.Session, "_once", lambda self, spec: None),
+        ("permits outside the open family", holdout_run, "issuing", lambda s: True)],
+    "test_7f_run_evidence": [
+        ("summary only logged", holdout_run, "evidence", _evidence_summary),
+        ("edits not detected", holdout_run, "intact", lambda c, raw: True),
+        ("order not checked", holdout_run, "in_order", lambda specs, h: True)],
+    "test_7g_evidence_lossless": [
+        ("tuples and sets as lists", holdout_run, "encode", _encode_untagged),
+        ("unknown objects passed through", holdout_run, "encode", _encode_lenient)],
     "test_7b_engine_identity": [
         ("untracked files ignored", holdout, "is_dirty",
          lambda lines: any(not x.startswith("?? ") for x in lines if x)),
@@ -969,8 +1170,11 @@ def main_controls():
         for label, module, attr, broken in VARIANTS[name]:
             with mock.patch.object(module, attr, broken):
                 verdict, why = run(names[name])
-            if verdict == "FAIL":
+            if verdict == "FAIL" and why.startswith("AssertionError"):
                 print(f"PASS    {name} / {label}: fails as required ({why[:90]})")
+            elif verdict == "FAIL":
+                bad += 1
+                print(f"FAIL    {name} / {label}: failed, but not on the test's assertion ({why[:90]})")
             else:
                 bad += 1
                 print(f"FAIL    {name} / {label}: broken variant PASSED")
