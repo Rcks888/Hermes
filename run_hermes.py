@@ -218,8 +218,7 @@ def main():
         info = reconnect_info or {}
         failures = info.get("consecutive_failures", 1)
         reason = info.get("reason", "mt5_not_connected")
-        telegram.alert_disconnected(failures, reason=reason, invalid_account=info.get("invalid_account", False),
-                                    login=info.get("login"))
+        telegram.alert_disconnected(failures, reason=reason)
         logger.error(f"Hermes cycle skipped: MT5 not connected ({reason}, {info.get('last_error')})")
         log_event({"event": "CYCLE_ABORTED", "session": session, "reason": reason,
                    "last_error": info.get("last_error"), "consecutive_failures": failures})

@@ -11,8 +11,6 @@ from pathlib import Path
 
 import rpyc
 
-from engine import terminal_log
-
 logger = logging.getLogger("hermes.mt5")
 
 mt5 = None
@@ -359,22 +357,9 @@ def ensure_connected():
     if failures >= 4:
         logger.critical(f"CRITICAL: {failures} consecutive failed slots. Manual intervention needed.")
 
-    info = {"consecutive_failures": failures, "rpyc_restarted": rpyc_restarted,
-            "reason": failure_reason(_last_init_error),
-            "last_error": None if _last_init_error is None else list(_last_init_error)}
-    if info["reason"] == "mt5_auth_failed":
-        info.update(_auth_failure_detail())
-    return False, info
-
-
-def _auth_failure_detail():
-    """C1: whether the terminal journal rejected the account, and the
-    configured login the alert names. Never fails the cycle."""
-    try:
-        return {"invalid_account": terminal_log.invalid_account(), "login": _load_config().get("login")}
-    except Exception as exc:
-        logger.warning(f"terminal log check failed: {exc}")
-        return {"invalid_account": False, "login": None}
+    return False, {"consecutive_failures": failures, "rpyc_restarted": rpyc_restarted,
+                   "reason": failure_reason(_last_init_error),
+                   "last_error": None if _last_init_error is None else list(_last_init_error)}
 
 
 def get_server_time_offset():
