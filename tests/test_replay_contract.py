@@ -11,9 +11,9 @@ historical SIMULATION result is produced (PREREGISTRATION.md pr-0.4).
 Tests needing tests/fixtures/live_signal_events.jsonl report PENDING until it
 exists; PENDING is not a pass.
 
-Built: 1-22, 24-28, 5(b) PATH_UNKNOWN part (test_05b) and the holdout seal of
-pr-0.4 test 1 (strategy window only). Test 23 (E0 eligibility) is built with
-conformance (section 8).
+Built: 1-28, 5(b) PATH_UNKNOWN part (test_05b) and the holdout seal of pr-0.4
+test 1 (strategy window only). Test 23 (E0 eligibility) runs replay/conformance.py
+on the signal fixture.
 """
 import calendar
 import dataclasses
@@ -37,7 +37,7 @@ sys.path.insert(0, str(ROOT / "research"))
 import trading_calendar as tc  # noqa: E402
 from engine import entry_observation as eo  # noqa: E402
 from engine.pipeline import get_session_tag  # noqa: E402
-from replay import clock, data, entry, exits, portfolio, spread  # noqa: E402
+from replay import clock, conformance, data, entry, exits, portfolio, spread  # noqa: E402
 
 PARAMS = json.loads((ROOT / "config" / "strategy_params.json").read_text())
 FIXTURE = ROOT / "tests" / "fixtures" / "live_signal_events.jsonl"
@@ -465,6 +465,22 @@ def test_22_equity_marks():
     assert abs(t_mark - (3000.0 - (3000.9 + 0.30)) / 10.0) < 1e-9, "SHORT marks on bid plus spread"
     adverse = dict(res.adverse_marks)[e + 120]
     assert abs(adverse - (3000.0 - (3001.0 + 0.30)) / 10.0) < 1e-9
+
+
+def test_23_e0_eligibility():
+    events = live_events()
+    rep = conformance.e0(events, PARAMS, SPEC)
+    assert rep["ineligible"] == ["2026-10-02 09:45:00+00:00"], rep["ineligible"]
+    assert len(rep["rows"]) == len(events) - 1 and rep["pass"], rep["rows"]
+    oct7 = event_at(events, "2026-10-07 17:30:00+00:00")
+    gap = {k: v for k, v in oct7.items() if k != "exec_observation"}
+    gap["bar_time"] = "2026-11-06 10:00:00+00:00"
+    late = conformance.e0(events + [gap], PARAMS, SPEC)
+    assert not late["pass"], "a signal cycle lacking 0g-1 fields after the first eligible one passed E0"
+    assert late["ineligible"] == rep["ineligible"] and not late["rows"][-1]["ok"], late["rows"][-1]
+    bad = dict(oct7, exec_observation=dict(oct7["exec_observation"], required_margin=1642.27))
+    wrong = conformance.e0([bad if e is oct7 else e for e in events], PARAMS, SPEC)
+    assert not wrong["pass"] and "required_margin" in wrong["rows"][0]["diff"], wrong["rows"][0]
 
 
 def test_26_release_at_edges_and_under_c():
@@ -1004,13 +1020,20 @@ def _decide_b_at_touch(res, trade, m1, m15, sched, b0, post, first_hole, scenari
 
 
 def _window_shifted(by):
-    def window(m15, signal_bar_open, count=200, _f=data.strategy_window):
-        return _f(m15, signal_bar_open + by, count)
+    def window(m15, signal_bar_open, count=200, permit=None, _f=data.strategy_window):
+        return _f(m15, signal_bar_open + by, count, permit)
     return window
 
 
-def _guard_off(t0, t1):
+def _guard_off(t0, t1, permit=None):
     return None
+
+
+_real_e0 = conformance.e0
+
+
+def _e0_gaps_exempt(events, params, spec):
+    return _real_e0([e for e in events if conformance.eligible(e)], params, spec)
 
 
 VARIANTS = {
@@ -1088,6 +1111,9 @@ VARIANTS = {
         ("C5.8 exit booked at the observed touch", exits, "_decide_b", _decide_b_at_touch),
         ("S stop not counted as a loss", exits.Result, "is_loss",
          property(lambda self: self.outcome == "SL_HIT"))],
+    "test_23_e0_eligibility": [
+        ("later gaps exempt", conformance, "e0", _e0_gaps_exempt),
+        ("eligible on the quote alone", conformance, "eligible", lambda ev: bool(ev.get("quote")))],
     "test_24_scenario_agreement_hold": [
         ("verdict of S only", portfolio, "verdicts_agree", lambda rows: True),
         ("1% cap exclusive", portfolio, "within_cap", lambda s: s is not None and s < portfolio.PU_CAP),

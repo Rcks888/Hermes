@@ -7,17 +7,22 @@ must catch; `--controls` runs every test under each of them and requires a
 failure (pr-0.4 section 9: "each shown once to fail on a deliberately broken
 variant").
 
-All inputs are constructed: synthetic trades and equity curves, never fold
-data, so no historical SIMULATION result is produced.
+All inputs are constructed: synthetic trades, equity curves, bars and
+ledgers, never fold data, so no historical SIMULATION result is produced.
 
-Built: 3 (bootstrap golden vector), 4 (gate evaluator: thresholds, segments,
-paths). Tests 1, 2, 5, 6 and 7 follow.
+Built: all seven. 1 seal and unseal (replay/holdout.py), 2 fold boundary
+(replay/folds.py), 3 bootstrap golden vector, 4 gate evaluator (thresholds,
+segments, paths), 5 random benchmark B2 (replay/benchmark.py; 5b is its
+downstream part), 6 attempt ledger (replay/attempts.py), 7 holdout run family.
 """
 import calendar
 import dataclasses
+import hashlib
 import json
 import math
 import sys
+import tempfile
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -26,7 +31,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from replay import exits, gates, portfolio  # noqa: E402
+from replay import attempts, benchmark, clock, data, entry, exits, folds, gates, holdout, portfolio, spread  # noqa: E402,E501
 
 GOLDEN = json.loads((ROOT / "tests" / "fixtures" / "prereg_u3_golden.json").read_text())
 SCENARIOS = exits.SCENARIOS
@@ -221,6 +226,278 @@ def test_4c_paths():
     check(gates.p1_development(a)[0] == gates.HOLD, "failed precondition is not HOLD")
 
 
+# ------------------------------------------------- synthetic market fixtures
+
+PARAMS = attempts.base_params()
+SPEC = entry.BrokerSpec.load()
+MODEL30 = spread.SpreadModel({s: [30] for s in spread.SESSIONS})
+FLAT = (3000.0, 3000.5, 2999.5, 3000.2)
+SPIKE = (3000.0, 3021.0, 2999.5, 3020.5)
+BASE_HASH = attempts.REGISTERED_BASELINE
+ENGINE = "a1b2c3d"
+VERDICTS = {"5a5a5a5": {"verdict": "PASS", "config_hash": BASE_HASH, "attempt": 0},
+            "fa11fa1": {"verdict": "FAIL", "config_hash": BASE_HASH, "attempt": 0}}
+
+
+def raises(exc, fn, *a, **kw):
+    try:
+        fn(*a, **kw)
+    except exc as e:
+        return e
+    raise AssertionError(f"{getattr(fn, '__name__', fn)}{a} did not raise {exc.__name__}")
+
+
+def build(minutes):
+    m1 = data.Bars.from_rows(60, [(t,) + tuple(minutes[t]) for t in sorted(minutes)])
+    slots = {}
+    for t in sorted(minutes):
+        slots.setdefault(t - t % 900, []).append((t,) + tuple(minutes[t]))
+    m15 = data.Bars.from_rows(900, [(s,) + tuple(data.rebuild(ms)) for s, ms in sorted(slots.items())])
+    return m1, m15
+
+
+def market(minutes, first, last, params=PARAMS):
+    m1, m15 = build(minutes)
+    return portfolio.Context(m1, m15, clock.schedule(first, last), MODEL30, params, SPEC)
+
+
+def long_signal():
+    return {"direction": "LONG", "entry": 3000.0, "sl": 2990.0, "tp": 3020.0,
+            "sl_distance": 10.0, "atr": 8.0, "symbol": "XAUUSD"}
+
+
+def unsealed(log):
+    return holdout.unseal("5a5a5a5", "Go ahead with the holdout. Rickson", ENGINE, log, VERDICTS.get)
+
+
+# ------------------------------------------------------------------ test 1
+
+def test_1_seal():
+    h0 = data.HOLDOUT[0]
+    raises(data.HoldoutSealed, data.guard, h0, h0 + 900)
+    raises(data.HoldoutSealed, data.guard, h0 - 60, h0 + 60)
+    with tempfile.TemporaryDirectory() as d:
+        log = Path(d) / "unseal.jsonl"
+        for commit, go, eng in (("fa11fa1", "go", ENGINE), ("0000000", "go", ENGINE),
+                                ("5a5a5a5", "  ", ENGINE), ("5a5a5a5", "go", ENGINE + "-dirty")):
+            raises(holdout.HoldoutRefused, holdout.unseal, commit, go, eng, log, VERDICTS.get)
+        check(not log.exists(), "a refused unseal wrote the log")
+        u = unsealed(log)
+        lines = log.read_text().splitlines()
+        check(len(lines) == 1, f"{len(lines)} log entries after one unseal")
+        e = json.loads(lines[0])
+        check(e["verdict_commit"] == "5a5a5a5" and e["config_hash"] == BASE_HASH
+              and e["engine_commit"] == ENGINE and e["go_ahead"].startswith("Go ahead") and e["ts"],
+              f"unseal entry {e}")
+        p = u.permit(holdout.RunSpec(BASE_HASH), ENGINE)
+        data.guard(h0, h0 + 900, p)
+        raises(data.HoldoutSealed, data.guard, h0, h0 + 900, object())
+        for commit in ("5a5a5a5", "fa11fa1"):
+            raises(holdout.SecondUnseal, holdout.unseal, commit, "again", ENGINE, log, VERDICTS.get)
+        check(len(log.read_text().splitlines()) == 1, "a refused second unseal wrote the log")
+        s = holdout.session(log)
+        check((s.verdict_commit, s.config_hash, s.engine_commit) == ("5a5a5a5", BASE_HASH, ENGINE),
+              f"session {s}")
+
+
+# ------------------------------------------------------------------ test 2
+
+FRI, MON = date(2025, 8, 29), date(2025, 9, 1)
+
+
+def boundary_case():
+    """A LONG entered Fri 29 Aug 20:08 server (NY), flat to the development
+    end, TP touched by the first holdout hour; a holdout signal Mon 10:08."""
+    sched = clock.schedule(date(2025, 8, 25), date(2025, 9, 5))
+    t0, t1 = srv(2025, 8, 29, 19, 45), srv(2025, 9, 1, 11, 0)
+    mins = {t: FLAT for t in range(t0, t1, 60) if sched.scheduled(t)}
+    spike = min(t for t in mins if t >= srv(2025, 9, 1, 1, 30))
+    mins[spike] = SPIKE
+    c = market(mins, date(2025, 8, 25), date(2025, 9, 5))
+    opps = [{"bar_open": srv(2025, 8, 29, 19, 45), "signal": long_signal()},
+            {"bar_open": srv(2025, 9, 1, 9, 45), "signal": long_signal()}]
+    last_dev = max(t for t in mins if t < folds.DEVELOPMENT[1])
+    return c, opps, last_dev
+
+
+def test_2_fold_boundary():
+    c, opps, last_dev = boundary_case()
+    check(folds.DEVELOPMENT[1] == folds.HOLDOUT[0] == data.HOLDOUT[0], "folds do not meet at the seal")
+    dev = folds.run_fold(opps, c, folds.DEVELOPMENT)
+    check([r["bar_open"] for r in dev.records] == [opps[0]["bar_open"]], "dev fold took a holdout opportunity")
+    rec = dev.records[0]
+    check(rec["population"] == "C", f"dev trade population {rec['population']}")
+    res = rec["result"]
+    check(res.outcome == "OPEN" and res.exit_time is None and res.r is None,
+          f"dev trade {res.outcome} at {res.exit_time}: resolved past the development end")
+    check(res.marks and res.marks[-1][0] == last_dev + 60 <= folds.DEVELOPMENT[1],
+          f"last mark {res.marks[-1] if res.marks else None}, want the close of {last_dev}")
+    want = (FLAT[3] - (3000.0 + 0.30)) / (3000.0 + 0.30 - 2990.0)
+    check(close(res.mtm_r, want, 1e-9), f"mtm_r {res.mtm_r} != {want}")
+    check(gates.closed_trades(dev) == [], "an OPEN trade entered the closed-trade statistics")
+    raises(data.HoldoutSealed, folds.run_fold, opps, c, folds.HOLDOUT)
+    with tempfile.TemporaryDirectory() as d:
+        p = unsealed(Path(d) / "u.jsonl").permit(holdout.RunSpec(BASE_HASH), ENGINE)
+    ho = folds.run_fold(opps, c, folds.HOLDOUT, permit=p)
+    check([r["bar_open"] for r in ho.records] == [opps[1]["bar_open"]], "holdout fold took a dev opportunity")
+    h = ho.records[0]
+    check(h["population"] == "C" and h["open_trades"] == 0,
+          f"holdout run did not start flat: {h.get('reason')}, open {h.get('open_trades')}")
+
+
+# ------------------------------------------------------------------ test 5
+
+def b2_inputs():
+    """Two cells with signals and one evaluated cell without any (A_c = 0)."""
+    bars, records = [], []
+    for (mo, day), n_sig in (((3, 4), 6), ((4, 8), 0)):
+        for k in range(16):
+            b0 = srv(2025, mo, day, 9, 0) + 900 * k
+            bars.append((b0, 3000.0 + k, 8.0))
+            if k < n_sig:
+                e = clock.entry_instant(clock.decision_instant(b0, clock.BASELINE_DELAY))
+                sig = dict(long_signal(), direction="LONG" if k % 3 else "SHORT", sl_distance=4.0 + k)
+                records.append({"bar_open": b0, "E": e, "population": "CAB"[k % 3], "signal": sig})
+    records.append({"bar_open": srv(2025, 3, 4, 20, 0), "E": srv(2025, 3, 4, 20, 23), "population": None})
+    return bars, records
+
+
+def u_independent(i, t, part):
+    k = int.from_bytes(hashlib.sha256(f"hermes-pr-random-v2|{i}|{t}|{part}".encode()).digest()[:8], "big")
+    return (k + 0.5) / 2 ** 64
+
+
+def test_5_random_benchmark():
+    bars, records = b2_inputs()
+    m = benchmark.matching(records, bars, folds.DEVELOPMENT)
+    cells = {benchmark.cell_of(b0, clock.BASELINE_DELAY) for b0, _, _ in bars}
+    zero = [c for c in cells if m.q[c] == 0.0]
+    check(len(zero) >= 1 and sum(m.q[c] > 0 for c in cells) >= 1, f"cells {m.q}")
+    check(m.stops == sorted(r["signal"]["sl_distance"] / 8.0 for r in records if r["population"]),
+          f"R {m.stops}")
+    for i in (0, 7):
+        for b0, _, _ in bars[:4]:
+            for part in ("emit", "dir", "stop"):
+                check(benchmark.u(i, b0 + 900, part) == u_independent(i, b0 + 900, part), "draw key")
+    once = benchmark.draw_signals(7, m, bars, 2.0)
+    check(once == benchmark.draw_signals(7, m, bars, 2.0), "portfolio 7 not reproducible")
+    check(once != benchmark.draw_signals(8, m, bars, 2.0), "portfolios 7 and 8 identical")
+    for o in once:
+        b0 = o["bar_open"]
+        c, t = benchmark.cell_of(b0, clock.BASELINE_DELAY), b0 + 900
+        check(u_independent(7, t, "emit") < m.q[c], f"emitted at {b0} with u >= q_c")
+        s, close_ = o["signal"], dict((b[0], b[1]) for b in bars)[b0]
+        r = m.stops[spread.rank(u_independent(7, t, "stop"), len(m.stops)) - 1]
+        sign = 1 if s["direction"] == "LONG" else -1
+        check(s["direction"] == ("LONG" if u_independent(7, t, "dir") < m.p[c] else "SHORT"), "direction draw")
+        check(s["entry"] == close_ and close(s["sl"], round(close_ - sign * r * 8.0, 2))
+              and close(s["tp"], round(close_ + sign * 2.0 * r * 8.0, 2)), f"levels {s}")
+    emitted = [o["bar_open"] for i in range(200) for o in benchmark.draw_signals(i, m, bars, 2.0)]
+    check(emitted and not [b for b in emitted if benchmark.cell_of(b, clock.BASELINE_DELAY) in zero],
+          "a cell with A_c = 0 emitted")
+    ho_bars = [(b0 + (srv(2025, 9, 2) - srv(2025, 3, 4)), c_, a) for b0, c_, a in bars]
+    ho_rec = [dict(r, bar_open=r["bar_open"] + srv(2025, 9, 2) - srv(2025, 3, 4),
+                   E=r["E"] + srv(2025, 9, 2) - srv(2025, 3, 4)) for r in records[:2]]
+    mh = benchmark.matching(ho_rec, ho_bars, folds.HOLDOUT)
+    check(sorted(mh.stops) == sorted(r["signal"]["sl_distance"] / 8.0 for r in ho_rec), "holdout R")
+    raises(ValueError, benchmark.matching, records, ho_bars, folds.HOLDOUT)
+    raises(ValueError, benchmark.matching, ho_rec, bars, folds.HOLDOUT)
+    stats = [{sc: (None if i < 10 else -0.5 + i / 2000) for sc in SCENARIOS} for i in range(1000)]
+    ev = gates.evaluate(attempt(pass_case(), benchmark=stats), "S")
+    check(ev["benchmark_dropped"] == 10 and close(ev["benchmark_threshold"], -0.5 + 950 / 2000),
+          f"G6 threshold {ev.get('benchmark_threshold')}, want rank 941 of 990")
+    check(ev["gates"]["G6"] == gates.PASS, f"G6 {ev['gates']['G6']}")
+    stats[10] = {sc: None for sc in SCENARIOS}
+    check(gates.evaluate(attempt(pass_case(), benchmark=stats), "S")["gates"]["G6"] == gates.HOLD,
+          "11 dropped is not HOLD")
+
+
+def test_5b_random_benchmark_downstream():
+    """Every bar of a LONDON hour emits LONG at r = 1: the first signal's
+    entry minute is missing, the second fills, the third meets the slot."""
+    day = (2025, 2, 4)
+    bars = [(srv(*day, 9, 45) + 900 * k, 3000.0, 8.0) for k in range(3)]
+    m = benchmark.Matching({benchmark.cell_of(bars[0][0], clock.BASELINE_DELAY): 1.0},
+                           {benchmark.cell_of(bars[0][0], clock.BASELINE_DELAY): 1.0},
+                           [1.0], folds.DEVELOPMENT, clock.BASELINE_DELAY)
+    mins = {t: FLAT for t in range(srv(*day, 9, 0), srv(*day, 12, 0), 60) if t != srv(*day, 10, 8)}
+    c = market(mins, date(2025, 2, 2), date(2025, 2, 7))
+    emitted = [o["bar_open"] for o in benchmark.draw_signals(0, m, bars, 2.0)]
+    check(emitted == [b[0] for b in bars], f"emitted {emitted}")
+    run_ = benchmark.run_portfolio(0, m, bars, c, "S")
+    check([r["bar_open"] for r in run_.records] == emitted, "records differ from the emitted signals")
+    first, second, third = run_.records
+    status = first.get("exec", {}).get("execution_validity_status")
+    check(first["population"] == "B" and status == "quote_unavailable",
+          f"invalid signal {first.get('population')} {status}")
+    check(second["population"] == "C", f"second {second.get('population')} {second.get('reason')}")
+    check(third["population"] == "A" and "Max open trades" in str(third.get("reason")),
+          f"third not blocked by the slot rule: {third.get('reason')}")
+
+
+# ------------------------------------------------------------------ test 6
+
+def test_6_attempt_ledger():
+    base = attempts.base_params()
+    a0 = attempts.authorise(base, committed=set())
+    check(a0 == {"attempt": 0, "variant": None, "config_hash": BASE_HASH, "alpha": 0.025}, f"baseline {a0}")
+    with tempfile.TemporaryDirectory() as d:
+        led = Path(d) / "ledger.jsonl"
+        raises(attempts.OffMenu, attempts.register, "V9", "why", led, base)
+        raises(attempts.OffMenu, attempts.register, "V2", "", led, base)
+        for bad in (dict(base, tp_rr_multiple=3.0), dict(base, tp_rr_multiple=1.5, max_spread_points=40),
+                    dict(base, swing_lookback=4)):
+            raises(attempts.OffMenu, attempts.authorise, bad, led, set(), base)
+        v2 = attempts.variant_params("V2", base)
+        raises(attempts.NotCommitted, attempts.authorise, v2, led, set(), base)
+        rec = attempts.register("V2", "G3 near miss: wins too small", led, base)
+        h = attempts.config_hash(v2)
+        check(rec["attempt"] == 1 and rec["config_hash"] == h, f"ledger {rec}")
+        raises(attempts.NotCommitted, attempts.authorise, v2, led, set(), base)
+        a = attempts.authorise(v2, led, {h}, base)
+        check(a == {"attempt": 1, "variant": "V2", "config_hash": h, "alpha": 0.003125}, f"variant {a}")
+        raises(attempts.OffMenu, attempts.register, "V2", "again", led, base)
+        attempts.register("V4", "r", led, base)
+        attempts.register("V7", "r", led, base)
+        raises(attempts.OffMenu, attempts.register, "V5", "a fourth", led, base)
+        check(len(attempts.entries(led)) == 3, "a refused registration wrote the ledger")
+    t = pass_case()
+    lower = gates.evaluate(attempt(t, alpha=a["alpha"]), "S")["bootstrap"]["lower"]
+    check(close(lower, gates.bootstrap(t, gates.fold_months(*DEV), 0.003125)["lower"]), "G2 not at the variant level")
+    check(not close(lower, gates.bootstrap(t, gates.fold_months(*DEV), 0.025)["lower"]), "levels coincide")
+
+
+# ------------------------------------------------------------------ test 7
+
+def test_7_holdout_run_family():
+    with tempfile.TemporaryDirectory() as d:
+        u = unsealed(Path(d) / "u.jsonl")
+    ok = ([holdout.RunSpec(BASE_HASH, scenario=sc) for sc in SCENARIOS]
+          + [holdout.RunSpec(BASE_HASH, delay=dl) for dl in (60, 120, 180, 300)]
+          + [holdout.RunSpec(BASE_HASH, spread="p90"), holdout.RunSpec(BASE_HASH, ordering="optimistic"),
+             holdout.RunSpec(BASE_HASH, marks="adverse")]
+          + [holdout.RunSpec(BASE_HASH, kind="random", n_portfolios=1000, scenario=sc) for sc in SCENARIOS])
+    for s in ok:
+        check(isinstance(u.permit(s, ENGINE), holdout.Permit), f"{s} refused")
+    v2 = attempts.config_hash(attempts.variant_params("V2"))
+    bad = [holdout.RunSpec(v2), holdout.RunSpec(BASE_HASH, delay=240), holdout.RunSpec(BASE_HASH, delay=600),
+           holdout.RunSpec(BASE_HASH, delay=60, spread="p90"), holdout.RunSpec(BASE_HASH, spread="zero"),
+           holdout.RunSpec(BASE_HASH, delay=60, scenario="C"), holdout.RunSpec(BASE_HASH, kind="momentum"),
+           holdout.RunSpec(BASE_HASH, kind="random", n_portfolios=500),
+           holdout.RunSpec(BASE_HASH, kind="random", n_portfolios=1000, spread="p90"),
+           holdout.RunSpec(BASE_HASH, scenario="X")]
+    for s in bad:
+        raises(holdout.HoldoutRefused, u.permit, s, ENGINE)
+    raises(holdout.HoldoutRefused, u.permit, holdout.RunSpec(BASE_HASH), "ffff000")
+    p = u.permit(holdout.RunSpec(BASE_HASH), ENGINE)
+    h0 = data.HOLDOUT[0] + 86400
+    c = dataclasses.replace(market({h0: FLAT}, date(2025, 9, 1), date(2025, 9, 5)), permit=p)
+    portfolio.run([], c, portfolio.SIMULATION, "S")
+    for cc, sc in ((dataclasses.replace(c, params=attempts.variant_params("V2")), "S"),
+                   (dataclasses.replace(c, delay=300), "S"), (c, "T")):
+        raises(holdout.HoldoutRefused, portfolio.run, [], cc, portfolio.SIMULATION, sc)
+
+
 _real_month_totals = gates.month_totals
 _real_equity_curve = gates.equity_curve
 
@@ -252,7 +529,96 @@ def _value_strictly_before(curve, t):
     return prior[-1] if prior else 0.0
 
 
+_real_matching = benchmark.matching
+_real_run_portfolio = benchmark.run_portfolio
+
+
+def _guard_any_permit(t0, t1, permit=None):
+    if t0 < data.HOLDOUT[1] and t1 > data.HOLDOUT[0] and permit is None:
+        raise data.HoldoutSealed("sealed")
+
+
+def _shared_book():
+    book = portfolio.Book()
+    return lambda fold: book
+
+
+def _matching_pooled(records, bars, fold, delay=clock.BASELINE_DELAY):
+    m = _real_matching(records, bars, fold, delay)
+    sig = [r for r in records if r.get("population")]
+    q = len(sig) / len(bars)
+    p = sum(r["signal"]["direction"] == "LONG" for r in sig) / len(sig)
+    return dataclasses.replace(m, q={c: q for c in m.q}, p={c: p for c in m.q})
+
+
+def _run_dropping_invalid(i, m, bars, ctx, scenario="S"):
+    r = _real_run_portfolio(i, m, bars, ctx, scenario)
+    r.records = [x for x in r.records if x.get("population") != "B"]
+    return r
+
+
+def _diff(params, base):
+    return sorted(k for k in set(params) | set(base) if params.get(k) != base.get(k))
+
+
+def _classify_any_single(params, base):
+    d = _diff(params, base)
+    if not d:
+        return None
+    if len(d) == 1:
+        return next((v for v, (k, x) in attempts.MENU.items() if k == d[0] and x == params[k]), "X-" + d[0])
+    raise attempts.OffMenu(d)
+
+
+def _classify_first_menu_change(params, base):
+    d = _diff(params, base)
+    if not d:
+        return None
+    for vid, (k, x) in attempts.MENU.items():
+        if k in d and params[k] == x:
+            return vid
+    raise attempts.OffMenu(d)
+
+
+def _family_combined(spec, h):
+    if spec.config_hash != h or spec.scenario not in SCENARIOS:
+        return False
+    if spec.kind == "random":
+        return spec.n_portfolios == holdout.N_PORTFOLIOS
+    return spec.kind == "strategy" and (spec.delay in clock.PREREGISTERED_DELAYS
+                                        and spec.spread in ("draw", "p90"))
+
+
 VARIANTS = {
+    "test_1_seal": [
+        ("second unseal accepted", holdout, "previous_unseals", lambda p: []),
+        ("verdict not checked", holdout, "verdict_ok", lambda rec: True),
+        ("dirty engine accepted", holdout, "clean", lambda c: bool(c)),
+        ("seal disabled", data, "guard", lambda t0, t1, permit=None: None),
+        ("any object opens the seal", data, "guard", _guard_any_permit)],
+    "test_2_fold_boundary": [
+        ("fold end ignored", folds, "fold_end", lambda fold, ctx: int(ctx.m1.time[-1]) + 60),
+        ("holdout inherits the dev book", folds, "start_book", _shared_book())],
+    "test_5_random_benchmark": [
+        ("key without portfolio index", benchmark, "u",
+         lambda i, t, part: spread.u_key(f"{benchmark.KEY}|{int(t)}|{part}")),
+        ("pooled emission rate", benchmark, "matching", _matching_pooled),
+        ("G6 rank fixed at 950", gates, "benchmark_rank", lambda m: 950),
+        ("matching crosses folds", benchmark, "_require_fold", lambda ts, fold: None)],
+    "test_5b_random_benchmark_downstream": [
+        ("invalid signals dropped", benchmark, "run_portfolio", _run_dropping_invalid),
+        ("no slot rule", benchmark, "MODE", portfolio.CONFORMANCE)],
+    "test_6_attempt_ledger": [
+        ("any single change accepted", attempts, "classify", _classify_any_single),
+        ("combined variants accepted", attempts, "classify", _classify_first_menu_change),
+        ("commit not checked", attempts, "is_committed", lambda h, c: True),
+        ("baseline level for variants", attempts, "alpha_of", lambda vid: 0.025),
+        ("no attempt cap", attempts, "N_FURTHER", 8)],
+    "test_7_holdout_run_family": [
+        ("any run permitted", holdout, "in_family", lambda spec, h: True),
+        ("combined sensitivities permitted", holdout, "in_family", _family_combined),
+        ("engine not checked", holdout, "same_engine", lambda a, b: True),
+        ("context not checked", portfolio, "check_permit", lambda c, sc: None)],
     "test_3_bootstrap_golden_vector": [
         ("empty months dropped", gates, "month_totals", _totals_without_empty),
         ("trade-level bootstrap", gates, "month_totals", _totals_per_trade),

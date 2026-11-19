@@ -44,9 +44,10 @@ Do not restart the terminal from the GUI unless intended: a pending MT5 build in
 ```
 config/          — Settings, strategy params, news calendar
 engine/          — MT5 connector, data feed, strategy, risk, entry_observation (0g-1), pipeline (C2.1, shared with the replay)
-replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapshot hashes, holdout seal, C6.3), clock, spread, entry, exits (C5.1-C5.10, S/T/C paths), portfolio (CONFORMANCE/SIMULATION, risk gate, C2.5 ordering, C5.9 scenario agreement), gates (pr-0.4 P1 gate evaluator G1-G9, month-cluster bootstrap U1-U3, F5 segments; constructed inputs only until pr-1.0)
+replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapshot hashes, holdout seal, C6.3), clock, spread, entry, exits (C5.1-C5.10, S/T/C paths), portfolio (CONFORMANCE/SIMULATION, risk gate, C2.5 ordering, C5.9 scenario agreement), gates (pr-0.4 P1 gate evaluator G1-G9, month-cluster bootstrap U1-U3, F5 segments), folds (F1-F4, each fold flat), holdout (H1 unseal log, H2 run-family permits; nothing unsealed), benchmark (B2 random portfolios), attempts (M1-M3 attempt ledger, V1-V8 menu, G2 level), conformance (§8 Level E E0-E4 and the NOT CONFORMANT rule); constructed inputs only until pr-1.0
 alerts/          — Telegram notifications
 logs/            — Soak data, events.jsonl, runtime logs
+contract_amendments/ — Contract amendment proposals for review (ec-0.3 approved; ec-1.0 TBD-3/TBD-4 proposal v1, 19 Nov)
 research/        — Read-only probes: signal outcome, entry timing (0g-2..0g-4); history export (Data step)
 data/history/    — Exported M15/M1 CSV snapshots, not committed; manifests with hashes are in research/data_feasibility/
 tests/           — Unit tests
@@ -73,10 +74,12 @@ python tests/test_alert_throttle.py           # Telegram throttle state across c
 python tests/test_mt5_run_lock.py             # one MT5 run at a time, retry budget, stuck-terminal kill (22 Oct)
 python tests/test_mt5_login.py                # credentials passed to mt5.initialize(), account check, own abort reason and alert text for -6 (29 Oct)
 python tests/test_pipeline_parity.py          # C2.1: engine/pipeline.py reproduces the old inline run_hermes sequence (synthetic + post-holdout windows; --full every window; --controls)
-python tests/test_replay_contract.py          # ec-0.3 §9 contract tests 1-22 and 24-28 plus the holdout seal (23 comes with conformance); 14 and 28 read tests/fixtures/live_signal_events.jsonl (the 6 live SIGNAL_APPROVED events, exported from the VPS 12 Nov)
+python tests/test_replay_contract.py          # ec-0.3 §9 contract tests 1-28 plus the holdout seal; 14, 23 (E0 eligibility) and 28 read tests/fixtures/live_signal_events.jsonl (the 6 live SIGNAL_APPROVED events, exported from the VPS 12 Nov)
 python tests/test_replay_contract.py --controls  # each test under its broken variants; every variant must fail
-python tests/test_prereg.py                   # pr-0.4 §9 protocol tests 3 (bootstrap golden vector, tests/fixtures/prereg_u3_golden.json) and 4 (gate evaluator); 1, 2, 5-7 follow
+python tests/test_prereg.py                   # pr-0.4 §9 protocol tests 1-7: seal/unseal, fold boundary, bootstrap golden vector (tests/fixtures/prereg_u3_golden.json), gate evaluator, random benchmark, attempt ledger, holdout run family
 python tests/test_prereg.py --controls        # same, under broken variants
+python tests/test_conformance.py              # ec-0.3 §8 E1-E4, Levels 1-3 event parity and the verdict rule, on the signal fixture and constructed inputs
+python tests/test_conformance.py --controls   # same, under broken variants
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED
 python research/prereg_gate_power.py          # local, no MT5: reproduces the 0b drawdown/power table (PREREGISTRATION.md section 3)

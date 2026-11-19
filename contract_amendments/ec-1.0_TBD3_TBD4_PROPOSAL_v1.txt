@@ -1,0 +1,133 @@
+HERMES EXECUTION CONTRACT - PROPOSAL FOR TBD-3 AND TBD-4 (DRAFT v1, 2026-11-19)
+==============================================================================
+
+Base: EXECUTION_CONTRACT.md ec-0.3 (frozen 2026-11-12, tag ec-0.3). Clause
+numbers refer to it. Only TBD-3 (C3.2, section 11) and TBD-4 (section 8 E2,
+section 11) are proposed. Nothing else changes.
+
+What this proposal is NOT:
+- not ec-1.0, not a replay result, not live authorisation;
+- no change to PREREGISTRATION.md pr-0.4 or to the 0g-5 baseline;
+- no value is chosen from a strategy outcome. Both rules read live quotes and
+  M1 opens only: no signal result, R, equity or benchmark. Every cycle used is
+  after the holdout ends (2026-09-12 server), so no holdout bar is read.
+
+Plan: the Reviewer approves (or amends) the RULES below this week. On
+23 Nov the rules are run once on the VPS data to 22 Nov, the two artefacts are
+committed with their hashes, and TBD-3/TBD-4 freeze before any replay result
+is produced. The values are not known when the rules are chosen.
+
+
+1. Data available (facts)
+-------------------------
+- 0g-1 live cycles since 7 Oct 2026 (first 0g-1 signal: 047b848): every
+  cycle, signal or not, logs `quote` at the decision instant (quote_bid,
+  quote_ask, quote_spread_price, quote_time_msc) with
+  scheduling_delay_seconds and session. About 480 cycles a week; the weekly
+  checkpoints report quotes on every cycle that reached the quote step
+  (479/479, 384/384, 468/468).
+- By the session clock (engine get_session_tag, MYT hours) a week holds about
+  160 ASIA, 100 LONDON, 180 NY and 40 OFF cycles, before stale and suspect
+  exclusions. Seven weeks (7 Oct-22 Nov) give at most about 2.5 times the
+  soak's per-session n for ASIA, LONDON and NY. OFF loses up to 24 of its 40
+  a week to stale ticks, so its margin over the soak's 44 is the thinnest.
+  The real counts are only known on 23 Nov.
+- Exclusions already defined in weekly_checkpoint.py: stale-tick cycles
+  (stale_flags; 32-51 a week, concentrated in NY and OFF), suspect delays
+  (scheduling_delay_note; the daily-stop 22:45 bar, about 7,680 s) and
+  CYCLE_ABORTED events (no quote).
+- The 1,206-pair soak (0a): ASIA 437, LONDON 278, NY 447, OFF 44. Its
+  measurements were taken at soak times, not at the 0g-1 decision instant.
+- Account change on 16 Nov: demo 10013386522 was deleted by MetaQuotes;
+  cycles from 08:53 UTC use demo 115681802 on the same server, with symbol and
+  account fields identical (bs-596c87c5a2bb vs bs-39eef15e09e9).
+- The local export (20261027T070105Z) ends 27 Oct 07:01. E2 needs M1 to 22 Nov,
+  so a new export is required (export_history.py --maxbars 2000000, then
+  restore --maxbars 100000 --probe, as before).
+
+
+2. TBD-3: spread-model source and n (C3.2)
+------------------------------------------
+Proposed rule (S1-S6):
+
+S1 Source: the 0g-1 decision-time `quote_spread_price` of live cycles, as the
+   contract prefers, because it is measured at the instant the replay draws
+   for (C3.3 uses the spread at E, at most 60 s after the live D, E1).
+S2 Window: every cycle from the first 0g-1 cycle (7 Oct 2026) to Sun 22 Nov
+   2026 23:59 UTC, both accounts (S6).
+S3 Inclusion: event NO_SIGNAL, SIGNAL_APPROVED or SIGNAL_REJECTED, with
+   quote_error null, a fresh tick (stale_flags empty) and no
+   scheduling_delay_note. One point per (bar_time, session): a repeated bar
+   (manual rerun) keeps the first logged cycle.
+S4 Session: the event's logged `session` (session of D). Points are integer
+   points: round(quote_spread_price / point), point 0.01 from the broker spec.
+S5 Sufficiency: the 0g-1 source is used iff every session has at least the
+   soak's n for that session (ASIA 437, LONDON 278, NY 447, OFF 44). If any
+   session falls short, the model is the 1,206 soak measurements for ALL four
+   sessions. Sources are never mixed per session, so the artefact has one
+   provenance.
+S6 Accounts: the account change is not a model boundary, because the server,
+   symbol spec and feed are unchanged. The artefact records the per-account n
+   and the two-sample median per session, for information only.
+
+Artefact: research/data_feasibility/spread_model_<UTC stamp>.json with
+{"source", "window", "inclusion_rule": "TBD-3 S1-S6 v1", "n_by_session",
+"by_session": sorted points, "sha256"}. replay/spread.SpreadModel.load
+already checks sha256 against the canonical hash. The commit that adds it
+freezes TBD-3, and its hash goes into the run identity (C6.1).
+
+Questions for the Reviewer:
+- Q1 S3 excludes stale-tick cycles. They are the quotes live would have used,
+  but a stale tick's spread is not a current market spread. Exclude (proposed)
+  or include?
+- Q2 S5 uses the soak n as the minimum. Is a fixed n (for example 200 for each
+  session, 40 for OFF) preferred?
+- Q3 S4 uses the session of D. C3.3 step 5 draws from the session of E. They
+  differ only for bars where E crosses a session boundary (at most 60 s);
+  accept, or reclassify points by the session of the quote time?
+
+
+3. TBD-4: E2 price tolerance (section 8)
+----------------------------------------
+What E2 compares: the replay bid at E (open of the M1 bar stamped E, C1.6)
+against live quote_bid. At the baseline delay E is bar close + 480 s; the
+live quote is taken about 5 s later (delay p50 484 s), so a difference holds
+tick movement within those seconds as well as any feed difference. The
+first point (7 Oct) is 0.18.
+
+Proposed rule (T1-T5):
+
+T1 Calibration set: every cycle meeting S3 in the S2 window (signal or not),
+   with a replay bid at E in the new export. A cycle with no M1 bar at E is
+   counted and reported, not used.
+T2 Tolerance: T = type-1 99th percentile of |replay bid - live quote_bid| over
+   the calibration set, rounded up to the next 0.01. Frozen with its n, the
+   export id and a sha256 of the (bar_time, replay_bid, live_bid) rows.
+T3 Breach: the replay is in E2 breach iff either
+   (a) any E0-eligible signal cycle has |diff| > 2T, or
+   (b) in the conformance report's cycles (every cycle meeting S3), more than
+       2% have |diff| > T (twice the calibration rate by construction).
+T4 Reported, never a breach: the signed median and p10/p50/p90 of the
+   difference by session, the missing-M1 count, and the account split.
+T5 conformance.py implements T3 as two checks. The present e2() implements a
+   per-point tolerance only and gets the 2% rule when TBD-4 is frozen; its test
+   then changes with it and its control is redone.
+
+Questions for the Reviewer:
+- Q4 The calibration and conformance windows overlap (both are live cycles).
+  No strategy outcome enters T, but the conformance rule (b) is partly
+  self-referential for cycles before 23 Nov. Accept, or calibrate on
+  7 Oct-22 Nov and judge (b) only on cycles from 23 Nov?
+- Q5 2T in T3(a) and 2% in T3(b) are judgement, not derived. Alternatives:
+  T3(a) at T, or a binomial bound for (b).
+
+
+4. What happens on 23 Nov (week target, not done now)
+-----------------------------------------------------
+1. Reviewer verdict on S1-S6, T1-T5 and Q1-Q5 is recorded.
+2. VPS: new export; one script (research/build_tbd34.py, to write) reads
+   events.jsonl and the export and writes both artefacts. It prints n by
+   session and T only. It runs no strategy, no portfolio and no gate.
+3. Commit the artefacts and the clause text; tag after review.
+4. Then real conformance (section 8 Levels 1-4 and E0-E4) on the live
+   events, in CONFORMANCE mode.

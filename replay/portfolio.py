@@ -15,15 +15,19 @@ A trade's whole path is resolved on entry (replay.exits), but the book only
 ever reads it through X <= E, so no decision depends on an exit that is not
 yet booked (C2.6).
 
+A holdout run carries a holdout.Permit in its Context; run() refuses a
+context whose config_hash, delay or scenario differs from the permit's spec
+(pr-0.4 H2, holdout K5).
+
 Module-level functions frees_slot, counts_as_loss, gate_state, within_cap,
-cap_ok and verdicts_agree are the seams the contract tests patch with broken
+cap_ok, verdicts_agree and check_permit are the seams the contract tests patch with broken
 variants.
 """
 import time
 from dataclasses import dataclass, field
 
 from engine import pipeline, risk_manager
-from replay import clock, data, entry, exits, spread
+from replay import attempts, clock, data, entry, exits, holdout, spread
 
 CONFORMANCE, SIMULATION = "CONFORMANCE", "SIMULATION"
 BALANCE = 100000.0
@@ -89,10 +93,10 @@ def risk_gate(signal, spread_points, session, params, symbol_info, open_count, d
                               "daily_losses": daily_losses}
 
 
-def signal_at(m15, bar_open, params):
+def signal_at(m15, bar_open, params, permit=None):
     """C2.1: the live pipeline on the 200 closed M15 bars ending at bar_open."""
-    return pipeline.evaluate_closed_bars(data.strategy_window(m15, bar_open, params.get("candle_count", 200)),
-                                         params)
+    return pipeline.evaluate_closed_bars(
+        data.strategy_window(m15, bar_open, params.get("candle_count", 200), permit), params)
 
 
 @dataclass
@@ -106,6 +110,7 @@ class Context:
     delay: int = clock.BASELINE_DELAY
     window: tuple = clock.tc.OFFSET_UNCERTAIN
     data_end: int = None
+    permit: object = None
 
 
 def entry_time_of(opp, ctx):
@@ -145,7 +150,7 @@ def decide(opp, ctx, book, mode, scenario):
     if rec["population"] == "C":
         lv = entry.levels(sig["direction"], bid, sig["sl"], sig["tp"], sp)
         trade = exits.Trade(sig["direction"], lv["fill"], float(sig["sl"]), float(sig["tp"]), sp, e)
-        res = exits.resolve(trade, ctx.m1, ctx.m15, ctx.sched, scenario, ctx.data_end)
+        res = exits.resolve(trade, ctx.m1, ctx.m15, ctx.sched, scenario, ctx.data_end, ctx.permit)
         rec.update(levels=lv, result=res)
         book.positions.append(Position(e, res, out["required_margin"]))
     return rec
@@ -164,11 +169,23 @@ class Run:
         return [r["result"] for r in self.population("C")]
 
 
-def run(opps, ctx, mode=SIMULATION, scenario="S"):
-    """One complete path. Modes are never mixed in one run (C2.4)."""
+def check_permit(ctx, scenario):
+    """Holdout K5: the context must be the run the permit was issued for."""
+    spec = ctx.permit.spec
+    got = (attempts.config_hash(ctx.params), ctx.delay, scenario)
+    want = (spec.config_hash, spec.delay, spec.scenario)
+    if got != want:
+        raise holdout.HoldoutRefused(f"context {got} != permit {want}")
+
+
+def run(opps, ctx, mode=SIMULATION, scenario="S", book=None):
+    """One complete path. Modes are never mixed in one run (C2.4). book: the
+    starting book, flat (a new Book) unless given."""
     if mode not in (CONFORMANCE, SIMULATION):
         raise ValueError(mode)
-    book = Book()
+    if ctx.permit is not None:
+        check_permit(ctx, scenario)
+    book = Book() if book is None else book
     order = sorted(opps, key=lambda o: (entry_time_of(o, ctx), o["bar_open"]))
     return Run(mode, scenario, [decide(o, ctx, book, mode, scenario) for o in order])
 

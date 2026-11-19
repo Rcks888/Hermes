@@ -7,7 +7,8 @@ A snapshot is only usable if both CSVs hash to the values in its manifest.
 The seal: no strategy window and no exit path may touch a bar inside the
 holdout, server 2025-09-01 00:00 to 2026-09-12 00:00. Data-quality checks
 (calendar_check.py, export QC) read the CSVs directly and are not affected.
-Unsealing is pr-0.4 H1 and is not implemented: the engine refuses.
+Only a holdout.Permit, issued after a valid unseal (pr-0.4 H1) for one run of
+the H2 family, opens a holdout span.
 """
 import hashlib
 import json
@@ -40,10 +41,13 @@ def in_holdout(t):
     return HOLDOUT[0] <= t < HOLDOUT[1]
 
 
-def guard(t0, t1):
-    """Refuse any server span [t0, t1) that overlaps the holdout."""
+def guard(t0, t1, permit=None):
+    """Refuse any server span [t0, t1) that overlaps the holdout, unless it
+    comes with a holdout.Permit."""
     if t0 < HOLDOUT[1] and t1 > HOLDOUT[0]:
-        raise HoldoutSealed(f"span [{t0}, {t1}) overlaps the sealed holdout {HOLDOUT}")
+        from replay import holdout
+        if not isinstance(permit, holdout.Permit):
+            raise HoldoutSealed(f"span [{t0}, {t1}) overlaps the sealed holdout {HOLDOUT}")
 
 
 class Bars:
@@ -108,13 +112,13 @@ class Bars:
         }).reset_index(drop=True)
 
 
-def strategy_window(m15, signal_bar_open, count=200):
+def strategy_window(m15, signal_bar_open, count=200, permit=None):
     """The `count` closed M15 bars ending at the signal bar (C2.1), sealed."""
     i = m15.index(signal_bar_open)
     if i is None:
         raise KeyError(f"no M15 bar at {signal_bar_open}")
     i0 = max(0, i + 1 - count)
-    guard(int(m15.time[i0]), int(m15.time[i]) + m15.period)
+    guard(int(m15.time[i0]), int(m15.time[i]) + m15.period, permit)
     return m15.frame(i0, i + 1)
 
 

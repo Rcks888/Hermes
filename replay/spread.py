@@ -14,10 +14,14 @@ KEY_PREFIX = "hermes-ec-spread-v1|"
 SESSIONS = ("ASIA", "LONDON", "NY", "OFF")
 
 
-def u_of(bar_close_epoch):
-    key = (KEY_PREFIX + str(int(bar_close_epoch))).encode("ascii")
-    k = int.from_bytes(hashlib.sha256(key).digest()[:8], "big")
+def u_key(key):
+    """C3.3: the uniform of an ASCII key, from the first 8 bytes of its SHA-256."""
+    k = int.from_bytes(hashlib.sha256(key.encode("ascii")).digest()[:8], "big")
     return (k + 0.5) / 2 ** 64
+
+
+def u_of(bar_close_epoch):
+    return u_key(KEY_PREFIX + str(int(bar_close_epoch)))
 
 
 def rank(u, n):

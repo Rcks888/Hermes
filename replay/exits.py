@@ -225,16 +225,17 @@ def _decide_b(res, trade, m1, m15, sched, b0, post, first_hole, scenario):
     return "continue" if releases(case, scenario) else "held"
 
 
-def resolve(trade, m1, m15, sched, scenario="S", data_end=None):
+def resolve(trade, m1, m15, sched, scenario="S", data_end=None, permit=None):
     """Resolve one trade on one scenario path. data_end: exclusive server time
-    after the last M1 bar of the snapshot (C5.6); defaults to the last bar + 60."""
+    after the last M1 bar of the snapshot (C5.6); defaults to the last bar + 60.
+    permit: a holdout.Permit for a holdout run, else None (sealed)."""
     if scenario not in SCENARIOS:
         raise ValueError(scenario)
     data_end = int(m1.time[-1]) + M1 if data_end is None else data_end
     res = Result(scenario)
     slot = trade.entry_time - trade.entry_time % M15
     while slot < data_end:
-        data.guard(slot, slot + M15)
+        data.guard(slot, slot + M15, permit)
         post, first_hole = [], None
         for t in range(max(slot, trade.entry_time), min(slot + M15, data_end), M1):
             m = minute(m1, t)
