@@ -44,7 +44,7 @@ Do not restart the terminal from the GUI unless intended: a pending MT5 build in
 ```
 config/          — Settings, strategy params, news calendar
 engine/          — MT5 connector, data feed, strategy, risk, entry_observation (0g-1), pipeline (C2.1, shared with the replay)
-replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapshot hashes, holdout seal, C6.3), clock, spread, entry, exits (C5.1-C5.10, S/T/C paths), portfolio (CONFORMANCE/SIMULATION, risk gate, C2.5 ordering, C5.9 scenario agreement), gates (pr-0.4 P1 gate evaluator G1-G9, month-cluster bootstrap U1-U3, F5 segments), folds (F1-F4, each fold flat), holdout (H1 unseal log with a committed go-ahead and TTY confirmation, H2 run-family permits enforced on the run; nothing unsealed), benchmark (B2 random portfolios), attempts (M1-M3 attempt ledger, V1-V8 menu, G2 level), conformance (§8 Level E E0-E4, E2 v2 signal and forward-rate conditions as proposed, and the NOT CONFORMANT rule); constructed inputs only until pr-1.0
+replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapshot hashes, holdout seal, C6.3), clock, spread, entry, exits (C5.1-C5.10, S/T/C paths), portfolio (CONFORMANCE/SIMULATION, risk gate, C2.5 ordering, C5.9 scenario agreement), gates (pr-0.4 P1 gate evaluator G1-G9, month-cluster bootstrap U1-U3, F5 segments), folds (F1-F4, each fold flat), holdout (H1 unseal log with a committed go-ahead and TTY confirmation, engine identity read from git, H2 run-family permits enforced on the run; nothing unsealed), benchmark (B2 random portfolios), attempts (M1-M3 attempt ledger, V1-V8 menu, G2 level), conformance (§8 Level E E0-E4, E2 v2 signal and forward-rate conditions as proposed, and the NOT CONFORMANT rule); constructed inputs only until pr-1.0
 alerts/          — Telegram notifications
 logs/            — Soak data, events.jsonl, runtime logs
 contract_amendments/ — Contract amendment proposals for review (ec-0.3 approved; ec-1.0 TBD-3/TBD-4 proposal v1 and v2, 19 Nov; v2 answers the Reviewer's HOLD on v1)
@@ -76,7 +76,7 @@ python tests/test_mt5_login.py                # credentials passed to mt5.initia
 python tests/test_pipeline_parity.py          # C2.1: engine/pipeline.py reproduces the old inline run_hermes sequence (synthetic + post-holdout windows; --full every window; --controls)
 python tests/test_replay_contract.py          # ec-0.3 §9 contract tests 1-28 plus the holdout seal; 14, 23 (E0 eligibility) and 28 read tests/fixtures/live_signal_events.jsonl (the 6 live SIGNAL_APPROVED events, exported from the VPS 12 Nov)
 python tests/test_replay_contract.py --controls  # each test under its broken variants; every variant must fail
-python tests/test_prereg.py                   # pr-0.4 §9 protocol tests 1-7: seal/unseal, fold boundary, bootstrap golden vector (tests/fixtures/prereg_u3_golden.json), gate evaluator, random benchmark, attempt ledger, holdout run family
+python tests/test_prereg.py                   # pr-0.4 §9 protocol tests 1-7: seal/unseal, fold boundary, bootstrap golden vector (tests/fixtures/prereg_u3_golden.json), gate evaluator, random benchmark, attempt ledger, holdout run family; 7b engine identity (needs git)
 python tests/test_prereg.py --controls        # same, under broken variants
 python tests/test_conformance.py              # ec-0.3 §8 E1-E4 (E2 as proposed in v2), Levels 1-3 event parity and the verdict rule, on the signal fixture and constructed inputs
 python tests/test_conformance.py --controls   # same, under broken variants

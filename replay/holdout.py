@@ -20,8 +20,13 @@ Interpretations, to be confirmed in review (none changes a frozen clause):
   VPS. No check on a single-user machine proves who typed; the bindings make
   a go-ahead unusable for any other verdict or configuration, and the TTY
   requirement keeps a non-interactive tool run from unsealing.
-- K3. "One unseal session from one engine commit": the commit is recorded at
-  unsealing and every permit requires the same clean commit.
+- K3 [v3]. "One unseal session from one engine commit": the engine is read
+  from the repository, never supplied. current_engine() is the full HEAD sha,
+  with "-dirty" if any tracked file differs or any untracked file lies
+  outside UNTRACKED_OK (the holdout outputs in research/p1/). unseal()
+  records it, Unseal.permit() and every portfolio.run() under a permit
+  require it unchanged and clean. Outputs are committed after the session:
+  a commit during it changes HEAD and ends the session.
 - K4 [v2]. The H2 family is a closed set of RunSpec values for the committed
   config_hash. Strategy runs: the primary settings (delay 480, the frozen
   spread draw) on path S, T or C, or exactly one sensitivity on path S: a G7
@@ -34,13 +39,16 @@ Interpretations, to be confirmed in review (none changes a frozen clause):
   state is not modelled; the AMBIGUOUS trades on days where that gate blocked
   a later signal are counted beside it. Everything else is refused, B3, B4
   (spread zero) and combined sensitivities included.
-- K5 [v2]. portfolio.check_permit enforces the permit on the run itself:
-  config_hash, delay, path, the spread model by hash (draw or its p90), the
-  run kind from the opportunities, and for B2 each portfolio index below
-  N_PORTFOLIOS.
+- K5 [v3]. portfolio.check_permit enforces the permit on the run itself:
+  SIMULATION mode; the running engine (K3); config_hash, path and the spread
+  model by hash (draw or its p90); the delay of the context AND of every
+  opportunity (a per-opportunity "delay" must equal the permit's); the run
+  kind from the opportunities; and for B2 exactly one portfolio index per
+  run, below N_PORTFOLIOS, since one run is one book.
 
 Module-level functions previous_unseals, verdict_ok, go_ahead_ok, in_family,
-same_engine and clean are the seams the tests patch with broken variants.
+same_engine, clean, is_dirty and current_engine are the seams the tests patch
+with broken variants.
 """
 import json
 import subprocess
@@ -56,6 +64,7 @@ UNSEAL_LOG = ROOT / "research" / "p1" / "holdout_unseal_log.jsonl"
 VERDICT_PATH = "research/p1/development_verdict.json"
 GO_AHEAD_PATH = "research/p1/holdout_go_ahead.txt"
 GO_AHEAD_PHRASE = "I authorise unsealing the Hermes holdout"
+UNTRACKED_OK = ("research/p1/",)
 PRIMARY_DELAY = clock.BASELINE_DELAY
 G7_DELAYS = tuple(d for d in clock.PREREGISTERED_DELAYS if d != PRIMARY_DELAY)
 N_PORTFOLIOS = 1000
@@ -95,10 +104,9 @@ class Unseal:
     spread_hashes: dict
     entry: dict
 
-    def permit(self, spec, engine_commit):
+    def permit(self, spec):
         """A Permit for one H2 run, or HoldoutRefused (K3, K4)."""
-        if not same_engine(engine_commit, self.engine_commit):
-            raise HoldoutRefused(f"engine {engine_commit} != unseal session {self.engine_commit} (H2)")
+        check_engine(self.engine_commit)
         if not in_family(spec, self.config_hash):
             raise HoldoutRefused(f"{spec} is not in the H2 run family")
         return Permit(spec, self.verdict_commit, self.engine_commit, self.spread_hashes[spec.spread])
@@ -159,12 +167,33 @@ def tty_confirm(config_hash):
     return input(f"Type the config_hash {config_hash} to unseal the holdout: ").strip() == config_hash
 
 
+def is_dirty(porcelain_lines):
+    """K3: a tracked change, or an untracked file outside UNTRACKED_OK."""
+    return any(not (x.startswith("?? ") and x[3:].startswith(UNTRACKED_OK)) for x in porcelain_lines if x)
+
+
+def current_engine(repo=ROOT):
+    """K3: the running engine, read from the repository."""
+    head = _git(["rev-parse", "HEAD"], repo)
+    st = _git(["status", "--porcelain", "--untracked-files=all"], repo)
+    if head.returncode != 0 or st.returncode != 0:
+        return "unknown"
+    return head.stdout.strip() + ("-dirty" if is_dirty(st.stdout.splitlines()) else "")
+
+
 def clean(commit):
     return bool(commit) and not commit.endswith("-dirty") and commit != "unknown"
 
 
 def same_engine(a, b):
     return a == b and clean(a)
+
+
+def check_engine(session_commit):
+    """K3: the engine running now is the session's clean commit."""
+    running = current_engine()
+    if not same_engine(running, session_commit):
+        raise HoldoutRefused(f"running engine {running} != unseal session {session_commit} (H2)")
 
 
 def in_family(spec, config_hash):
@@ -183,7 +212,7 @@ def in_family(spec, config_hash):
     return one and spec.scenario == "S"
 
 
-def unseal(verdict_commit, go_ahead_commit, engine_commit, model, log_path=UNSEAL_LOG,
+def unseal(verdict_commit, go_ahead_commit, model, log_path=UNSEAL_LOG,
            lookup=verdict_at, go_ahead_lookup=go_ahead_at, confirm=None):
     """H1: log one valid unseal and return it; refuse anything else.
     confirm defaults to tty_confirm, resolved at call time."""
@@ -196,8 +225,9 @@ def unseal(verdict_commit, go_ahead_commit, engine_commit, model, log_path=UNSEA
     text = go_ahead_lookup(go_ahead_commit, verdict_commit)
     if not go_ahead_ok(text, verdict_commit, rec["config_hash"]):
         raise HoldoutRefused(f"{go_ahead_commit} holds no committed go-ahead for {verdict_commit} (H1, K2)")
+    engine_commit = current_engine()
     if not clean(engine_commit):
-        raise HoldoutRefused(f"engine commit {engine_commit!r} is not a clean commit")
+        raise HoldoutRefused(f"running engine {engine_commit!r} is not a clean commit (K3)")
     if not confirm(rec["config_hash"]):
         raise HoldoutRefused("the unseal was not confirmed at an interactive terminal (K2)")
     hashes = spread_hashes(model)

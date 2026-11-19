@@ -17,9 +17,11 @@ downstream part), 6 attempt ledger (replay/attempts.py), 7 holdout run family.
 """
 import calendar
 import dataclasses
+import functools
 import hashlib
 import io
 import json
+import subprocess
 import math
 import sys
 import tempfile
@@ -283,12 +285,28 @@ def long_signal():
             "sl_distance": 10.0, "atr": 8.0, "symbol": "XAUUSD"}
 
 
+def on_engine(sha):
+    """The running engine as current_engine() would read it from git."""
+    return mock.patch.object(holdout, "current_engine", lambda repo=None: sha)
+
+
+def running(sha):
+    def wrap(fn):
+        @functools.wraps(fn)
+        def test():
+            with on_engine(sha):
+                return fn()
+        return test
+    return wrap
+
+
 def unsealed(log, model=MODEL30):
-    return holdout.unseal("5a5a5a5", "60a4ead", ENGINE, model, log, VERDICTS.get, go_lookup, typed)
+    return holdout.unseal("5a5a5a5", "60a4ead", model, log, VERDICTS.get, go_lookup, typed)
 
 
 # ------------------------------------------------------------------ test 1
 
+@running(ENGINE)
 def test_1_seal():
     h0 = data.HOLDOUT[0]
     raises(data.HoldoutSealed, data.guard, h0, h0 + 900)
@@ -303,10 +321,11 @@ def test_1_seal():
                                        ("5a5a5a5", "n0phras", ENGINE, typed),
                                        ("5a5a5a5", "60a4ead", ENGINE + "-dirty", typed),
                                        ("5a5a5a5", "60a4ead", ENGINE, lambda h: False)):
-            raises(holdout.HoldoutRefused, holdout.unseal, verdict, go, eng, MODEL30, log, VERDICTS.get,
-                   go_lookup, conf)
+            with on_engine(eng):
+                raises(holdout.HoldoutRefused, holdout.unseal, verdict, go, MODEL30, log, VERDICTS.get,
+                       go_lookup, conf)
         with mock.patch.object(holdout.sys, "stdin", io.StringIO(BASE_HASH + "\n")):
-            raises(holdout.HoldoutRefused, holdout.unseal, "5a5a5a5", "60a4ead", ENGINE, MODEL30, log,
+            raises(holdout.HoldoutRefused, holdout.unseal, "5a5a5a5", "60a4ead", MODEL30, log,
                    VERDICTS.get, go_lookup)
         check(not log.exists(), "a refused unseal wrote the log")
         u = unsealed(log)
@@ -316,11 +335,11 @@ def test_1_seal():
         check(e["verdict_commit"] == "5a5a5a5" and e["config_hash"] == BASE_HASH and e["engine_commit"] == ENGINE
               and e["go_ahead_commit"] == "60a4ead" and e["go_ahead"] == GO and e["ts"]
               and e["spread_hashes"]["draw"] == MODEL30.hash, f"unseal entry {e}")
-        p = u.permit(holdout.RunSpec(BASE_HASH), ENGINE)
+        p = u.permit(holdout.RunSpec(BASE_HASH))
         data.guard(h0, h0 + 900, p)
         raises(data.HoldoutSealed, data.guard, h0, h0 + 900, object())
         for verdict in ("5a5a5a5", "b0b0b0b"):
-            raises(holdout.SecondUnseal, holdout.unseal, verdict, "60a4ead", ENGINE, MODEL30, log,
+            raises(holdout.SecondUnseal, holdout.unseal, verdict, "60a4ead", MODEL30, log,
                    VERDICTS.get, go_lookup, typed)
         check(len(log.read_text().splitlines()) == 1, "a refused second unseal wrote the log")
         s = holdout.session(log)
@@ -359,6 +378,7 @@ def truncation_case():
     return market(mins, date(2025, 8, 25), date(2025, 9, 5)), fold
 
 
+@running(ENGINE)
 def test_2_fold_boundary():
     c, fold = truncation_case()
     res = folds.run_fold([{"bar_open": srv(2025, 8, 29, 19, 45), "signal": long_signal()}], c, fold).records[0]["result"]
@@ -380,7 +400,7 @@ def test_2_fold_boundary():
     check(gates.closed_trades(dev) == [], "an OPEN trade entered the closed-trade statistics")
     raises(data.HoldoutSealed, folds.run_fold, opps, c, folds.HOLDOUT)
     with tempfile.TemporaryDirectory() as d:
-        p = unsealed(Path(d) / "u.jsonl").permit(holdout.RunSpec(BASE_HASH), ENGINE)
+        p = unsealed(Path(d) / "u.jsonl").permit(holdout.RunSpec(BASE_HASH))
     ho = folds.run_fold(opps, c, folds.HOLDOUT, permit=p)
     check([r["bar_open"] for r in ho.records] == [opps[1]["bar_open"]], "holdout fold took a dev opportunity")
     h = ho.records[0]
@@ -525,6 +545,7 @@ def test_6_attempt_ledger():
 
 # ------------------------------------------------------------------ test 7
 
+@running(ENGINE)
 def test_7_holdout_run_family():
     with tempfile.TemporaryDirectory() as d:
         u = unsealed(Path(d) / "u.jsonl")
@@ -532,15 +553,17 @@ def test_7_holdout_run_family():
     ok = ([R(BASE_HASH, scenario=sc) for sc in SCENARIOS] + [R(BASE_HASH, delay=dl) for dl in (60, 120, 180, 300)]
           + [R(BASE_HASH, spread="p90")] + [R(BASE_HASH, kind="random", scenario=sc) for sc in SCENARIOS])
     for s in ok:
-        check(isinstance(u.permit(s, ENGINE), holdout.Permit), f"{s} refused")
+        check(isinstance(u.permit(s), holdout.Permit), f"{s} refused")
     v2 = attempts.config_hash(attempts.variant_params("V2"))
     bad = [R(v2), R(BASE_HASH, delay=240), R(BASE_HASH, delay=600), R(BASE_HASH, delay=60, spread="p90"),
            R(BASE_HASH, spread="zero"), R(BASE_HASH, delay=60, scenario="C"), R(BASE_HASH, spread="p90", scenario="T"),
            R(BASE_HASH, kind="momentum"), R(BASE_HASH, kind="random", spread="p90"),
            R(BASE_HASH, kind="random", delay=60), R(BASE_HASH, scenario="X")]
     for s in bad:
-        raises(holdout.HoldoutRefused, u.permit, s, ENGINE)
-    raises(holdout.HoldoutRefused, u.permit, R(BASE_HASH), "ffff000")
+        raises(holdout.HoldoutRefused, u.permit, s)
+    for other in ("ffff000", ENGINE + "-dirty", "unknown"):
+        with on_engine(other):
+            raises(holdout.HoldoutRefused, u.permit, R(BASE_HASH))
     h0 = data.HOLDOUT[0] + 86400
     base_ctx = market({h0: FLAT}, date(2025, 9, 1), date(2025, 9, 5))
     p90 = spread.constant_model(MODEL30, 0.90)
@@ -549,20 +572,54 @@ def test_7_holdout_run_family():
     def rand(i):
         return [{"bar_open": h0 - 900, "signal": dict(long_signal(), benchmark_portfolio=i)}]
 
-    c = dataclasses.replace(base_ctx, permit=u.permit(R(BASE_HASH), ENGINE))
+    c = dataclasses.replace(base_ctx, permit=u.permit(R(BASE_HASH)))
     portfolio.run(strat, c, portfolio.SIMULATION, "S")
     for cc, sc, opps in ((dataclasses.replace(c, params=attempts.variant_params("V2")), "S", strat),
                          (dataclasses.replace(c, delay=300), "S", strat), (c, "T", strat),
                          (dataclasses.replace(c, model=p90), "S", strat), (c, "S", rand(0))):
         raises(holdout.HoldoutRefused, portfolio.run, opps, cc, portfolio.SIMULATION, sc)
-    c = dataclasses.replace(base_ctx, model=p90, permit=u.permit(R(BASE_HASH, spread="p90"), ENGINE))
+    rec = portfolio.run([dict(strat[0], delay=480)], c, portfolio.SIMULATION, "S").records[0]
+    check(rec["D"] == h0 + 480, f"explicit primary delay: D {rec['D']}")
+    for d in (240, 60):
+        raises(holdout.HoldoutRefused, portfolio.run, [dict(strat[0], delay=d)], c, portfolio.SIMULATION, "S")
+    raises(holdout.HoldoutRefused, portfolio.run, strat, c, portfolio.CONFORMANCE, "S")
+    for other in ("ffff000", ENGINE + "-dirty"):
+        with on_engine(other):
+            raises(holdout.HoldoutRefused, portfolio.run, strat, c, portfolio.SIMULATION, "S")
+    c = dataclasses.replace(base_ctx, model=p90, permit=u.permit(R(BASE_HASH, spread="p90")))
     portfolio.run(strat, c, portfolio.SIMULATION, "S")
     raises(holdout.HoldoutRefused, portfolio.run, strat, dataclasses.replace(c, model=MODEL30),
            portfolio.SIMULATION, "S")
-    c = dataclasses.replace(base_ctx, permit=u.permit(R(BASE_HASH, kind="random", scenario="T"), ENGINE))
+    c = dataclasses.replace(base_ctx, permit=u.permit(R(BASE_HASH, kind="random", scenario="T")))
     portfolio.run(rand(999), c, portfolio.SIMULATION, "T")
-    for opps in (rand(1000), strat):
+    for opps in (rand(1000), strat, rand(3) + [dict(rand(4)[0], bar_open=h0)], [dict(rand(5)[0], delay=240)]):
         raises(holdout.HoldoutRefused, portfolio.run, opps, c, portfolio.SIMULATION, "T")
+
+
+def test_7b_engine_identity():
+    """K3: current_engine reads HEAD and the work tree; holdout outputs in
+    research/p1/ do not make it dirty, anything else does."""
+    with tempfile.TemporaryDirectory() as d:
+        repo = Path(d)
+        def git(*a):
+            return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=repo,
+                                  capture_output=True, text=True, check=True).stdout.strip()
+        git("init", "-q")
+        (repo / "engine.py").write_text("x = 1\n")
+        git("add", "engine.py")
+        git("commit", "-q", "-m", "c1")
+        sha = git("rev-parse", "HEAD")
+        check(holdout.current_engine(repo) == sha, f"clean tree: {holdout.current_engine(repo)} != {sha}")
+        (repo / "research" / "p1").mkdir(parents=True)
+        (repo / "research" / "p1" / "holdout_unseal_log.jsonl").write_text("{}\n")
+        check(holdout.current_engine(repo) == sha, "holdout output in research/p1/ made the tree dirty")
+        (repo / "replay_patch.py").write_text("y = 2\n")
+        check(holdout.current_engine(repo) == sha + "-dirty", "an untracked module left the tree clean")
+        (repo / "replay_patch.py").unlink()
+        (repo / "engine.py").write_text("x = 2\n")
+        check(holdout.current_engine(repo) == sha + "-dirty", "a modified tracked file left the tree clean")
+        git("commit", "-q", "-am", "c2")
+        check(holdout.current_engine(repo) not in (sha, sha + "-dirty"), "a new commit kept the engine id")
 
 
 _real_month_totals = gates.month_totals
@@ -658,20 +715,29 @@ def _family_combined(spec, h):
 
 def _permit_without(part):
     """check_permit with one of its K5 checks removed."""
-    def check(ctx, scenario, opps):
+    def check(ctx, scenario, opps, mode):
         p = ctx.permit
+        if part != "mode" and mode != portfolio.SIMULATION:
+            raise holdout.HoldoutRefused("mode")
+        if part != "engine":
+            holdout.check_engine(p.engine_commit)
         got = [attempts.config_hash(ctx.params), ctx.delay, scenario, ctx.model.hash]
         want = [p.spec.config_hash, p.spec.delay, p.spec.scenario, p.spread_hash]
         if part == "model":
             got, want = got[:3], want[:3]
         if got != want:
             raise holdout.HoldoutRefused("run")
+        if part != "opp delay" and any(o.get("delay", ctx.delay) != p.spec.delay for o in opps):
+            raise holdout.HoldoutRefused("delay")
         kind = portfolio.run_kind(opps)
         if part != "kind" and kind not in (None, p.spec.kind):
             raise holdout.HoldoutRefused("kind")
-        if part != "index" and kind == "random" and any(
-                o["signal"]["benchmark_portfolio"] >= holdout.N_PORTFOLIOS for o in opps):
-            raise holdout.HoldoutRefused("index")
+        if kind == "random":
+            idx = {o["signal"]["benchmark_portfolio"] for o in opps}
+            if part != "one portfolio" and len(idx) != 1:
+                raise holdout.HoldoutRefused("portfolios")
+            if part != "index" and max(idx) >= holdout.N_PORTFOLIOS:
+                raise holdout.HoldoutRefused("index")
     return check
 
 
@@ -717,10 +783,19 @@ VARIANTS = {
         ("any run permitted", holdout, "in_family", lambda spec, h: True),
         ("combined sensitivities permitted", holdout, "in_family", _family_combined),
         ("engine not checked", holdout, "same_engine", lambda a, b: True),
-        ("permit not checked on the run", portfolio, "check_permit", lambda c, sc, o: None),
+        ("permit not checked on the run", portfolio, "check_permit", lambda c, sc, o, m: None),
+        ("mode not checked", portfolio, "check_permit", _permit_without("mode")),
+        ("engine not rechecked at run time", portfolio, "check_permit", _permit_without("engine")),
+        ("opportunity delay not checked", portfolio, "check_permit", _permit_without("opp delay")),
+        ("several portfolios in one run", portfolio, "check_permit", _permit_without("one portfolio")),
         ("spread model not checked", portfolio, "check_permit", _permit_without("model")),
         ("signal kind not checked", portfolio, "check_permit", _permit_without("kind")),
         ("portfolio count not checked", portfolio, "check_permit", _permit_without("index"))],
+    "test_7b_engine_identity": [
+        ("untracked files ignored", holdout, "is_dirty",
+         lambda lines: any(not x.startswith("?? ") for x in lines if x)),
+        ("no untracked exemption", holdout, "is_dirty", lambda lines: any(lines)),
+        ("work tree not checked", holdout, "is_dirty", lambda lines: False)],
     "test_3_bootstrap_golden_vector": [
         ("empty months dropped", gates, "month_totals", _totals_without_empty),
         ("trade-level bootstrap", gates, "month_totals", _totals_per_trade),

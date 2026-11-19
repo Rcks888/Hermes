@@ -16,8 +16,9 @@ ever reads it through X <= E, so no decision depends on an exit that is not
 yet booked (C2.6).
 
 A holdout run carries a holdout.Permit in its Context; run() refuses a run
-whose config_hash, delay, path, spread model, signal kind or B2 portfolio
-index differs from the permit (pr-0.4 H2, holdout K5).
+that is not SIMULATION, not on the session's clean engine, or whose
+config_hash, context or opportunity delay, path, spread model, signal kind or
+single B2 portfolio index differs from the permit (pr-0.4 H2, holdout K5).
 
 Module-level functions frees_slot, counts_as_loss, gate_state, within_cap,
 cap_ok, verdicts_agree and check_permit are the seams the contract tests patch with broken
@@ -177,21 +178,29 @@ def run_kind(opps):
     return kinds.pop() if kinds else None
 
 
-def check_permit(ctx, scenario, opps):
+def check_permit(ctx, scenario, opps, mode):
     """Holdout K5: the run must be the one the permit was issued for."""
     p = ctx.permit
     spec = p.spec
+    if mode != SIMULATION:
+        raise holdout.HoldoutRefused(f"{mode} under a holdout permit; H2 runs are SIMULATION")
+    holdout.check_engine(p.engine_commit)
     got = (attempts.config_hash(ctx.params), ctx.delay, scenario, ctx.model.hash)
     want = (spec.config_hash, spec.delay, spec.scenario, p.spread_hash)
     if got != want:
         raise holdout.HoldoutRefused(f"run {got} != permit {want}")
+    delays = sorted({o.get("delay", ctx.delay) for o in opps} - {spec.delay})
+    if delays:
+        raise holdout.HoldoutRefused(f"opportunity delays {delays} under a permit for {spec.delay}")
     kind = run_kind(opps)
     if kind not in (None, spec.kind):
         raise holdout.HoldoutRefused(f"{kind} signals under a {spec.kind} permit")
     if kind == "random":
-        bad = sorted({o["signal"]["benchmark_portfolio"] for o in opps} - set(range(holdout.N_PORTFOLIOS)))
-        if bad:
-            raise holdout.HoldoutRefused(f"portfolio indices {bad[:5]} outside 0-{holdout.N_PORTFOLIOS - 1}")
+        idx = sorted({o["signal"]["benchmark_portfolio"] for o in opps})
+        if len(idx) != 1:
+            raise holdout.HoldoutRefused(f"portfolios {idx[:5]} in one run; one run is one portfolio's book")
+        if idx[0] not in range(holdout.N_PORTFOLIOS):
+            raise holdout.HoldoutRefused(f"portfolio {idx[0]} outside 0-{holdout.N_PORTFOLIOS - 1}")
 
 
 def run(opps, ctx, mode=SIMULATION, scenario="S", book=None):
@@ -200,7 +209,7 @@ def run(opps, ctx, mode=SIMULATION, scenario="S", book=None):
     if mode not in (CONFORMANCE, SIMULATION):
         raise ValueError(mode)
     if ctx.permit is not None:
-        check_permit(ctx, scenario, opps)
+        check_permit(ctx, scenario, opps, mode)
     book = Book() if book is None else book
     order = sorted(opps, key=lambda o: (entry_time_of(o, ctx), o["bar_open"]))
     return Run(mode, scenario, [decide(o, ctx, book, mode, scenario) for o in order])
