@@ -100,12 +100,6 @@ def ny_to_server(d, minutes, fixed=None):
     return utc_to_server(u, fixed)
 
 
-def server_to_ny_minutes(d, t):
-    """Minutes after New York midnight of date d at server epoch t."""
-    u = server_to_utc(t)
-    return (u - 3600 * (4 if us_summer(d) else 5) - epoch(d)) // 60
-
-
 def easter(y):
     a, b, c = y % 19, y // 100, y % 100
     d, e = b // 4, b % 4

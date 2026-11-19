@@ -945,10 +945,6 @@ def _execute_no_margin_check(signal, quote, balance, params, spec, open_margin=0
     return entry.propose(signal, quote, balance, params, spec.symbol_info, spec.margin_calculator())
 
 
-def _propose_without_calculator(signal, quote, balance, params, symbol_info, mt5):
-    return eo.propose_execution(signal, quote, balance, params, symbol_info, mt5=None)
-
-
 def _population_q_filter(out):
     q = entry.r1_q(out) if out.get("executable_sl_distance") else None
     if out["execution_validity_status"] == eo.EXEC_OK and (q is None or q >= 0.25):
