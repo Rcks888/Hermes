@@ -38,14 +38,29 @@ def test_e1_decision_instant():
         check(r["pass"] is ok, f"delay {delay}: diff {r['rows'][0]['diff']} pass {r['pass']}")
 
 
+SIG = [("s1", 3000.36, 3000.00), ("s2", 2999.90, 3000.00)]
+FWD = [(f"f{i}", 3000.0 + (0.19 if i < 8 else 0.18), 3000.0) for i in range(400)]
+
+
 def test_e2_price():
-    pairs = [("a", 3000.18, 3000.00), ("b", 2999.90, 3000.00), ("c", None, 3000.0)]
-    r = conformance.e2(pairs)
-    check(r["pass"] and r["tolerance"] is None and r["missing"] == ["c"], f"untoleranced E2 {r}")
-    check(r["distribution"]["n"] == 2 and r["distribution"]["max_abs"] == 0.18, f"distribution {r}")
-    check(conformance.e2(pairs, 0.18)["pass"], "0.18 at tolerance 0.18 breached")
-    r = conformance.e2(pairs + [("d", 3000.19, 3000.0)], 0.18)
-    check(not r["pass"] and r["breaches"] == [("d", 0.19)], f"0.19 at 0.18: {r['breaches']}")
+    r = conformance.e2(SIG + [("s3", None, 3000.0)], FWD + [("f-", None, 3000.0)])
+    check(r["pass"] and not r["assessed"] and r["tolerance"] is None and r["missing"]["signal"] == ["s3"]
+          and r["missing"]["forward"] == ["f-"], f"E2 before TBD-4 {r}")
+    check(r["signal"]["n"] == 2 and r["signal"]["max_abs"] == 0.36 and r["forward"]["n"] == 400, f"summaries {r}")
+    r = conformance.e2(SIG, FWD, 0.18)
+    check(r["pass"] and r["assessed"] and r["forward_n"] == 400 and r["forward_exceed"] == 8
+          and r["signal_breaches"] == [], f"0.36 = 2T on a signal, 8/400 = 2% forward: {r}")
+    r = conformance.e2(SIG + [("s4", 3000.37, 3000.0)], FWD, 0.18)
+    check(not r["pass"] and r["signal_breaches"] == [("s4", 0.37)], f"signal 0.37 > 2T: {r['signal_breaches']}")
+    r = conformance.e2(SIG + [("s3", None, 3000.0)], FWD + [("f-", None, 3000.0)], 0.18)
+    check(not r["pass"] and r["signal_breaches"] == [("s3", None)] and r["forward_n"] == 400,
+          f"signal cycle without a replay bid: {r['signal_breaches']}, forward n {r['forward_n']}")
+    r = conformance.e2(SIG, FWD + [("f400", 3000.19, 3000.0)], 0.18)
+    check(not r["pass"] and r["forward_exceed"] == 9, f"9 of 401 > 2%: {r['pass']}, {r['forward_exceed']}")
+    r = conformance.e2(SIG, FWD[1:], 0.18)
+    check(r["pass"] and not r["assessed"] and r["forward_n"] == 399, f"399 forward cycles assessed: {r['assessed']}")
+    r = conformance.e2(SIG, [], 0.18)
+    check(not r["assessed"], "an empty forward population assessed")
 
 
 def test_e3_status_attribution():
@@ -53,7 +68,7 @@ def test_e3_status_attribution():
     cases = [(OCT7, lb, ls), (OCT7, 4131.0, ls), (OCT7, lb, 30.0), (OCT7, 4128.0, 3.0), (OCT7, 4131.0, 30.0)]
     r = conformance.e3(cases, PARAMS, SPEC)
     got = [x.get("attribution", "agree") for x in r["rows"]]
-    want = ["agree", "bid", "spread", "bid+spread", conformance.E3_UNATTRIBUTED]
+    want = ["agree", "bid", "spread", "bid|spread", conformance.E3_UNATTRIBUTED]
     check(got == want, f"attribution {got}, want {want}")
     check(r["agreement"] == 0.2 and r["unattributed"] == [OCT7["bar_time"]] and not r["pass"], f"E3 {r}")
     check(conformance.e3(cases[:4], PARAMS, SPEC)["pass"], "attributed disagreements failed E3")
@@ -83,17 +98,24 @@ def test_levels_and_verdict():
                          (({1: ok}, {"pass": False}, ok, ok, ok), "E0 field mismatch"),
                          (({1: ok}, ok, conformance.e1([dict(OCT7, scheduling_delay_seconds=600.0)]), ok, ok),
                           "E1 breach"),
-                         (({1: ok}, ok, ok, conformance.e2([("x", lb + 0.5, lb)], 0.18), ok), "E2 breach"),
+                         (({1: ok}, ok, ok, conformance.e2([("x", lb + 0.5, lb)], FWD, 0.18), ok), "E2 breach"),
+                         (({1: ok}, ok, ok, conformance.e2(SIG, FWD[:100], 0.18), ok), "E2 not assessed"),
                          (({1: ok}, ok, ok, ok, e3), conformance.E3_UNATTRIBUTED)):
         v = conformance.verdict(*args)
         check(v["verdict"] == "NOT CONFORMANT" and v["reasons"] == [reason]
               and v["historical_reporting"] == "prohibited", f"{reason}: {v}")
-    v = conformance.verdict({1: ok}, ok, ok, conformance.e2([("x", lb + 0.5, lb)]), ok)
+    v = conformance.verdict({1: ok}, ok, ok, conformance.e2(SIG, FWD, 0.18), ok)
+    check(v["verdict"] == "CONFORMANT", f"E2 within both conditions: {v}")
+    v = conformance.verdict({1: ok}, ok, ok, conformance.e2([("x", lb + 0.5, lb)], []), ok)
     check(v["verdict"] == "CONFORMANT", "E2 breached before TBD-4 is frozen")
 
 
 _real_status_of = conformance.status_of
 _real_verdict = conformance.verdict
+
+
+def _verdict_assessed(levels, e0r, e1r, e2r, e3r):
+    return _real_verdict(levels, e0r, e1r, dict(e2r, assessed=True), e3r)
 
 
 def _status_ignoring_spread(ev, bid, spread_price, params, spec):
@@ -122,15 +144,19 @@ VARIANTS = {
     "test_e1_decision_instant": [
         ("E1 limit 61 s", conformance, "E1_LIMIT", 61)],
     "test_e2_price": [
-        ("tolerance inclusive", conformance, "e2",
-         lambda pairs, tolerance=None, _f=conformance.e2: _f(pairs, None if tolerance is None else tolerance - 0.001))],
+        ("signal cycles at T, not 2T", conformance, "E2_SIGNAL_FACTOR", 1),
+        ("forward rate 3%", conformance, "E2_RATE", conformance.Fraction(3, 100)),
+        ("no forward minimum", conformance, "E2_MIN_FORWARD", 0),
+        ("missing replay bid ignored", conformance, "_diffs",
+         lambda pairs: ([(t, round(r - lv, 2)) for t, r, lv in pairs if r is not None and lv is not None], []))],
     "test_e3_status_attribution": [
         ("spread not passed through", conformance, "status_of", _status_ignoring_spread),
-        ("unattributed accepted", conformance, "E3_UNATTRIBUTED", "bid+spread")],
+        ("unattributed accepted", conformance, "E3_UNATTRIBUTED", "bid|spread")],
     "test_e4_spread_by_session": [
         ("type-7 quantiles", conformance, "_type1", _type7)],
     "test_levels_and_verdict": [
         ("E3 ignored by the verdict", conformance, "verdict", _verdict_without_e3),
+        ("E2 not assessed accepted", conformance, "verdict", _verdict_assessed),
         ("one-sided fields ignored", conformance, "level", _level_both_sides_only)],
 }
 

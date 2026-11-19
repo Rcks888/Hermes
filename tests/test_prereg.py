@@ -18,6 +18,7 @@ downstream part), 6 attempt ledger (replay/attempts.py), 7 holdout run family.
 import calendar
 import dataclasses
 import hashlib
+import io
 import json
 import math
 import sys
@@ -236,7 +237,23 @@ SPIKE = (3000.0, 3021.0, 2999.5, 3020.5)
 BASE_HASH = attempts.REGISTERED_BASELINE
 ENGINE = "a1b2c3d"
 VERDICTS = {"5a5a5a5": {"verdict": "PASS", "config_hash": BASE_HASH, "attempt": 0},
-            "fa11fa1": {"verdict": "FAIL", "config_hash": BASE_HASH, "attempt": 0}}
+            "fa11fa1": {"verdict": "FAIL", "config_hash": BASE_HASH, "attempt": 0},
+            "b0b0b0b": {"verdict": "PASS", "config_hash": "0123456789ab", "attempt": 1}}
+GO = f"{holdout.GO_AHEAD_PHRASE}: verdict 5a5a5a5, config {BASE_HASH}. Rickson Kang"
+GO_AHEADS = {("60a4ead", "5a5a5a5"): GO,
+             ("0th3r00", "5a5a5a5"): GO.replace("5a5a5a5", "b0b0b0b"),
+             ("n0hash0", "5a5a5a5"): GO.replace(BASE_HASH, ""),
+             ("n0phras", "5a5a5a5"): GO.replace(holdout.GO_AHEAD_PHRASE, "OK"),
+             ("60a4ead", "fa11fa1"): GO.replace("5a5a5a5", "fa11fa1"),
+             ("60a4ead", "b0b0b0b"): GO}
+
+
+def go_lookup(commit, verdict_commit):
+    return GO_AHEADS.get((commit, verdict_commit))
+
+
+def typed(config_hash):
+    return config_hash == BASE_HASH
 
 
 def raises(exc, fn, *a, **kw):
@@ -266,8 +283,8 @@ def long_signal():
             "sl_distance": 10.0, "atr": 8.0, "symbol": "XAUUSD"}
 
 
-def unsealed(log):
-    return holdout.unseal("5a5a5a5", "Go ahead with the holdout. Rickson", ENGINE, log, VERDICTS.get)
+def unsealed(log, model=MODEL30):
+    return holdout.unseal("5a5a5a5", "60a4ead", ENGINE, model, log, VERDICTS.get, go_lookup, typed)
 
 
 # ------------------------------------------------------------------ test 1
@@ -276,24 +293,35 @@ def test_1_seal():
     h0 = data.HOLDOUT[0]
     raises(data.HoldoutSealed, data.guard, h0, h0 + 900)
     raises(data.HoldoutSealed, data.guard, h0 - 60, h0 + 60)
+    with mock.patch.object(holdout.sys, "stdin", io.StringIO(BASE_HASH + "\n")):
+        check(holdout.tty_confirm(BASE_HASH) is False, "a non-interactive stdin confirmed the unseal")
     with tempfile.TemporaryDirectory() as d:
         log = Path(d) / "unseal.jsonl"
-        for commit, go, eng in (("fa11fa1", "go", ENGINE), ("0000000", "go", ENGINE),
-                                ("5a5a5a5", "  ", ENGINE), ("5a5a5a5", "go", ENGINE + "-dirty")):
-            raises(holdout.HoldoutRefused, holdout.unseal, commit, go, eng, log, VERDICTS.get)
+        for verdict, go, eng, conf in (("fa11fa1", "60a4ead", ENGINE, typed), ("0000000", "60a4ead", ENGINE, typed),
+                                       ("b0b0b0b", "60a4ead", ENGINE, typed), ("5a5a5a5", "nonexst", ENGINE, typed),
+                                       ("5a5a5a5", "0th3r00", ENGINE, typed), ("5a5a5a5", "n0hash0", ENGINE, typed),
+                                       ("5a5a5a5", "n0phras", ENGINE, typed),
+                                       ("5a5a5a5", "60a4ead", ENGINE + "-dirty", typed),
+                                       ("5a5a5a5", "60a4ead", ENGINE, lambda h: False)):
+            raises(holdout.HoldoutRefused, holdout.unseal, verdict, go, eng, MODEL30, log, VERDICTS.get,
+                   go_lookup, conf)
+        with mock.patch.object(holdout.sys, "stdin", io.StringIO(BASE_HASH + "\n")):
+            raises(holdout.HoldoutRefused, holdout.unseal, "5a5a5a5", "60a4ead", ENGINE, MODEL30, log,
+                   VERDICTS.get, go_lookup)
         check(not log.exists(), "a refused unseal wrote the log")
         u = unsealed(log)
         lines = log.read_text().splitlines()
         check(len(lines) == 1, f"{len(lines)} log entries after one unseal")
         e = json.loads(lines[0])
-        check(e["verdict_commit"] == "5a5a5a5" and e["config_hash"] == BASE_HASH
-              and e["engine_commit"] == ENGINE and e["go_ahead"].startswith("Go ahead") and e["ts"],
-              f"unseal entry {e}")
+        check(e["verdict_commit"] == "5a5a5a5" and e["config_hash"] == BASE_HASH and e["engine_commit"] == ENGINE
+              and e["go_ahead_commit"] == "60a4ead" and e["go_ahead"] == GO and e["ts"]
+              and e["spread_hashes"]["draw"] == MODEL30.hash, f"unseal entry {e}")
         p = u.permit(holdout.RunSpec(BASE_HASH), ENGINE)
         data.guard(h0, h0 + 900, p)
         raises(data.HoldoutSealed, data.guard, h0, h0 + 900, object())
-        for commit in ("5a5a5a5", "fa11fa1"):
-            raises(holdout.SecondUnseal, holdout.unseal, commit, "again", ENGINE, log, VERDICTS.get)
+        for verdict in ("5a5a5a5", "b0b0b0b"):
+            raises(holdout.SecondUnseal, holdout.unseal, verdict, "60a4ead", ENGINE, MODEL30, log,
+                   VERDICTS.get, go_lookup, typed)
         check(len(log.read_text().splitlines()) == 1, "a refused second unseal wrote the log")
         s = holdout.session(log)
         check((s.verdict_commit, s.config_hash, s.engine_commit) == ("5a5a5a5", BASE_HASH, ENGINE),
@@ -320,7 +348,22 @@ def boundary_case():
     return c, opps, last_dev
 
 
+def truncation_case():
+    """Inside development, independent of the seal: a fold ending Fri 22:00
+    server with the TP touched at 22:30, after the fold's end."""
+    sched = clock.schedule(date(2025, 8, 25), date(2025, 9, 5))
+    t0, t1 = srv(2025, 8, 29, 19, 45), srv(2025, 8, 29, 23, 0)
+    mins = {t: FLAT for t in range(t0, t1, 60) if sched.scheduled(t)}
+    mins[srv(2025, 8, 29, 22, 30)] = SPIKE
+    fold = (folds.SPAN_START, srv(2025, 8, 29, 22, 0))
+    return market(mins, date(2025, 8, 25), date(2025, 9, 5)), fold
+
+
 def test_2_fold_boundary():
+    c, fold = truncation_case()
+    res = folds.run_fold([{"bar_open": srv(2025, 8, 29, 19, 45), "signal": long_signal()}], c, fold).records[0]["result"]
+    check(res.outcome == "OPEN" and res.marks[-1][0] == fold[1],
+          f"fold ending 22:00: {res.outcome} at {res.exit_time}, last mark {res.marks[-1][0]}; resolved past the fold end")
     c, opps, last_dev = boundary_case()
     check(folds.DEVELOPMENT[1] == folds.HOLDOUT[0] == data.HOLDOUT[0], "folds do not meet at the seal")
     dev = folds.run_fold(opps, c, folds.DEVELOPMENT)
@@ -356,7 +399,7 @@ def b2_inputs():
             bars.append((b0, 3000.0 + k, 8.0))
             if k < n_sig:
                 e = clock.entry_instant(clock.decision_instant(b0, clock.BASELINE_DELAY))
-                sig = dict(long_signal(), direction="LONG" if k % 3 else "SHORT", sl_distance=4.0 + k)
+                sig = dict(long_signal(), direction="LONG" if k % 3 else "SHORT", sl_distance=4.003 + k)
                 records.append({"bar_open": b0, "E": e, "population": "CAB"[k % 3], "signal": sig})
     records.append({"bar_open": srv(2025, 3, 4, 20, 0), "E": srv(2025, 3, 4, 20, 23), "population": None})
     return bars, records
@@ -392,6 +435,9 @@ def test_5_random_benchmark():
         check(s["direction"] == ("LONG" if u_independent(7, t, "dir") < m.p[c] else "SHORT"), "direction draw")
         check(s["entry"] == close_ and close(s["sl"], round(close_ - sign * r * 8.0, 2))
               and close(s["tp"], round(close_ + sign * 2.0 * r * 8.0, 2)), f"levels {s}")
+        check(s["stop_multiple"] == r and s["sl_distance"] == r * 8.0
+              and s["sl_price_distance"] == round(abs(close_ - s["sl"]), 2),
+              f"sampled vs price stop distance {s}")
     emitted = [o["bar_open"] for i in range(200) for o in benchmark.draw_signals(i, m, bars, 2.0)]
     check(emitted and not [b for b in emitted if benchmark.cell_of(b, clock.BASELINE_DELAY) in zero],
           "a cell with A_c = 0 emitted")
@@ -441,6 +487,16 @@ def test_6_attempt_ledger():
     base = attempts.base_params()
     a0 = attempts.authorise(base, committed=set())
     check(a0 == {"attempt": 0, "variant": None, "config_hash": BASE_HASH, "alpha": 0.025}, f"baseline {a0}")
+    off = (dict(base, tp_rr_multiple=3.0), dict(base, tp_rr_multiple=1.5, max_spread_points=40),
+           dict(base, swing_lookback=4))
+    with tempfile.TemporaryDirectory() as d:
+        forged = Path(d) / "forged.jsonl"
+        forged.write_text("".join(json.dumps({"attempt": k + 1, "variant": "V2", "rationale": "forged",
+                                              "config_hash": attempts.config_hash(p)}) + "\n"
+                                  for k, p in enumerate(off)))
+        for bad in off:
+            raises(attempts.OffMenu, attempts.classify, bad, base)
+            raises(attempts.OffMenu, attempts.authorise, bad, forged, {attempts.config_hash(p) for p in off}, base)
     with tempfile.TemporaryDirectory() as d:
         led = Path(d) / "ledger.jsonl"
         raises(attempts.OffMenu, attempts.register, "V9", "why", led, base)
@@ -472,30 +528,41 @@ def test_6_attempt_ledger():
 def test_7_holdout_run_family():
     with tempfile.TemporaryDirectory() as d:
         u = unsealed(Path(d) / "u.jsonl")
-    ok = ([holdout.RunSpec(BASE_HASH, scenario=sc) for sc in SCENARIOS]
-          + [holdout.RunSpec(BASE_HASH, delay=dl) for dl in (60, 120, 180, 300)]
-          + [holdout.RunSpec(BASE_HASH, spread="p90"), holdout.RunSpec(BASE_HASH, ordering="optimistic"),
-             holdout.RunSpec(BASE_HASH, marks="adverse")]
-          + [holdout.RunSpec(BASE_HASH, kind="random", n_portfolios=1000, scenario=sc) for sc in SCENARIOS])
+    R = holdout.RunSpec
+    ok = ([R(BASE_HASH, scenario=sc) for sc in SCENARIOS] + [R(BASE_HASH, delay=dl) for dl in (60, 120, 180, 300)]
+          + [R(BASE_HASH, spread="p90")] + [R(BASE_HASH, kind="random", scenario=sc) for sc in SCENARIOS])
     for s in ok:
         check(isinstance(u.permit(s, ENGINE), holdout.Permit), f"{s} refused")
     v2 = attempts.config_hash(attempts.variant_params("V2"))
-    bad = [holdout.RunSpec(v2), holdout.RunSpec(BASE_HASH, delay=240), holdout.RunSpec(BASE_HASH, delay=600),
-           holdout.RunSpec(BASE_HASH, delay=60, spread="p90"), holdout.RunSpec(BASE_HASH, spread="zero"),
-           holdout.RunSpec(BASE_HASH, delay=60, scenario="C"), holdout.RunSpec(BASE_HASH, kind="momentum"),
-           holdout.RunSpec(BASE_HASH, kind="random", n_portfolios=500),
-           holdout.RunSpec(BASE_HASH, kind="random", n_portfolios=1000, spread="p90"),
-           holdout.RunSpec(BASE_HASH, scenario="X")]
+    bad = [R(v2), R(BASE_HASH, delay=240), R(BASE_HASH, delay=600), R(BASE_HASH, delay=60, spread="p90"),
+           R(BASE_HASH, spread="zero"), R(BASE_HASH, delay=60, scenario="C"), R(BASE_HASH, spread="p90", scenario="T"),
+           R(BASE_HASH, kind="momentum"), R(BASE_HASH, kind="random", spread="p90"),
+           R(BASE_HASH, kind="random", delay=60), R(BASE_HASH, scenario="X")]
     for s in bad:
         raises(holdout.HoldoutRefused, u.permit, s, ENGINE)
-    raises(holdout.HoldoutRefused, u.permit, holdout.RunSpec(BASE_HASH), "ffff000")
-    p = u.permit(holdout.RunSpec(BASE_HASH), ENGINE)
+    raises(holdout.HoldoutRefused, u.permit, R(BASE_HASH), "ffff000")
     h0 = data.HOLDOUT[0] + 86400
-    c = dataclasses.replace(market({h0: FLAT}, date(2025, 9, 1), date(2025, 9, 5)), permit=p)
-    portfolio.run([], c, portfolio.SIMULATION, "S")
-    for cc, sc in ((dataclasses.replace(c, params=attempts.variant_params("V2")), "S"),
-                   (dataclasses.replace(c, delay=300), "S"), (c, "T")):
-        raises(holdout.HoldoutRefused, portfolio.run, [], cc, portfolio.SIMULATION, sc)
+    base_ctx = market({h0: FLAT}, date(2025, 9, 1), date(2025, 9, 5))
+    p90 = spread.constant_model(MODEL30, 0.90)
+    strat = [{"bar_open": h0 - 900, "signal": long_signal()}]
+
+    def rand(i):
+        return [{"bar_open": h0 - 900, "signal": dict(long_signal(), benchmark_portfolio=i)}]
+
+    c = dataclasses.replace(base_ctx, permit=u.permit(R(BASE_HASH), ENGINE))
+    portfolio.run(strat, c, portfolio.SIMULATION, "S")
+    for cc, sc, opps in ((dataclasses.replace(c, params=attempts.variant_params("V2")), "S", strat),
+                         (dataclasses.replace(c, delay=300), "S", strat), (c, "T", strat),
+                         (dataclasses.replace(c, model=p90), "S", strat), (c, "S", rand(0))):
+        raises(holdout.HoldoutRefused, portfolio.run, opps, cc, portfolio.SIMULATION, sc)
+    c = dataclasses.replace(base_ctx, model=p90, permit=u.permit(R(BASE_HASH, spread="p90"), ENGINE))
+    portfolio.run(strat, c, portfolio.SIMULATION, "S")
+    raises(holdout.HoldoutRefused, portfolio.run, strat, dataclasses.replace(c, model=MODEL30),
+           portfolio.SIMULATION, "S")
+    c = dataclasses.replace(base_ctx, permit=u.permit(R(BASE_HASH, kind="random", scenario="T"), ENGINE))
+    portfolio.run(rand(999), c, portfolio.SIMULATION, "T")
+    for opps in (rand(1000), strat):
+        raises(holdout.HoldoutRefused, portfolio.run, opps, c, portfolio.SIMULATION, "T")
 
 
 _real_month_totals = gates.month_totals
@@ -584,9 +651,38 @@ def _family_combined(spec, h):
     if spec.config_hash != h or spec.scenario not in SCENARIOS:
         return False
     if spec.kind == "random":
-        return spec.n_portfolios == holdout.N_PORTFOLIOS
+        return spec.delay == holdout.PRIMARY_DELAY and spec.spread == "draw"
     return spec.kind == "strategy" and (spec.delay in clock.PREREGISTERED_DELAYS
                                         and spec.spread in ("draw", "p90"))
+
+
+def _permit_without(part):
+    """check_permit with one of its K5 checks removed."""
+    def check(ctx, scenario, opps):
+        p = ctx.permit
+        got = [attempts.config_hash(ctx.params), ctx.delay, scenario, ctx.model.hash]
+        want = [p.spec.config_hash, p.spec.delay, p.spec.scenario, p.spread_hash]
+        if part == "model":
+            got, want = got[:3], want[:3]
+        if got != want:
+            raise holdout.HoldoutRefused("run")
+        kind = portfolio.run_kind(opps)
+        if part != "kind" and kind not in (None, p.spec.kind):
+            raise holdout.HoldoutRefused("kind")
+        if part != "index" and kind == "random" and any(
+                o["signal"]["benchmark_portfolio"] >= holdout.N_PORTFOLIOS for o in opps):
+            raise holdout.HoldoutRefused("index")
+    return check
+
+
+_real_draw_signals = benchmark.draw_signals
+
+
+def _draw_price_distance(i, m, bars, tp_rr, digits=2):
+    out = _real_draw_signals(i, m, bars, tp_rr, digits)
+    for o in out:
+        o["signal"]["sl_distance"] = o["signal"]["sl_price_distance"]
+    return out
 
 
 VARIANTS = {
@@ -594,6 +690,8 @@ VARIANTS = {
         ("second unseal accepted", holdout, "previous_unseals", lambda p: []),
         ("verdict not checked", holdout, "verdict_ok", lambda rec: True),
         ("dirty engine accepted", holdout, "clean", lambda c: bool(c)),
+        ("go-ahead not bound to verdict and config", holdout, "go_ahead_ok", lambda t, v, h: bool(t)),
+        ("no interactive confirmation", holdout, "tty_confirm", lambda h: True),
         ("seal disabled", data, "guard", lambda t0, t1, permit=None: None),
         ("any object opens the seal", data, "guard", _guard_any_permit)],
     "test_2_fold_boundary": [
@@ -604,7 +702,8 @@ VARIANTS = {
          lambda i, t, part: spread.u_key(f"{benchmark.KEY}|{int(t)}|{part}")),
         ("pooled emission rate", benchmark, "matching", _matching_pooled),
         ("G6 rank fixed at 950", gates, "benchmark_rank", lambda m: 950),
-        ("matching crosses folds", benchmark, "_require_fold", lambda ts, fold: None)],
+        ("matching crosses folds", benchmark, "_require_fold", lambda ts, fold: None),
+        ("stop distance from rounded prices", benchmark, "draw_signals", _draw_price_distance)],
     "test_5b_random_benchmark_downstream": [
         ("invalid signals dropped", benchmark, "run_portfolio", _run_dropping_invalid),
         ("no slot rule", benchmark, "MODE", portfolio.CONFORMANCE)],
@@ -618,7 +717,10 @@ VARIANTS = {
         ("any run permitted", holdout, "in_family", lambda spec, h: True),
         ("combined sensitivities permitted", holdout, "in_family", _family_combined),
         ("engine not checked", holdout, "same_engine", lambda a, b: True),
-        ("context not checked", portfolio, "check_permit", lambda c, sc: None)],
+        ("permit not checked on the run", portfolio, "check_permit", lambda c, sc, o: None),
+        ("spread model not checked", portfolio, "check_permit", _permit_without("model")),
+        ("signal kind not checked", portfolio, "check_permit", _permit_without("kind")),
+        ("portfolio count not checked", portfolio, "check_permit", _permit_without("index"))],
     "test_3_bootstrap_golden_vector": [
         ("empty months dropped", gates, "month_totals", _totals_without_empty),
         ("trade-level bootstrap", gates, "month_totals", _totals_per_trade),

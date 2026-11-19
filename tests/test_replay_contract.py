@@ -470,14 +470,15 @@ def test_22_equity_marks():
 def test_23_e0_eligibility():
     events = live_events()
     rep = conformance.e0(events, PARAMS, SPEC)
-    assert rep["ineligible"] == ["2026-10-02 09:45:00+00:00"], rep["ineligible"]
+    assert rep["ineligible"] == ["2026-10-02 09:45:00+00:00"], f"listed ineligible: {rep['ineligible']}"
     assert len(rep["rows"]) == len(events) - 1 and rep["pass"], rep["rows"]
     oct7 = event_at(events, "2026-10-07 17:30:00+00:00")
     gap = {k: v for k, v in oct7.items() if k != "exec_observation"}
     gap["bar_time"] = "2026-11-06 10:00:00+00:00"
     late = conformance.e0(events + [gap], PARAMS, SPEC)
     assert not late["pass"], "a signal cycle lacking 0g-1 fields after the first eligible one passed E0"
-    assert late["ineligible"] == rep["ineligible"] and not late["rows"][-1]["ok"], late["rows"][-1]
+    assert late["ineligible"] == rep["ineligible"] and not late["rows"][-1]["ok"], (
+        f"late gap: listed ineligible {late['ineligible']}, last row {late['rows'][-1]}")
     bad = dict(oct7, exec_observation=dict(oct7["exec_observation"], required_margin=1642.27))
     wrong = conformance.e0([bad if e is oct7 else e for e in events], PARAMS, SPEC)
     assert not wrong["pass"] and "required_margin" in wrong["rows"][0]["diff"], wrong["rows"][0]
@@ -1113,7 +1114,7 @@ VARIANTS = {
          property(lambda self: self.outcome == "SL_HIT"))],
     "test_23_e0_eligibility": [
         ("later gaps exempt", conformance, "e0", _e0_gaps_exempt),
-        ("eligible on the quote alone", conformance, "eligible", lambda ev: bool(ev.get("quote")))],
+        ("eligibility from the first signal cycle", conformance, "first_eligible", lambda sig: 0)],
     "test_24_scenario_agreement_hold": [
         ("verdict of S only", portfolio, "verdicts_agree", lambda rows: True),
         ("1% cap exclusive", portfolio, "within_cap", lambda s: s is not None and s < portfolio.PU_CAP),

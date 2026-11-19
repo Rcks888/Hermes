@@ -14,8 +14,12 @@ Interpretations, to be confirmed in review (none changes a frozen clause):
   clock.session_of, the classifier the gate uses.
 - N3. A signal's sl_atr_ratio is sl_distance / atr, unrounded, as
   risk_manager computes it.
-- N4. Random SL and TP are rounded to the symbol's digits, as the strategy's
-  levels are; sl_distance stays r x ATR(14).
+- N4 [v2]. Two distances are kept apart, as in the strategy's own signals
+  (live 2 Oct: sl_distance 7.152, entry - sl 7.15). The sampled stop
+  distance sl_distance = r x ATR(14), unrounded, is what the risk gate's
+  SL/ATR bounds read. The SL and TP prices are rounded to the symbol's
+  digits, and propose_execution sizes from those prices. Each signal records
+  both, with stop_multiple r and sl_price_distance = |entry - sl|.
 - N5. `bars` are (bar_open, close, atr) for every evaluated bar of the fold,
   taken from the strategy run's own pipeline, so ATR(14) is the strategy's.
 
@@ -91,7 +95,8 @@ def draw_signals(i, m, bars, tp_rr, digits=2):
         tp = round(close + tp_rr * dist if is_long else close - tp_rr * dist, digits)
         opps.append({"bar_open": b0, "signal": {
             "direction": "LONG" if is_long else "SHORT", "entry": close, "sl": sl, "tp": tp,
-            "sl_distance": dist, "atr": atr, "symbol": "XAUUSD", "benchmark_portfolio": i}})
+            "sl_distance": dist, "atr": atr, "symbol": "XAUUSD", "benchmark_portfolio": i,
+            "stop_multiple": r, "sl_price_distance": round(abs(close - sl), digits)}})
     return opps
 
 

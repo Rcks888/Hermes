@@ -2,9 +2,19 @@
 
 Function parity (E0) is exact, on the live logged inputs. Model agreement
 (E1-E4) compares the replay's proxy inputs with the live cycle's. A Level 1-4
-mismatch, any E0 field mismatch, an E1 or E2 breach (E2 once TBD-4 is frozen)
-or any E3_UNATTRIBUTED makes the replay NOT CONFORMANT, and historical
-performance reporting is then prohibited.
+mismatch, any E0 field mismatch, an E1 or E2 breach (E2 once TBD-4 is frozen),
+E2 not assessed once TBD-4 is frozen, or any E3_UNATTRIBUTED makes the replay
+NOT CONFORMANT, and historical performance reporting is then prohibited.
+
+E2 [v2, proposed with TBD-4 in the ec-1.0 proposal v2, not yet frozen]: two
+conditions on two populations. (a) Every E0-eligible signal cycle, with no
+calibration exclusion applied: |diff| <= E2_SIGNAL_FACTOR x T. (b) The
+forward population, cycles after the calibration cutoff selected as for
+calibration: at least E2_MIN_FORWARD of them, and at most E2_RATE of them
+with |diff| > T. Fewer is "E2 not assessed", never a pass. An eligible signal
+cycle with no replay bid at E is a breach of (a); a forward cycle without one
+is counted and left out of n. Differences and T are compared in integer
+cents.
 
 Built on synthetic inputs and the signal fixture only. The real report, on
 the VPS events.jsonl against an export covering the live period, follows when
@@ -19,16 +29,19 @@ Interpretations, to be confirmed in review (none changes a frozen clause):
   bar_close + scheduling_delay_seconds.
 - P3. E3 statuses come from propose_execution with the C4.4 calculator, the
   function live logs from, so only the swapped inputs differ. A disagreement
-  removed by either single swap is attributed to that input; removed by
-  both, to both.
+  removed by a single swap is attributed to that input. "bid|spread" means
+  that EACH single swap removes it independently. One removed only when both
+  inputs are swapped together is E3_UNATTRIBUTED (section 8 rejects joint
+  attribution).
 - P4. E4 compares integer points, live quote_spread_price / point rounded,
   with the model's per-session points; type-1 quantiles, no pass rule.
 
-Module-level functions eligible and status_of are the seams the tests patch
-with broken variants.
+Module-level functions eligible, first_eligible and status_of are the seams
+the tests patch with broken variants.
 """
 import calendar
 from datetime import datetime
+from fractions import Fraction
 
 from engine import entry_observation as eo
 from replay import clock, entry, spread
@@ -36,6 +49,9 @@ from replay import clock, entry, spread
 SIGNAL_EVENTS = ("SIGNAL_APPROVED", "SIGNAL_REJECTED")
 E1_LIMIT = 60
 E3_UNATTRIBUTED = "E3_UNATTRIBUTED"
+E2_SIGNAL_FACTOR = 2
+E2_RATE = Fraction(2, 100)
+E2_MIN_FORWARD = 400
 LEVEL2_FIELDS = ("cannot_evaluate", "blocked_at", "direction", "entry", "sl", "tp", "reason")
 QUANTILES = (0.10, 0.50, 0.90)
 
@@ -56,11 +72,16 @@ def eligible(ev):
     return bool(ev.get("exec_observation")) and bool(ev.get("quote")) and ev.get("balance") is not None
 
 
+def first_eligible(sig):
+    """Section 8: eligibility starts at the first event carrying the fields."""
+    return next((i for i, e in enumerate(sig) if eligible(e)), len(sig))
+
+
 def e0(events, params, spec):
     """E0: ineligible signal cycles before the first eligible one are listed;
     every later signal cycle must be eligible and match on every field."""
     sig = [e for e in events if e.get("event") in SIGNAL_EVENTS]
-    first = next((i for i, e in enumerate(sig) if eligible(e)), len(sig))
+    first = first_eligible(sig)
     calc = spec.margin_calculator()
     rows = []
     for ev in sig[first:]:
@@ -99,14 +120,34 @@ def summary(xs):
             "max_abs": max((abs(x) for x in xs), default=None)}
 
 
-def e2(pairs, tolerance=None):
-    """E2: replay bid minus live quote_bid. pairs: (bar_time, replay_bid,
-    live_bid). A breach only once TBD-4 gives the tolerance."""
-    diffs = [(t, round(r - lv, 2)) for t, r, lv in pairs if r is not None and lv is not None]
-    breaches = [] if tolerance is None else [(t, d) for t, d in diffs if abs(d) > tolerance]
-    return {"distribution": summary([d for _, d in diffs]), "tolerance": tolerance,
-            "breaches": breaches, "missing": [t for t, r, lv in pairs if r is None or lv is None],
-            "pass": not breaches}
+def cents(x):
+    return int(round(abs(x) * 100))
+
+
+def _diffs(pairs):
+    return ([(t, round(r - lv, 2)) for t, r, lv in pairs if r is not None and lv is not None],
+            [t for t, r, lv in pairs if r is None or lv is None])
+
+
+def e2(signal_pairs, forward_pairs, tolerance=None):
+    """E2 [v2]: replay bid minus live quote_bid, pairs (bar_time, replay_bid,
+    live_bid). signal_pairs: every E0-eligible signal cycle; forward_pairs:
+    the forward population. Before TBD-4 (tolerance None) it is reported only:
+    never a breach and never assessed."""
+    sig, sig_missing = _diffs(signal_pairs)
+    fwd, fwd_missing = _diffs(forward_pairs)
+    out = {"signal": summary([d for _, d in sig]), "forward": summary([d for _, d in fwd]),
+           "missing": {"signal": sig_missing, "forward": fwd_missing}, "tolerance": tolerance}
+    if tolerance is None:
+        return dict(out, signal_breaches=[], forward_n=len(fwd), forward_exceed=None,
+                    assessed=False, **{"pass": True})
+    t = cents(tolerance)
+    sig_breaches = [(b, d) for b, d in sig if cents(d) > E2_SIGNAL_FACTOR * t] + [(b, None) for b in sig_missing]
+    exceed = sum(cents(d) > t for _, d in fwd)
+    assessed = len(fwd) >= E2_MIN_FORWARD
+    rate_breach = assessed and Fraction(exceed, len(fwd)) > E2_RATE
+    return dict(out, signal_breaches=sig_breaches, forward_n=len(fwd), forward_exceed=exceed,
+                assessed=assessed, **{"pass": not sig_breaches and not rate_breach})
 
 
 def status_of(ev, bid, spread_price, params, spec):
@@ -129,7 +170,7 @@ def e3(cases, params, spec):
         if not row["agree"]:
             by = [name for name, (b, s) in (("bid", (lb, model_sp)), ("spread", (proxy_bid, ls)))
                   if status_of(ev, b, s, params, spec) == live]
-            row["attribution"] = "+".join(by) if by else E3_UNATTRIBUTED
+            row["attribution"] = "|".join(by) if by else E3_UNATTRIBUTED
         rows.append(row)
     n = len(rows)
     return {"rows": rows, "agreement": (sum(r["agree"] for r in rows) / n) if n else None,
@@ -166,6 +207,7 @@ def verdict(levels, e0r, e1r, e2r, e3r):
     why += ["E0 field mismatch"] * (not e0r["pass"])
     why += ["E1 breach"] * (not e1r["pass"])
     why += ["E2 breach"] * (not e2r["pass"])
+    why += ["E2 not assessed"] * (e2r.get("tolerance") is not None and not e2r.get("assessed"))
     why += [E3_UNATTRIBUTED] * (not e3r["pass"])
     return {"verdict": "NOT CONFORMANT" if why else "CONFORMANT", "reasons": why,
             "historical_reporting": "prohibited" if why else "permitted by section 8"}

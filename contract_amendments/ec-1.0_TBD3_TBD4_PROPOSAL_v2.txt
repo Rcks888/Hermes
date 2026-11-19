@@ -1,0 +1,204 @@
+HERMES EXECUTION CONTRACT - PROPOSAL FOR TBD-3 AND TBD-4 (DRAFT v2, 2026-11-19)
+==============================================================================
+
+Base: EXECUTION_CONTRACT.md ec-0.3 (frozen 2026-11-12, tag ec-0.3). Clause
+numbers refer to it. Supersedes draft v1 after the Reviewer's HOLD on v1.
+Approved in v1 and unchanged here: S1, S2, T1, T2 (as a calibration rule),
+T4, and S6 subject to the evidence in section 2.
+
+What this proposal is NOT:
+- not ec-1.0, not a replay result, not live authorisation;
+- no change to PREREGISTRATION.md pr-0.4 or to the 0g-5 baseline;
+- no value is chosen from a strategy outcome. Both rules read live quotes and
+  M1 opens only: no signal result, R, equity or benchmark. Every cycle used is
+  after the holdout ends (2026-09-12 server), so no holdout bar is read.
+
+Changes from v1, by finding:
+  S3  AMEND  -> S3 v2: one order, first occurrence, then inclusion.
+  S4  AMEND  -> S4 v2: exact Decimal points, never rounded; session of the
+                baseline replay E; live D vs E alignment shown per point.
+  S5  AMEND  -> S5 v2: fallback soak points reclassified with get_session_tag.
+  S6  COND.  -> evidence attached (both broker specs, field-by-field table).
+  T3  AMEND  -> T3 v2: (a) every E0-eligible signal cycle, no exclusions;
+                (b) a separate forward population from 23 Nov, with a minimum.
+  T5  AMEND  -> T5 v2: the section 8 replacement text, verbatim (section 4);
+                implemented in conformance.e2 with tests and controls.
+  Q1-Q5      -> adopted as answered (section 5).
+  Fact fix   -> v1 said the demo "was deleted by MetaQuotes". The evidence is
+                an authorisation failure ("Invalid account"), not a deletion;
+                section 1 now states only that.
+
+
+1. Data available (facts)
+-------------------------
+- 0g-1 live cycles since 7 Oct 2026 (first 0g-1 signal: 047b848): every
+  cycle, signal or not, logs `quote` at the decision instant (quote_bid,
+  quote_ask, quote_spread_price = round(ask - bid, 5), quote_time_msc) with
+  scheduling_delay_seconds and session. About 480 cycles a week.
+- Exclusions already defined in weekly_checkpoint.py: stale-tick cycles
+  (stale_flags: offset_off_hour, tick_unchanged, bar_repeated; it compares
+  each cycle with the previous one in ts order), suspect delays
+  (scheduling_delay_note) and CYCLE_ABORTED events (no quote).
+- The 1,206-pair soak (0a), logs/soak.json on the VPS: ASIA 437, LONDON 278,
+  NY 447, OFF 44 by the probe-local classifier, which C2.2 says disagrees
+  with the engine by one hour at three boundaries.
+- Account change on 16 Nov: from Sat 15 Nov 04:03 the terminal log shows
+  "authorization ... failed (Invalid account)" for demo 10013386522. Why is not
+  known. From 16 Nov 08:53 UTC the cycles use demo 115681802 on the same
+  server, MetaQuotes-Demo.
+- The local export (20261027T070105Z) ends 27 Oct 07:01. E2 needs M1 to the
+  end of the forward population, so new exports are required.
+
+
+2. TBD-3: spread-model source and n (C3.2)
+------------------------------------------
+S1 [approved, unchanged] Source: the 0g-1 decision-time quotes of live cycles.
+S2 [approved, unchanged] Window: every cycle from the first 0g-1 cycle
+   (7 Oct 2026) to Sun 22 Nov 2026 23:59:59 UTC, both accounts (S6).
+
+S3 v2 Selection, in this order, deterministic:
+   (1) Sequence. Take every event of logs/events.jsonl whose `event` is in
+       CYCLE_EVENTS (NO_SIGNAL, SIGNAL_APPROVED, SIGNAL_REJECTED,
+       CYCLE_ABORTED), from the first 0g-1 cycle to the end of the
+       population's window, ordered by `ts` with ties in file line order
+       (the stable sort stale_flags already uses).
+   (2) Staleness. stale_flags is applied once to that whole sequence, so each
+       cycle's flags are those of the full log, not of a week.
+   (3) First occurrence. For each bar_time the first cycle in the sequence is
+       that bar's cycle. Every later cycle with the same bar_time is
+       discarded, whatever its content. The first cycle is never replaced by a
+       later rerun, even when the first fails (4).
+   (4) Inclusion, on the first cycle only: event NO_SIGNAL, SIGNAL_APPROVED or
+       SIGNAL_REJECTED; `quote` present with quote_error null; stale_flags
+       empty; no scheduling_delay_note; and |live D - replay E| <= 60 s (S4,
+       the E1 limit). A bar whose first cycle fails contributes no point.
+   (5) Window. The cycle's `ts` (UTC log time) decides the window: calibration
+       is ts <= 2026-11-22T23:59:59Z (S2); the forward population is
+       ts >= 2026-11-23T00:00:00Z (T3).
+   Every exclusion is counted by reason and session in the artefact.
+
+S4 v2 Points and session:
+   - points = (Decimal(str(quote_ask)) - Decimal(str(quote_bid))) / Decimal(str(point)),
+     point 0.01 from the broker spec. Quotes carry 2 digits, so the result is
+     an integer and NO rounding is applied. A cycle where it is not an exact
+     integer, or is below 1, is excluded and counted (expected 0). The count
+     of cycles whose quote_spread_price / point differs from it is reported
+     (expected 0).
+   - Session = clock.session_of(E), E = clock.entry_instant(clock.
+     decision_instant(bar_open, 480)), bar_open from bar_time (the server
+     clock, conformance P2). This is the session the C3.3 draw uses (step 5)
+     at the baseline delay.
+   - Alignment shown, not assumed: for every included point the artefact
+     reports live D - E, with live D = bar_close + scheduling_delay_seconds
+     (E1, the same convention), and the count of points whose logged session
+     (session of live D) differs from the session of E. Expected 0: E is
+     bar close + 480 s, so E and D lie in minutes :08, :23, :38 or :53 and
+     a gap of at most 60 s cannot cross an hour. Any nonzero count is
+     reported; the point keeps the session of E.
+
+S5 v2 Sufficiency: the 0g-1 source is used iff every session has at least
+   ASIA 437, LONDON 278, NY 447, OFF 44 points under S3/S4 (fixed constants,
+   Q2). Otherwise the model is the soak for ALL four sessions: each
+   logs/soak.json cycle with a spread, its integer points as logged, its
+   session reclassified as engine get_session_tag(UTC hour of its timestamp),
+   which is how C2.2 classifies. The probe-local session field is not used.
+   Sources are never mixed per session. The artefact records both
+   classifications' counts for the soak, for information.
+
+S6 [approved conditionally; evidence attached] Accounts are not a model
+   boundary. Bundle file BROKER_SPEC_COMPARISON.txt: the 34 fields of
+   bs-39eef15e09e9 (5 Nov, demo 10013386522) and bs-596c87c5a2bb (16 Nov,
+   demo 115681802) are equal except margin_probe.price and
+   margin_probe.margin, a probe taken at the price of the day (4124.57 and
+   3859.85); margin / price is 1.000 in both. Both JSON files are attached.
+   The artefact records the per-account n and per-session median, for
+   information only.
+
+Artefact: research/data_feasibility/spread_model_<UTC stamp>.json with
+{"source", "window", "inclusion_rule": "TBD-3 S1-S6 v2", "n_by_session",
+"exclusions" (by reason and session), "alignment" (D - E summary, session
+mismatch count), "by_session": sorted points, "sha256"}. The commit that adds
+it freezes TBD-3, and its hash enters the run identity (C6.1).
+
+
+3. TBD-4: E2 price tolerance (section 8)
+----------------------------------------
+T1 [approved, unchanged] Calibration set: every cycle meeting S3 in the S2
+   window, with a replay bid at E in the new export. A cycle with no M1 bar
+   at E is counted and reported, not used.
+T2 [approved as a calibration rule, unchanged] T = type-1 99th percentile of
+   |replay bid - live quote_bid| over the calibration set, rounded up to the
+   next 0.01. Frozen with its n, the export id and a sha256 of the
+   (bar_time, replay_bid, live_bid) rows. The calibration exceedance rate is
+   reported as description only (Q4).
+
+T3 v2 Breach, two conditions on two populations:
+   (a) Signal condition. Population: EVERY E0-eligible signal cycle (section 8
+       E0), with no calibration exclusion applied: stale ticks, suspect
+       delays and reruns are all included. Breach if any has
+       |replay bid - live quote_bid| > 2T, or has no replay bid at E.
+   (b) Rate condition. Population: the FORWARD population, cycles selected
+       by S3 with ts >= 2026-11-23T00:00:00Z, up to the conformance cutoff,
+       each with a replay bid at E (those without are counted, not used).
+       If it holds fewer than 400 cycles, E2 is NOT ASSESSED. Otherwise
+       breach if more than 2% of it has |diff| > T.
+   Differences and T are compared in integer cents. 2T, 2% and 400 are
+   declared engineering tolerances, not confidence bounds (Q5). 400 is about
+   one week of forward cycles after S3 (480 slots less stale and suspect
+   ones), so E2 is assessable no earlier than about 30 Nov.
+T4 [approved, unchanged] Reported, never a breach: signed median and
+   p10/p50/p90 of the difference by session, missing-M1 counts, account split.
+T5 v2 This changes an acceptance rule, so it is proposed as an explicit
+   section 8 amendment (text in section 4). It is implemented now, for
+   review, in replay/conformance.py: e2(signal_pairs, forward_pairs,
+   tolerance) and verdict(). Before TBD-4 is frozen (tolerance None) E2 is
+   reported only, as ec-0.3 says. Tests (tests/test_conformance.py,
+   test_e2_price and test_levels_and_verdict) and their controls: signal
+   condition at T instead of 2T; rate 3% instead of 2%; no forward minimum;
+   missing replay bid ignored; "not assessed" accepted by the verdict. Each
+   control fails on its own assertion.
+
+
+4. Proposed contract text (ec-1.0), verbatim
+--------------------------------------------
+C3.2, last sentence, replace "Source `TBD-3`." by:
+  "Source and selection: TBD-3 rule S1-S6 v2 (contract_amendments/
+  ec-1.0_TBD3_TBD4_PROPOSAL_v2.txt), artefact <file>, sha256 <hash>."
+
+Section 8, row E2, replace by:
+| E2 | model agreement | Price: replay bid at E vs live `quote_bid`; T = <value> (TBD-4, rule T1-T2, calibration n <n>, cycles to 22 Nov 2026) | Breach if (a) any E0-eligible signal cycle, with no calibration exclusion, has \|diff\| > 2T or no replay bid at E; or (b) more than 2% of the forward population (cycles selected by TBD-3 S3 with ts from 23 Nov 2026 00:00 UTC to the conformance cutoff) has \|diff\| > T. With fewer than 400 forward cycles E2 is not assessed. Distributions by session reported. |
+
+Section 8, NOT CONFORMANT paragraph, replace by:
+  "REPLAY NOT CONFORMANT, historical performance reporting prohibited, on any
+  of: a Level 1-4 mismatch; any E0 field mismatch; an E1 or E2 breach; E2
+  not assessed; any E3_UNATTRIBUTED."
+
+Section 11: TBD-3 and TBD-4 rows marked resolved, with the artefact hash and
+T, in the commit that adds the artefact.
+
+
+5. Reviewer answers, adopted
+----------------------------
+Q1 Stale ticks are excluded from calibration and the counts disclosed (S3);
+   they are NOT excluded from T3(a).
+Q2 Fixed counts kept as the selection policy; the fallback is reclassified
+   (S5).
+Q3 The point's session is that of the baseline replay E; the alignment is
+   shown per point as live D vs E (S4). Quote-time classification is not
+   used.
+Q4 Calibrate through 22 Nov; the rate is judged only on the forward
+   population from 23 Nov (T3(b)); the calibration exceedance rate is
+   descriptive (T2).
+Q5 2T and 2% (and the forward minimum 400) declared as engineering
+   tolerances.
+
+
+6. What happens next (not done now)
+-----------------------------------
+1. Reviewer verdict on S3-S6 v2 and T3/T5 v2.
+2. On approval: research/build_tbd34.py (to write) reads events.jsonl,
+   logs/soak.json and a new export, and writes the spread artefact and T. It
+   prints n by session, exclusions, alignment and T only. It runs no
+   strategy, no portfolio and no gate. TBD-3 and TBD-4 freeze in that commit.
+3. About 30 Nov, with >= 400 forward cycles and a second export: the real
+   conformance report (section 8 Levels 1-4, E0-E4) in CONFORMANCE mode.

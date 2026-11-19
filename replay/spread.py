@@ -57,6 +57,12 @@ class SpreadModel:
         return u, quantile_type1(self.by_session[session], u)
 
 
+def constant_model(model, p):
+    """C3.3 sensitivity: the constant session type-1 quantile p of model."""
+    return SpreadModel({s: [quantile_type1(v, p)] for s, v in model.by_session.items()},
+                       source=f"p{round(p * 100)}:{model.hash}")
+
+
 def draw_for_bar(model, bar_open, e):
     """C3.3 for one opportunity: u from the signal bar's close, distribution of
     the session of E. Returns (u, points, session)."""
