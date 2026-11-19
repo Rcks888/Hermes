@@ -17,7 +17,7 @@ downstream part), 6 attempt ledger (replay/attempts.py), 7 holdout run family
 through the single entry point (replay/holdout_run.py; 7b engine identity
 from git, 7c the entry point's own opportunities and B2, 7d broker-spec
 content identity, 7e the family run once, 7f the run log as evidence, 7g its
-lossless encoding).
+lossless encoding, 7h concurrent unseals and family starts).
 """
 import calendar
 import dataclasses
@@ -27,8 +27,11 @@ import io
 import json
 import subprocess
 import math
+import multiprocessing
+import os
 import sys
 import tempfile
+import time
 from datetime import date
 from pathlib import Path
 from unittest import mock
@@ -366,9 +369,10 @@ def test_1_seal():
         p = session_on(market({h0: FLAT}, MON, MON), u).permit(holdout.RunSpec(BASE_HASH))
         data.guard(h0, h0 + 900, p)
         raises(data.HoldoutSealed, data.guard, h0, h0 + 900, object())
-        for verdict in ("5a5a5a5", "b0b0b0b"):
-            raises(holdout.SecondUnseal, holdout.unseal, verdict, "60a4ead", NO_DATA, log,
-                   VERDICTS.get, go_lookup, typed)
+        raises(holdout.SecondUnseal, holdout.unseal, "5a5a5a5", "60a4ead", NO_DATA, log,
+               VERDICTS.get, go_lookup, typed)
+        raises(holdout.HoldoutRefused, holdout.unseal, "b0b0b0b", "60a4ead", NO_DATA, log,
+               VERDICTS.get, go_lookup, typed)
         check(len(log.read_text().splitlines()) == 1, "a refused second unseal wrote the log")
         s = holdout.session(log)
         check((s.verdict_commit, s.config_hash, s.engine_commit, s.identity) == ("5a5a5a5", BASE_HASH, ENGINE, IDENT),
@@ -792,6 +796,61 @@ def test_7f_run_evidence():
     raises(holdout.HoldoutRefused, holdout_run.read_family, s.log_path, foreign)
 
 
+def race(n, fn):
+    """fn in n forked processes released together; their results."""
+    mp = multiprocessing.get_context("fork")
+    barrier, q = mp.Barrier(n), mp.Queue()
+
+    def body():
+        barrier.wait()
+        try:
+            q.put(fn())
+        except Exception as e:  # noqa: BLE001
+            q.put(f"{type(e).__name__}: {e}")
+    procs = [mp.Process(target=body) for _ in range(n)]
+    for p in procs:
+        p.start()
+    out = [q.get(timeout=60) for _ in procs]
+    for p in procs:
+        p.join(timeout=60)
+    return out
+
+
+def refused_as_false(fn, exc=holdout.HoldoutRefused):
+    def go():
+        try:
+            fn()
+            return True
+        except exc:
+            return False
+    return go
+
+
+@running(ENGINE)
+def test_7h_concurrent_starts():
+    """K9: of N processes started together, exactly one creates a claimed
+    log, exactly one unseals and exactly one opens the family; each log
+    holds one line. An existing empty log is not reusable."""
+    n = 6
+    c0, sigs = holdout_case()
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        got = race(n, lambda: holdout.claim(d / "c.jsonl", f"{os.getpid()}\n"))
+        check(sorted(got, key=str) == [False] * (n - 1) + [True] and len((d / "c.jsonl").read_text().splitlines()) == 1,
+              f"concurrent claims: {got}")
+        got = race(n, refused_as_false(lambda: unsealed(d / "u.jsonl"), holdout.SecondUnseal))
+        check(got.count(True) == 1 and got.count(False) == n - 1
+              and len((d / "u.jsonl").read_text().splitlines()) == 1, f"concurrent unseals: {got}")
+        u = unsealed(d / "u2.jsonl")
+        got = race(n, refused_as_false(lambda: holdout_run.Session(u, inputs_of(c0), d / "runs.jsonl").open()))
+        check(got.count(True) == 1 and got.count(False) == n - 1
+              and len((d / "runs.jsonl").read_text().splitlines()) == 1, f"concurrent family starts: {got}")
+        (d / "empty.jsonl").touch()
+        raises(holdout.HoldoutRefused, holdout_run.Session(u, inputs_of(c0), d / "empty.jsonl").open)
+        (d / "u_empty.jsonl").touch()
+        raises(holdout.SecondUnseal, unsealed, d / "u_empty.jsonl")
+
+
 def test_7g_evidence_lossless():
     """K8: encode/decode returns every field of a record and its trade,
     sets, tuples and numbers included; what it cannot hold is refused."""
@@ -1011,6 +1070,23 @@ def _scan_all_bars(ctx, fold, cache=None):
     return opps, bars + [(int(last) + 900, bars[-1][1], bars[-1][2])]
 
 
+def _claim_appending(path, first_line):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as f:
+        f.write(first_line)
+    return True
+
+
+def _claim_check_then_append(path, first_line):
+    """v4's open(): test for a line, then append; the window is widened so
+    that processes released together all pass the test, as they can."""
+    path = Path(path)
+    empty = not (path.exists() and path.read_text().strip())
+    time.sleep(0.2)
+    return _claim_appending(path, first_line) if empty else False
+
+
 def _identity_label_only(snapshot_hash, spec, model, params):
     return {"data_snapshot_hash": snapshot_hash, "broker_spec_version": spec.version,
             "spread_model_hash": model.hash, "config_hash": attempts.config_hash(params)}
@@ -1055,7 +1131,7 @@ def _draw_price_distance(i, m, bars, tp_rr, digits=2):
 
 VARIANTS = {
     "test_1_seal": [
-        ("second unseal accepted", holdout, "previous_unseals", lambda p: []),
+        ("second unseal accepted", holdout, "claim", _claim_appending),
         ("verdict not checked", holdout, "verdict_ok", lambda rec: True),
         ("dirty engine accepted", holdout, "clean", lambda c: bool(c)),
         ("go-ahead not bound to verdict and config", holdout, "go_ahead_ok", lambda t, v, h: bool(t)),
@@ -1104,9 +1180,12 @@ VARIANTS = {
         ("recorded hash not checked", entry, "verify_spec", lambda raw, digest: None),
         ("identity binds the label only", holdout, "identity_of", _identity_label_only)],
     "test_7e_run_once": [
-        ("family restartable", holdout_run, "family_started", lambda p: False),
+        ("family restartable", holdout, "claim", _claim_appending),
         ("run made twice", holdout_run.Session, "_once", lambda self, spec: None),
         ("permits outside the open family", holdout_run, "issuing", lambda s: True)],
+    "test_7h_concurrent_starts": [
+        ("check then append (v4)", holdout, "claim", _claim_check_then_append),
+        ("append without a check", holdout, "claim", _claim_appending)],
     "test_7f_run_evidence": [
         ("summary only logged", holdout_run, "evidence", _evidence_summary),
         ("edits not detected", holdout_run, "intact", lambda c, raw: True),

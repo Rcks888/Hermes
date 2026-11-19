@@ -11,14 +11,15 @@ whose context or opportunities differ.
     python -m replay.holdout_run run <spread_artefact>
 
 Interpretations, to be confirmed in review:
-- K7 [v4]. "H2 is run once": the run log research/p1/holdout_runs.jsonl is
-  the family's lifecycle. run_family() opens the family only on an empty
-  log (a family_start line), makes each run of the family once, and closes
-  it (a family_complete line holding the sha256 of every run line) when all
-  are logged. A log with any line, complete or interrupted, is never
-  started again, and permits are issued only while the family is open. An
-  interrupted family stays as logged; what follows it is a Reviewer
-  decision, not a rerun by the command.
+- K7 [v5]. "H2 is run once": the run log research/p1/holdout_runs.jsonl is
+  the family's lifecycle. run_family() opens the family by creating the
+  log, exclusively, with its family_start line (holdout.claim, K9), makes
+  each run of the family once, and closes it (a family_complete line
+  holding the sha256 of every run line) when all are logged. A log that
+  exists, complete, interrupted or empty, is never started again, by this
+  or a concurrent process, and permits are issued only while the family is
+  open. An interrupted family stays as logged; what follows it is a
+  Reviewer decision, not a rerun by the command.
 - K8 [v4]. The log is the evidence: each run line holds the run in full,
   losslessly encoded (encode/decode): for a strategy run every record with
   its resolved trade (outcome, R, AMBIGUOUS and other flags, hole decisions,
@@ -28,7 +29,7 @@ Interpretations, to be confirmed in review:
   deferred K4 diagnostics are built only from what it returns, with the
   inputs bound by the unseal identity (K6).
 
-Module-level functions bound, family, family_started, issuing, evidence,
+Module-level functions bound, family, issuing, evidence,
 encode, complete, in_order and intact, and Session._once, are the seams the
 tests patch with broken variants.
 """
@@ -95,12 +96,14 @@ class Session:
         self.cache, self._primary, self.done, self.is_open = {}, None, {}, False
 
     def open(self):
-        """K7: the family starts once, on an empty run log; a started family,
-        complete or interrupted, is never started again."""
-        if family_started(self.log_path):
+        """K7, K9: the family starts once, by creating the run log with its
+        family_start line (holdout.claim, exclusive); a run log that exists,
+        complete, interrupted or empty, is never started again, by this or
+        any concurrent process."""
+        line = self._line({"event": START, "unseal": self.unseal.entry,
+                           "family": [sp.__dict__ for sp in full_family(self.unseal.config_hash)]})
+        if not holdout.claim(self.log_path, line):
             raise holdout.HoldoutRefused(f"the H2 family was started before ({self.log_path})")
-        self._write({"event": START, "unseal": self.unseal.entry,
-                     "family": [sp.__dict__ for sp in full_family(self.unseal.config_hash)]})
         self.is_open = True
 
     def close(self):
@@ -112,12 +115,15 @@ class Session:
         self._write({"event": COMPLETE, "runs": len(runs), "run_sha256": line_hashes(runs)})
         self.is_open = False
 
-    def _write(self, line):
+    def _line(self, line):
         line = dict(line, ts=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     engine_commit=self.unseal.engine_commit, verdict_commit=self.unseal.verdict_commit)
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        return json.dumps(line, sort_keys=True) + "\n"
+
+    def _write(self, line):
+        """Run and complete lines, appended by the one process that claimed the log."""
         with self.log_path.open("a") as f:
-            f.write(json.dumps(line, sort_keys=True) + "\n")
+            f.write(self._line(line))
 
     def _record(self, spec, result):
         """K7, K8: a run is made once, and logged in full before it is returned."""
@@ -206,11 +212,6 @@ def full_family(config_hash):
 def log_lines(log_path):
     path = Path(log_path)
     return [json.loads(x) for x in path.read_text().splitlines() if x.strip()] if path.exists() else []
-
-
-def family_started(log_path):
-    """K7: any line in the run log means the family was started."""
-    return bool(log_lines(log_path))
 
 
 # ---------------------------------------------------------------- evidence (K8)

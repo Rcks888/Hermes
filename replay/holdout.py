@@ -64,12 +64,22 @@ Interpretations, to be confirmed in review (none changes a frozen clause):
   procedure closes that: the holdout is run only by the committed command
   python -m replay.holdout_run on the clean session engine (K3), and the P1
   record is built only from the run log it writes.
+- K9 [v5]. "Once" holds across processes: the unseal log and the run log
+  are each created by claim(), an exclusive create (O_CREAT | O_EXCL, then
+  the first line written and fsynced). It is the only test of "unsealed
+  before" and "family started before", so there is no check-then-append
+  window: of two concurrent unseal (or run) commands exactly one creates
+  the file, the other is refused before it reads a holdout bar. A file that
+  exists counts, whatever it holds: a crash between create and write
+  leaves an empty file, which is consumed, not reusable. The logs live on
+  the VPS's local disk, where O_EXCL is atomic (not guaranteed on NFS).
 
-Module-level functions previous_unseals, verdict_ok, go_ahead_ok, identity_ok,
+Module-level functions claim, previous_unseals, verdict_ok, go_ahead_ok, identity_ok,
 in_family, same_engine, clean, is_dirty and current_engine are the seams the
 tests patch with broken variants.
 """
 import json
+import os
 import subprocess
 import sys
 import time
@@ -157,6 +167,23 @@ def identity_ok(rec, identity):
 def spread_hashes(model):
     """The draw model's hash and that of its constant session p90 (G8)."""
     return {"draw": model.hash, "p90": spread.constant_model(model, 0.90).hash}
+
+
+def claim(path, first_line):
+    """K9: create path holding first_line, atomically and exclusively
+    (O_CREAT | O_EXCL); False if path exists, whatever it holds. Of any
+    number of processes claiming one path, exactly one succeeds."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except FileExistsError:
+        return False
+    with os.fdopen(fd, "w") as f:
+        f.write(first_line)
+        f.flush()
+        os.fsync(f.fileno())
+    return True
 
 
 def previous_unseals(log_path):
@@ -264,8 +291,6 @@ def unseal(verdict_commit, go_ahead_commit, inputs, log_path=UNSEAL_LOG,
     """H1: log one valid unseal and return it; refuse anything else.
     confirm defaults to tty_confirm, resolved at call time."""
     confirm = confirm or tty_confirm
-    if previous_unseals(log_path):
-        raise SecondUnseal(f"the holdout was unsealed before ({log_path})")
     rec = lookup(verdict_commit)
     if not verdict_ok(rec):
         raise HoldoutRefused(f"{verdict_commit} holds no committed development PASS")
@@ -284,10 +309,8 @@ def unseal(verdict_commit, go_ahead_commit, inputs, log_path=UNSEAL_LOG,
              "config_hash": rec["config_hash"], "engine_commit": engine_commit,
              "go_ahead_commit": go_ahead_commit, "go_ahead": text, "spread_hashes": hashes,
              "identity": inputs.identity}
-    path = Path(log_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as f:
-        f.write(json.dumps(entry, sort_keys=True) + "\n")
+    if not claim(log_path, json.dumps(entry, sort_keys=True) + "\n"):
+        raise SecondUnseal(f"the holdout was unsealed before ({log_path})")
     return Unseal(verdict_commit, rec["config_hash"], engine_commit, hashes, inputs.identity, entry)
 
 
