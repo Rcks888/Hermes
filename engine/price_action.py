@@ -1,5 +1,4 @@
 import logging
-import numpy as np
 
 logger = logging.getLogger("hermes.price_action")
 

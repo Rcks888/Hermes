@@ -41,15 +41,6 @@ def get_candles(symbol="XAUUSD", timeframe=None, count=200, closed_only=True):
     return df
 
 
-def get_current_spread(symbol="XAUUSD"):
-    mt5 = mt5_connector.mt5
-    tick = mt5.symbol_info_tick(symbol)
-    if tick is None:
-        logger.error(f"Failed to get tick: {mt5.last_error()}")
-        return None
-    return tick.ask - tick.bid
-
-
 def get_positions(symbol="XAUUSD"):
     """Returns a list of open positions, or None if the query failed.
     None means "could not determine" — it must not be treated as "no positions"."""

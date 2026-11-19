@@ -37,10 +37,6 @@ class SnapshotMismatch(Exception):
     """A CSV does not hash to its manifest value."""
 
 
-def in_holdout(t):
-    return HOLDOUT[0] <= t < HOLDOUT[1]
-
-
 def guard(t0, t1, permit=None):
     """Refuse any server span [t0, t1) that overlaps the holdout, unless it
     comes with a holdout.Permit."""
