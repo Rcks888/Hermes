@@ -176,7 +176,22 @@ AUTH_FAILED_HINT = (
     "rpyc bridge does not fix this.")
 
 
-def alert_disconnected(consecutive_failures=1, reason=None):
+INVALID_ACCOUNT_TEXT = (
+    "MT5 authorisation failed: the terminal log's latest authorization entry "
+    "({at} UTC) reports 'Invalid account' for {login}. Check in the MT5 web "
+    "terminal whether the demo account still exists; if it does not, open a new "
+    "demo and update the config.")
+
+
+def auth_hint(rejected_at, login):
+    """Reviewer C1 (v4, approved 19 Nov): the account rejection and when the
+    terminal logged it, when its latest authorization entry says so."""
+    if rejected_at and login is not None:
+        return INVALID_ACCOUNT_TEXT.format(at=rejected_at, login=login)
+    return AUTH_FAILED_HINT
+
+
+def alert_disconnected(consecutive_failures=1, reason=None, rejected_at=None, login=None):
     """Escalating notification, throttled per tier and across processes.
 
     The previous implementation used a module-level flag, which could not work:
@@ -184,7 +199,10 @@ def alert_disconnected(consecutive_failures=1, reason=None):
     always unset at entry and the critical tier re-fired every cycle from both.
 
     reason "mt5_auth_failed" (29 Oct) replaces the bridge-restart advice, which
-    cannot help an authorisation failure, with the checks that can.
+    cannot help an authorisation failure, with the checks that can; with
+    rejected_at (the terminal journal's latest authorization entry rejected
+    the configured login at that UTC time, C1) the hint names the login, the
+    time and the account check instead.
     """
     if reason == "mt5_auth_failed":
         if consecutive_failures == 1:
@@ -197,7 +215,7 @@ def alert_disconnected(consecutive_failures=1, reason=None):
             key, head = "mt5_disconnected_critical", (
                 f"🚨 HERMES CRITICAL HALT — MT5 authorisation failing for "
                 f"{consecutive_failures} consecutive cycles")
-        send_throttled(key, f"{head}\n{AUTH_FAILED_HINT}")
+        send_throttled(key, f"{head}\n{auth_hint(rejected_at, login)}")
         return
     if consecutive_failures == 1:
         send_throttled(
