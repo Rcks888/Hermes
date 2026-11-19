@@ -72,6 +72,15 @@ def variant_params(vid, base=None):
     return dict(base or base_params(), **{key: value})
 
 
+def params_of(h, base=None):
+    """The baseline or menu configuration whose config_hash is h."""
+    base = base or base_params()
+    for p in [base] + [variant_params(v, base) for v in MENU]:
+        if config_hash(p) == h:
+            return p
+    raise OffMenu(f"{h} is neither the baseline nor a menu variant")
+
+
 def classify(params, base):
     """L1: None for the baseline, a menu id for a single menu change."""
     diff = sorted(k for k in set(params) | set(base) if params.get(k) != base.get(k))

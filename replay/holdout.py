@@ -2,11 +2,12 @@
 section 9 tests 1 and 7).
 
 data.guard refuses every span overlapping the holdout unless it is handed a
-Permit. A Permit comes only from Unseal.permit, an Unseal only from unseal():
-a committed development PASS, a committed go-ahead bound to it, a confirmation
-typed at a terminal, a clean engine commit, the frozen spread model, and an
-unseal log with no earlier entry. The log is append-only JSON lines and its
-first entry spends the unseal for good (H1, H4).
+Permit. Permits are issued by replay/holdout_run.Session, the single holdout
+entry point, from an Unseal; an Unseal comes only from unseal(): a committed
+development PASS, a committed go-ahead bound to it, a confirmation typed at a
+terminal, the clean engine read from git, the frozen inputs the verdict was
+reached on, and an unseal log with no earlier entry. The log is append-only
+JSON lines and its first entry spends the unseal for good (H1, H4).
 
 Interpretations, to be confirmed in review (none changes a frozen clause):
 - K1. "The commit of that development verdict": a commit reachable from HEAD
@@ -22,10 +23,10 @@ Interpretations, to be confirmed in review (none changes a frozen clause):
   requirement keeps a non-interactive tool run from unsealing.
 - K3 [v3]. "One unseal session from one engine commit": the engine is read
   from the repository, never supplied. current_engine() is the full HEAD sha,
-  with "-dirty" if any tracked file differs or any untracked file lies
-  outside UNTRACKED_OK (the holdout outputs in research/p1/). unseal()
-  records it, Unseal.permit() and every portfolio.run() under a permit
-  require it unchanged and clean. Outputs are committed after the session:
+  with "-dirty" if any tracked file differs or any untracked file is not a
+  holdout output (a data file, OUTPUT_SUFFIXES, under research/p1/; code is
+  never exempt). unseal() records it; every permit issued and every
+  portfolio.run() under a permit require it unchanged and clean. Outputs are committed after the session:
   a commit during it changes HEAD and ends the session.
 - K4 [v2]. The H2 family is a closed set of RunSpec values for the committed
   config_hash. Strategy runs: the primary settings (delay 480, the frozen
@@ -40,15 +41,29 @@ Interpretations, to be confirmed in review (none changes a frozen clause):
   a later signal are counted beside it. Everything else is refused, B3, B4
   (spread zero) and combined sensitivities included.
 - K5 [v3]. portfolio.check_permit enforces the permit on the run itself:
-  SIMULATION mode; the running engine (K3); config_hash, path and the spread
-  model by hash (draw or its p90); the delay of the context AND of every
-  opportunity (a per-opportunity "delay" must equal the permit's); the run
-  kind from the opportunities; and for B2 exactly one portfolio index per
-  run, below N_PORTFOLIOS, since one run is one book.
+  SIMULATION mode, the running engine (K3), the path, a flat starting book,
+  every Context field (data, schedule, spread model, configuration, broker
+  spec, delay, offset window, data end) identical to the context the entry
+  point built, and the opportunities equal to the canonical ones the permit
+  carries: for a strategy run every signal of the fold as the entry point's
+  scan produced it, for B2 the draw of exactly one portfolio index below
+  N_PORTFOLIOS. A per-opportunity delay, a dropped or added signal, another
+  portfolio's draw or a second portfolio in one book all differ from it.
+- K6 [v3]. Inputs are bound, not supplied: unseal() requires the inputs'
+  identity (data_snapshot_hash, broker_spec_version, spread_model_hash,
+  config_hash) to equal the identity recorded in the development verdict,
+  and records it. holdout_run.load_inputs builds them from the
+  manifest-checked snapshot, the broker spec file and the frozen spread
+  artefact. Disclosed limit: these are in-process Python checks. They stop a
+  holdout run that deviates by mistake through the public path; they cannot
+  stop code that deliberately builds a Permit or Inputs by hand. The
+  procedure closes that: the holdout is run only by the committed command
+  python -m replay.holdout_run on the clean session engine (K3), and the P1
+  record is built only from the run log it writes.
 
-Module-level functions previous_unseals, verdict_ok, go_ahead_ok, in_family,
-same_engine, clean, is_dirty and current_engine are the seams the tests patch
-with broken variants.
+Module-level functions previous_unseals, verdict_ok, go_ahead_ok, identity_ok,
+in_family, same_engine, clean, is_dirty and current_engine are the seams the
+tests patch with broken variants.
 """
 import json
 import subprocess
@@ -57,7 +72,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from replay import clock, spread
+from replay import attempts, clock, spread
 
 ROOT = Path(__file__).resolve().parents[1]
 UNSEAL_LOG = ROOT / "research" / "p1" / "holdout_unseal_log.jsonl"
@@ -65,6 +80,7 @@ VERDICT_PATH = "research/p1/development_verdict.json"
 GO_AHEAD_PATH = "research/p1/holdout_go_ahead.txt"
 GO_AHEAD_PHRASE = "I authorise unsealing the Hermes holdout"
 UNTRACKED_OK = ("research/p1/",)
+OUTPUT_SUFFIXES = (".json", ".jsonl", ".txt", ".csv")
 PRIMARY_DELAY = clock.BASELINE_DELAY
 G7_DELAYS = tuple(d for d in clock.PREREGISTERED_DELAYS if d != PRIMARY_DELAY)
 N_PORTFOLIOS = 1000
@@ -88,12 +104,28 @@ class RunSpec:
     scenario: str = "S"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
+class Inputs:
+    """K6: what every holdout run reads, with the identity that binds it."""
+    m1: object
+    m15: object
+    sched: object
+    spec: object
+    model: object
+    params: dict
+    identity: dict
+
+
+@dataclass(frozen=True, eq=False)
 class Permit:
+    """One H2 run. context: the portfolio.Context the entry point built
+    (permit None). canonical: index -> the run's opportunities; None for the
+    entry point's own signal scan, which may read but not run."""
     spec: RunSpec
     verdict_commit: str
     engine_commit: str
-    spread_hash: str
+    context: object
+    canonical: object = None
 
 
 @dataclass(frozen=True)
@@ -102,14 +134,19 @@ class Unseal:
     config_hash: str
     engine_commit: str
     spread_hashes: dict
+    identity: dict
     entry: dict
 
-    def permit(self, spec):
-        """A Permit for one H2 run, or HoldoutRefused (K3, K4)."""
-        check_engine(self.engine_commit)
-        if not in_family(spec, self.config_hash):
-            raise HoldoutRefused(f"{spec} is not in the H2 run family")
-        return Permit(spec, self.verdict_commit, self.engine_commit, self.spread_hashes[spec.spread])
+
+def identity_of(snapshot_hash, spec, model, params):
+    """K6: the identity of a set of inputs."""
+    return {"data_snapshot_hash": snapshot_hash, "broker_spec_version": spec.version,
+            "spread_model_hash": model.hash, "config_hash": attempts.config_hash(params)}
+
+
+def identity_ok(rec, identity):
+    """K6: the inputs are those the development verdict was reached on."""
+    return bool(identity) and rec.get("identity") == identity and identity["config_hash"] == rec["config_hash"]
 
 
 def spread_hashes(model):
@@ -167,9 +204,14 @@ def tty_confirm(config_hash):
     return input(f"Type the config_hash {config_hash} to unseal the holdout: ").strip() == config_hash
 
 
+def output_file(path):
+    """K3: an untracked holdout output, never code."""
+    return path.startswith(UNTRACKED_OK) and path.endswith(OUTPUT_SUFFIXES)
+
+
 def is_dirty(porcelain_lines):
-    """K3: a tracked change, or an untracked file outside UNTRACKED_OK."""
-    return any(not (x.startswith("?? ") and x[3:].startswith(UNTRACKED_OK)) for x in porcelain_lines if x)
+    """K3: a tracked change, or an untracked file that is not a holdout output."""
+    return any(not (x.startswith("?? ") and output_file(x[3:])) for x in porcelain_lines if x)
 
 
 def current_engine(repo=ROOT):
@@ -212,7 +254,7 @@ def in_family(spec, config_hash):
     return one and spec.scenario == "S"
 
 
-def unseal(verdict_commit, go_ahead_commit, model, log_path=UNSEAL_LOG,
+def unseal(verdict_commit, go_ahead_commit, inputs, log_path=UNSEAL_LOG,
            lookup=verdict_at, go_ahead_lookup=go_ahead_at, confirm=None):
     """H1: log one valid unseal and return it; refuse anything else.
     confirm defaults to tty_confirm, resolved at call time."""
@@ -228,17 +270,20 @@ def unseal(verdict_commit, go_ahead_commit, model, log_path=UNSEAL_LOG,
     engine_commit = current_engine()
     if not clean(engine_commit):
         raise HoldoutRefused(f"running engine {engine_commit!r} is not a clean commit (K3)")
+    if not identity_ok(rec, inputs.identity):
+        raise HoldoutRefused(f"inputs {inputs.identity} != the verdict's {rec.get('identity')} (K6)")
     if not confirm(rec["config_hash"]):
         raise HoldoutRefused("the unseal was not confirmed at an interactive terminal (K2)")
-    hashes = spread_hashes(model)
+    hashes = spread_hashes(inputs.model)
     entry = {"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "verdict_commit": verdict_commit,
              "config_hash": rec["config_hash"], "engine_commit": engine_commit,
-             "go_ahead_commit": go_ahead_commit, "go_ahead": text, "spread_hashes": hashes}
+             "go_ahead_commit": go_ahead_commit, "go_ahead": text, "spread_hashes": hashes,
+             "identity": inputs.identity}
     path = Path(log_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as f:
         f.write(json.dumps(entry, sort_keys=True) + "\n")
-    return Unseal(verdict_commit, rec["config_hash"], engine_commit, hashes, entry)
+    return Unseal(verdict_commit, rec["config_hash"], engine_commit, hashes, inputs.identity, entry)
 
 
 def session(log_path=UNSEAL_LOG):
@@ -247,4 +292,4 @@ def session(log_path=UNSEAL_LOG):
     if len(done) != 1:
         raise HoldoutRefused(f"{len(done)} unseal entries in {log_path}")
     e = done[0]
-    return Unseal(e["verdict_commit"], e["config_hash"], e["engine_commit"], e["spread_hashes"], e)
+    return Unseal(e["verdict_commit"], e["config_hash"], e["engine_commit"], e["spread_hashes"], e["identity"], e)

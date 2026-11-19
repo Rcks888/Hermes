@@ -13,7 +13,9 @@ ledgers, never fold data, so no historical SIMULATION result is produced.
 Built: all seven. 1 seal and unseal (replay/holdout.py), 2 fold boundary
 (replay/folds.py), 3 bootstrap golden vector, 4 gate evaluator (thresholds,
 segments, paths), 5 random benchmark B2 (replay/benchmark.py; 5b is its
-downstream part), 6 attempt ledger (replay/attempts.py), 7 holdout run family.
+downstream part), 6 attempt ledger (replay/attempts.py), 7 holdout run family
+through the single entry point (replay/holdout_run.py; 7b engine identity
+from git, 7c the entry point's own opportunities and B2).
 """
 import calendar
 import dataclasses
@@ -34,7 +36,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from replay import attempts, benchmark, clock, data, entry, exits, folds, gates, holdout, portfolio, spread  # noqa: E402,E501
+from replay import attempts, benchmark, clock, data, entry, exits, folds, gates, holdout, holdout_run, portfolio, spread  # noqa: E402,E501
 
 GOLDEN = json.loads((ROOT / "tests" / "fixtures" / "prereg_u3_golden.json").read_text())
 SCENARIOS = exits.SCENARIOS
@@ -238,8 +240,9 @@ FLAT = (3000.0, 3000.5, 2999.5, 3000.2)
 SPIKE = (3000.0, 3021.0, 2999.5, 3020.5)
 BASE_HASH = attempts.REGISTERED_BASELINE
 ENGINE = "a1b2c3d"
-VERDICTS = {"5a5a5a5": {"verdict": "PASS", "config_hash": BASE_HASH, "attempt": 0},
-            "fa11fa1": {"verdict": "FAIL", "config_hash": BASE_HASH, "attempt": 0},
+IDENT = holdout.identity_of("synthetic-snapshot", SPEC, MODEL30, PARAMS)
+VERDICTS = {"5a5a5a5": {"verdict": "PASS", "config_hash": BASE_HASH, "attempt": 0, "identity": IDENT},
+            "fa11fa1": {"verdict": "FAIL", "config_hash": BASE_HASH, "attempt": 0, "identity": IDENT},
             "b0b0b0b": {"verdict": "PASS", "config_hash": "0123456789ab", "attempt": 1}}
 GO = f"{holdout.GO_AHEAD_PHRASE}: verdict 5a5a5a5, config {BASE_HASH}. Rickson Kang"
 GO_AHEADS = {("60a4ead", "5a5a5a5"): GO,
@@ -300,8 +303,25 @@ def running(sha):
     return wrap
 
 
-def unsealed(log, model=MODEL30):
-    return holdout.unseal("5a5a5a5", "60a4ead", model, log, VERDICTS.get, go_lookup, typed)
+def inputs_of(ctx, identity=IDENT):
+    """K6 Inputs over a synthetic market, carrying the verdict's identity."""
+    return holdout.Inputs(ctx.m1, ctx.m15, ctx.sched, SPEC, MODEL30, PARAMS, identity)
+
+
+NO_DATA = holdout.Inputs(None, None, None, SPEC, MODEL30, PARAMS, IDENT)
+
+
+def unsealed(log, inputs=NO_DATA):
+    return holdout.unseal("5a5a5a5", "60a4ead", inputs, log, VERDICTS.get, go_lookup, typed)
+
+
+def strategy_stub(signals):
+    """portfolio.signal_at for a synthetic market: the given signal at the
+    given bar opens, None elsewhere; the seal still applies."""
+    def signal_at(m15, b, params, permit=None):
+        return {"signal": signals.get(b), "reason": None,
+                "candles": data.strategy_window(m15, b, 1, permit).assign(atr=8.0)}
+    return mock.patch.object(portfolio, "signal_at", signal_at)
 
 
 # ------------------------------------------------------------------ test 1
@@ -322,10 +342,14 @@ def test_1_seal():
                                        ("5a5a5a5", "60a4ead", ENGINE + "-dirty", typed),
                                        ("5a5a5a5", "60a4ead", ENGINE, lambda h: False)):
             with on_engine(eng):
-                raises(holdout.HoldoutRefused, holdout.unseal, verdict, go, MODEL30, log, VERDICTS.get,
+                raises(holdout.HoldoutRefused, holdout.unseal, verdict, go, NO_DATA, log, VERDICTS.get,
                        go_lookup, conf)
+        for ident in (dict(IDENT, data_snapshot_hash="another-export"), dict(IDENT, broker_spec_version="bs-0"),
+                      dict(IDENT, spread_model_hash=spread.constant_model(MODEL30, 0.9).hash), {}):
+            raises(holdout.HoldoutRefused, holdout.unseal, "5a5a5a5", "60a4ead",
+                   dataclasses.replace(NO_DATA, identity=ident), log, VERDICTS.get, go_lookup, typed)
         with mock.patch.object(holdout.sys, "stdin", io.StringIO(BASE_HASH + "\n")):
-            raises(holdout.HoldoutRefused, holdout.unseal, "5a5a5a5", "60a4ead", MODEL30, log,
+            raises(holdout.HoldoutRefused, holdout.unseal, "5a5a5a5", "60a4ead", NO_DATA, log,
                    VERDICTS.get, go_lookup)
         check(not log.exists(), "a refused unseal wrote the log")
         u = unsealed(log)
@@ -334,16 +358,16 @@ def test_1_seal():
         e = json.loads(lines[0])
         check(e["verdict_commit"] == "5a5a5a5" and e["config_hash"] == BASE_HASH and e["engine_commit"] == ENGINE
               and e["go_ahead_commit"] == "60a4ead" and e["go_ahead"] == GO and e["ts"]
-              and e["spread_hashes"]["draw"] == MODEL30.hash, f"unseal entry {e}")
-        p = u.permit(holdout.RunSpec(BASE_HASH))
+              and e["spread_hashes"]["draw"] == MODEL30.hash and e["identity"] == IDENT, f"unseal entry {e}")
+        p = holdout_run.Session(u, inputs_of(market({h0: FLAT}, MON, MON))).permit(holdout.RunSpec(BASE_HASH))
         data.guard(h0, h0 + 900, p)
         raises(data.HoldoutSealed, data.guard, h0, h0 + 900, object())
         for verdict in ("5a5a5a5", "b0b0b0b"):
-            raises(holdout.SecondUnseal, holdout.unseal, verdict, "60a4ead", MODEL30, log,
+            raises(holdout.SecondUnseal, holdout.unseal, verdict, "60a4ead", NO_DATA, log,
                    VERDICTS.get, go_lookup, typed)
         check(len(log.read_text().splitlines()) == 1, "a refused second unseal wrote the log")
         s = holdout.session(log)
-        check((s.verdict_commit, s.config_hash, s.engine_commit) == ("5a5a5a5", BASE_HASH, ENGINE),
+        check((s.verdict_commit, s.config_hash, s.engine_commit, s.identity) == ("5a5a5a5", BASE_HASH, ENGINE, IDENT),
               f"session {s}")
 
 
@@ -400,8 +424,13 @@ def test_2_fold_boundary():
     check(gates.closed_trades(dev) == [], "an OPEN trade entered the closed-trade statistics")
     raises(data.HoldoutSealed, folds.run_fold, opps, c, folds.HOLDOUT)
     with tempfile.TemporaryDirectory() as d:
-        p = unsealed(Path(d) / "u.jsonl").permit(holdout.RunSpec(BASE_HASH))
-    ho = folds.run_fold(opps, c, folds.HOLDOUT, permit=p)
+        s = holdout_run.Session(unsealed(Path(d) / "u.jsonl"), inputs_of(c))
+    with strategy_stub({o["bar_open"]: o["signal"] for o in opps}):
+        try:
+            ho = s.strategy(holdout.RunSpec(BASE_HASH))[0]
+        except holdout.HoldoutRefused as e:
+            check("starts flat" not in str(e), f"holdout run did not start flat: {e}")
+            raise
     check([r["bar_open"] for r in ho.records] == [opps[1]["bar_open"]], "holdout fold took a dev opportunity")
     h = ho.records[0]
     check(h["population"] == "C" and h["open_trades"] == 0,
@@ -545,60 +574,121 @@ def test_6_attempt_ledger():
 
 # ------------------------------------------------------------------ test 7
 
+def holdout_case():
+    """Tue 2 Sep 2025 09:00-12:00 server, flat; strategy signals at 09:30
+    (LONG) and 10:15 (SHORT)."""
+    first, last = date(2025, 9, 1), date(2025, 9, 5)
+    sched = clock.schedule(first, last)
+    t0, t1 = srv(2025, 9, 2, 9, 0), srv(2025, 9, 2, 12, 0)
+    c = market({t: FLAT for t in range(t0, t1, 60) if sched.scheduled(t)}, first, last)
+    sigs = {srv(2025, 9, 2, 9, 30): long_signal(),
+            srv(2025, 9, 2, 10, 15): dict(long_signal(), direction="SHORT", sl=3010.0, tp=2980.0)}
+    return c, sigs
+
+
+def session_on(c):
+    with tempfile.TemporaryDirectory() as d:
+        return holdout_run.Session(unsealed(Path(d) / "u.jsonl"), inputs_of(c))
+
+
 @running(ENGINE)
 def test_7_holdout_run_family():
-    with tempfile.TemporaryDirectory() as d:
-        u = unsealed(Path(d) / "u.jsonl")
+    c0, sigs = holdout_case()
+    s = session_on(c0)
     R = holdout.RunSpec
     ok = ([R(BASE_HASH, scenario=sc) for sc in SCENARIOS] + [R(BASE_HASH, delay=dl) for dl in (60, 120, 180, 300)]
           + [R(BASE_HASH, spread="p90")] + [R(BASE_HASH, kind="random", scenario=sc) for sc in SCENARIOS])
-    for s in ok:
-        check(isinstance(u.permit(s), holdout.Permit), f"{s} refused")
+    for spec in ok:
+        check(isinstance(s.permit(spec), holdout.Permit), f"{spec} refused")
     v2 = attempts.config_hash(attempts.variant_params("V2"))
     bad = [R(v2), R(BASE_HASH, delay=240), R(BASE_HASH, delay=600), R(BASE_HASH, delay=60, spread="p90"),
            R(BASE_HASH, spread="zero"), R(BASE_HASH, delay=60, scenario="C"), R(BASE_HASH, spread="p90", scenario="T"),
            R(BASE_HASH, kind="momentum"), R(BASE_HASH, kind="random", spread="p90"),
            R(BASE_HASH, kind="random", delay=60), R(BASE_HASH, scenario="X")]
-    for s in bad:
-        raises(holdout.HoldoutRefused, u.permit, s)
+    for spec in bad:
+        raises(holdout.HoldoutRefused, s.permit, spec)
     for other in ("ffff000", ENGINE + "-dirty", "unknown"):
         with on_engine(other):
-            raises(holdout.HoldoutRefused, u.permit, R(BASE_HASH))
-    h0 = data.HOLDOUT[0] + 86400
-    base_ctx = market({h0: FLAT}, date(2025, 9, 1), date(2025, 9, 5))
-    p90 = spread.constant_model(MODEL30, 0.90)
-    strat = [{"bar_open": h0 - 900, "signal": long_signal()}]
+            raises(holdout.HoldoutRefused, s.permit, R(BASE_HASH))
+    raises(holdout.HoldoutRefused, holdout_run.Session, s.unseal,
+           inputs_of(c0, dict(IDENT, data_snapshot_hash="another-export")))
+    SIM = portfolio.SIMULATION
+    with strategy_stub(sigs):
+        opps, bars = s.scan(R(BASE_HASH))
+        p = s.permit(R(BASE_HASH), lambda i: tuple(opps))
+        c = dataclasses.replace(p.context, permit=p)
+        check(len(portfolio.run(opps, c, SIM, "S").records) == 2, "the canonical run did not run")
+        c2 = holdout_case()[0]
+        swaps = {"params": attempts.variant_params("V2"), "delay": 300, "model": spread.constant_model(MODEL30, 0.90),
+                 "m1": c2.m1, "m15": c2.m15, "sched": c2.sched, "spec": entry.BrokerSpec.load(),
+                 "window": (0, 0), "data_end": c.data_end - 900}
+        for f, value in swaps.items():
+            e = raises(holdout.HoldoutRefused, portfolio.run, opps, dataclasses.replace(c, **{f: value}), SIM, "S")
+            check(f in str(e), f"{f} swapped, refused for another reason: {e}")
+        raises(holdout.HoldoutRefused, portfolio.run, opps, c, SIM, "T")
+        raises(holdout.HoldoutRefused, portfolio.run, opps, c, portfolio.CONFORMANCE, "S")
+        for other in ("ffff000", ENGINE + "-dirty"):
+            with on_engine(other):
+                raises(holdout.HoldoutRefused, portfolio.run, opps, c, SIM, "S")
+        book = portfolio.Book()
+        portfolio.run(opps, c, SIM, "S", book)
+        check(book.positions, "the canonical run left no position in its book")
+        raises(holdout.HoldoutRefused, portfolio.run, opps, c, SIM, "S", book)
+        scan = s.permit(R(BASE_HASH))
+        raises(holdout.HoldoutRefused, portfolio.run, opps, dataclasses.replace(scan.context, permit=scan), SIM, "S")
+        extra = {"bar_open": srv(2025, 9, 2, 11, 0), "signal": long_signal()}
+        for wrong in (opps[:1], opps[1:], opps + [extra], [dict(opps[0], delay=480)] + opps[1:],
+                      [dict(o, delay=240) for o in opps], [dict(opps[0], signal=dict(opps[0]["signal"], sl=2995.0))]
+                      + opps[1:], [dict(o, signal=dict(o["signal"], benchmark_portfolio=0)) for o in opps]):
+            raises(holdout.HoldoutRefused, portfolio.run, wrong, c, SIM, "S")
+        s.strategy(R(BASE_HASH, spread="p90"))
+        primary, pbars = s.primary()
+        m = benchmark.matching(primary.records, pbars, folds.HOLDOUT, holdout.PRIMARY_DELAY)
 
-    def rand(i):
-        return [{"bar_open": h0 - 900, "signal": dict(long_signal(), benchmark_portfolio=i)}]
+        def draw(i):
+            return benchmark.draw_signals(i, m, pbars, PARAMS.get("tp_rr_multiple", 2.0), SPEC.digits)
+        p = s.permit(R(BASE_HASH, kind="random", scenario="T"), draw)
+        c = dataclasses.replace(p.context, permit=p)
+        i0, i1 = [i for i in range(holdout.N_PORTFOLIOS) if draw(i)][:2]
+        j = next(i for i in range(holdout.N_PORTFOLIOS, 2 * holdout.N_PORTFOLIOS) if draw(i))
+        portfolio.run(draw(i0), c, SIM, "T")
+        for wrong in (draw(j), draw(i0) + draw(i1), opps, [dict(o, delay=240) for o in draw(i0)],
+                      [dict(o, signal=dict(o["signal"], benchmark_portfolio=i1)) for o in draw(i0)]):
+            raises(holdout.HoldoutRefused, portfolio.run, wrong, c, SIM, "T")
+        raises(holdout.HoldoutRefused, portfolio.run, draw(i0), c, SIM, "S")
 
-    c = dataclasses.replace(base_ctx, permit=u.permit(R(BASE_HASH)))
-    portfolio.run(strat, c, portfolio.SIMULATION, "S")
-    for cc, sc, opps in ((dataclasses.replace(c, params=attempts.variant_params("V2")), "S", strat),
-                         (dataclasses.replace(c, delay=300), "S", strat), (c, "T", strat),
-                         (dataclasses.replace(c, model=p90), "S", strat), (c, "S", rand(0))):
-        raises(holdout.HoldoutRefused, portfolio.run, opps, cc, portfolio.SIMULATION, sc)
-    rec = portfolio.run([dict(strat[0], delay=480)], c, portfolio.SIMULATION, "S").records[0]
-    check(rec["D"] == h0 + 480, f"explicit primary delay: D {rec['D']}")
-    for d in (240, 60):
-        raises(holdout.HoldoutRefused, portfolio.run, [dict(strat[0], delay=d)], c, portfolio.SIMULATION, "S")
-    raises(holdout.HoldoutRefused, portfolio.run, strat, c, portfolio.CONFORMANCE, "S")
-    for other in ("ffff000", ENGINE + "-dirty"):
-        with on_engine(other):
-            raises(holdout.HoldoutRefused, portfolio.run, strat, c, portfolio.SIMULATION, "S")
-    c = dataclasses.replace(base_ctx, model=p90, permit=u.permit(R(BASE_HASH, spread="p90")))
-    portfolio.run(strat, c, portfolio.SIMULATION, "S")
-    raises(holdout.HoldoutRefused, portfolio.run, strat, dataclasses.replace(c, model=MODEL30),
-           portfolio.SIMULATION, "S")
-    c = dataclasses.replace(base_ctx, permit=u.permit(R(BASE_HASH, kind="random", scenario="T")))
-    portfolio.run(rand(999), c, portfolio.SIMULATION, "T")
-    for opps in (rand(1000), strat, rand(3) + [dict(rand(4)[0], bar_open=h0)], [dict(rand(5)[0], delay=240)]):
-        raises(holdout.HoldoutRefused, portfolio.run, opps, c, portfolio.SIMULATION, "T")
+
+@running(ENGINE)
+def test_7c_entry_point():
+    """The entry point scans every bar of the fold itself, matches B2 on its
+    own primary run and runs the whole H2 family once, logged."""
+    c0, sigs = holdout_case()
+    s = session_on(c0)
+    R = holdout.RunSpec
+    with strategy_stub(sigs):
+        run, bars = s.strategy(R(BASE_HASH))
+        check([r["bar_open"] for r in run.records] == sorted(sigs),
+              f"strategy run {[r['bar_open'] for r in run.records]}, want every signal {sorted(sigs)}")
+        want = [int(t) for t in c0.m15.time if clock.opportunity_clock(int(t), holdout.PRIMARY_DELAY)["evaluated"]
+                and folds.in_fold(clock.entry_instant(clock.decision_instant(int(t), holdout.PRIMARY_DELAY)),
+                                  folds.HOLDOUT)]
+        check([b[0] for b in bars] == want and all(b[1:] == (FLAT[3], 8.0) for b in bars),
+              f"evaluated bars {bars[:3]}..., want {len(want)} bars from {want[:1]}")
+        with tempfile.TemporaryDirectory() as d:
+            log = Path(d) / "runs.jsonl"
+            out = s.run_family(log, n=3)
+            lines = [json.loads(x) for x in log.read_text().splitlines()]
+    specs = holdout_run.family(BASE_HASH) + [R(BASE_HASH, kind="random", scenario=sc) for sc in SCENARIOS]
+    check(set(out) == set(specs) and len(lines) == len(specs) == 11, f"family runs {len(out)}, log lines {len(lines)}")
+    check([ln["spec"] for ln in lines] == [sp.__dict__ for sp in specs] and all(ln["engine_commit"] == ENGINE
+                                                                               for ln in lines), "run log")
+    check(all(len(out[R(BASE_HASH, kind="random", scenario=sc)][0]) == 3 for sc in SCENARIOS), "B2 portfolios")
+    check(len(out[R(BASE_HASH)].records) == 2, "family primary run")
 
 
 def test_7b_engine_identity():
-    """K3: current_engine reads HEAD and the work tree; holdout outputs in
-    research/p1/ do not make it dirty, anything else does."""
+    """K3: current_engine reads HEAD and the work tree; holdout output files
+    in research/p1/ do not make it dirty, anything else (code there too) does."""
     with tempfile.TemporaryDirectory() as d:
         repo = Path(d)
         def git(*a):
@@ -613,6 +703,9 @@ def test_7b_engine_identity():
         (repo / "research" / "p1").mkdir(parents=True)
         (repo / "research" / "p1" / "holdout_unseal_log.jsonl").write_text("{}\n")
         check(holdout.current_engine(repo) == sha, "holdout output in research/p1/ made the tree dirty")
+        (repo / "research" / "p1" / "rerun.py").write_text("z = 3\n")
+        check(holdout.current_engine(repo) == sha + "-dirty", "untracked code in research/p1/ left the tree clean")
+        (repo / "research" / "p1" / "rerun.py").unlink()
         (repo / "replay_patch.py").write_text("y = 2\n")
         check(holdout.current_engine(repo) == sha + "-dirty", "an untracked module left the tree clean")
         (repo / "replay_patch.py").unlink()
@@ -715,30 +808,52 @@ def _family_combined(spec, h):
 
 def _permit_without(part):
     """check_permit with one of its K5 checks removed."""
-    def check(ctx, scenario, opps, mode):
+    def check(ctx, scenario, opps, mode, book):
         p = ctx.permit
         if part != "mode" and mode != portfolio.SIMULATION:
             raise holdout.HoldoutRefused("mode")
         if part != "engine":
             holdout.check_engine(p.engine_commit)
-        got = [attempts.config_hash(ctx.params), ctx.delay, scenario, ctx.model.hash]
-        want = [p.spec.config_hash, p.spec.delay, p.spec.scenario, p.spread_hash]
-        if part == "model":
-            got, want = got[:3], want[:3]
-        if got != want:
-            raise holdout.HoldoutRefused("run")
-        if part != "opp delay" and any(o.get("delay", ctx.delay) != p.spec.delay for o in opps):
-            raise holdout.HoldoutRefused("delay")
-        kind = portfolio.run_kind(opps)
-        if part != "kind" and kind not in (None, p.spec.kind):
-            raise holdout.HoldoutRefused("kind")
-        if kind == "random":
-            idx = {o["signal"]["benchmark_portfolio"] for o in opps}
-            if part != "one portfolio" and len(idx) != 1:
-                raise holdout.HoldoutRefused("portfolios")
-            if part != "index" and max(idx) >= holdout.N_PORTFOLIOS:
+        if part != "path" and scenario != p.spec.scenario:
+            raise holdout.HoldoutRefused("path")
+        diff = [f for f in portfolio.CONTEXT_FIELDS if not portfolio.same_input(getattr(ctx, f), getattr(p.context, f))]
+        if diff:
+            raise holdout.HoldoutRefused(f"context {diff}")
+        if part != "book" and book is not None and book.positions:
+            raise holdout.HoldoutRefused("book")
+        if p.canonical is None:
+            if part == "scan":
+                return
+            raise holdout.HoldoutRefused("scan")
+        i = None
+        if p.spec.kind == "random":
+            if not opps:
+                return
+            i = portfolio.portfolio_index(opps)
+            if part != "index" and i not in range(holdout.N_PORTFOLIOS):
                 raise holdout.HoldoutRefused("index")
+        if part != "canonical" and list(opps) != list(p.canonical(i)):
+            raise holdout.HoldoutRefused("canonical")
     return check
+
+
+def _fields_without(*names):
+    return tuple(f for f in portfolio.CONTEXT_FIELDS if f not in names)
+
+
+_real_scan = folds.strategy_opportunities
+_real_family = holdout_run.family
+
+
+def _scan_first_signal(ctx, fold, cache=None):
+    opps, bars = _real_scan(ctx, fold, cache)
+    return opps[:1], bars
+
+
+def _scan_all_bars(ctx, fold, cache=None):
+    opps, bars = _real_scan(ctx, fold, cache)
+    last = ctx.m15.time[-1]
+    return opps, bars + [(int(last) + 900, bars[-1][1], bars[-1][2])]
 
 
 _real_draw_signals = benchmark.draw_signals
@@ -783,18 +898,26 @@ VARIANTS = {
         ("any run permitted", holdout, "in_family", lambda spec, h: True),
         ("combined sensitivities permitted", holdout, "in_family", _family_combined),
         ("engine not checked", holdout, "same_engine", lambda a, b: True),
-        ("permit not checked on the run", portfolio, "check_permit", lambda c, sc, o, m: None),
+        ("inputs not bound to the unseal", holdout_run, "bound", lambda i, u: True),
+        ("permit not checked on the run", portfolio, "check_permit", lambda c, sc, o, m, b: None),
         ("mode not checked", portfolio, "check_permit", _permit_without("mode")),
         ("engine not rechecked at run time", portfolio, "check_permit", _permit_without("engine")),
-        ("opportunity delay not checked", portfolio, "check_permit", _permit_without("opp delay")),
-        ("several portfolios in one run", portfolio, "check_permit", _permit_without("one portfolio")),
-        ("spread model not checked", portfolio, "check_permit", _permit_without("model")),
-        ("signal kind not checked", portfolio, "check_permit", _permit_without("kind")),
-        ("portfolio count not checked", portfolio, "check_permit", _permit_without("index"))],
+        ("path not checked", portfolio, "check_permit", _permit_without("path")),
+        ("starting book not checked", portfolio, "check_permit", _permit_without("book")),
+        ("scan permit can run", portfolio, "check_permit", _permit_without("scan")),
+        ("opportunities not compared", portfolio, "check_permit", _permit_without("canonical")),
+        ("portfolio count not checked", portfolio, "check_permit", _permit_without("index"))]
+    + [(f"context {f} not bound", portfolio, "CONTEXT_FIELDS", _fields_without(f))
+       for f in portfolio.CONTEXT_FIELDS],
+    "test_7c_entry_point": [
+        ("scan stops at the first signal", folds, "strategy_opportunities", _scan_first_signal),
+        ("B2 bars past the data", folds, "strategy_opportunities", _scan_all_bars),
+        ("family incomplete", holdout_run, "family", lambda h: _real_family(h)[:3])],
     "test_7b_engine_identity": [
         ("untracked files ignored", holdout, "is_dirty",
          lambda lines: any(not x.startswith("?? ") for x in lines if x)),
         ("no untracked exemption", holdout, "is_dirty", lambda lines: any(lines)),
+        ("code exempt in research/p1/", holdout, "output_file", lambda p: p.startswith(holdout.UNTRACKED_OK)),
         ("work tree not checked", holdout, "is_dirty", lambda lines: False)],
     "test_3_bootstrap_golden_vector": [
         ("empty months dropped", gates, "month_totals", _totals_without_empty),
