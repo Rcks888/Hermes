@@ -191,7 +191,8 @@ def main():
         failures = info.get("consecutive_failures", 1)
         cycle["reason"] = info.get("reason", "mt5_not_connected")
         cycle["last_error"] = info.get("last_error")
-        telegram.alert_disconnected(failures, reason=cycle["reason"])
+        telegram.alert_disconnected(failures, reason=cycle["reason"],
+                                    invalid_account=info.get("invalid_account", False), login=info.get("login"))
         soak["cycles"].append(cycle)
         save_soak_data(soak)
         logger.error(f"Soak cycle failed: MT5 not connected (latency={init_latency}s)")

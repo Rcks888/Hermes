@@ -176,7 +176,20 @@ AUTH_FAILED_HINT = (
     "rpyc bridge does not fix this.")
 
 
-def alert_disconnected(consecutive_failures=1, reason=None):
+INVALID_ACCOUNT_TEXT = (
+    "MT5 authorisation failed: terminal log reports 'Invalid account' for {login}. "
+    "Check in the MT5 web terminal whether the demo account still exists; if it "
+    "does not, open a new demo and update the config.")
+
+
+def auth_hint(invalid_account, login):
+    """Reviewer C1 (19 Nov): the account rejection, when the terminal log says so."""
+    if invalid_account:
+        return INVALID_ACCOUNT_TEXT.format(login=login)
+    return AUTH_FAILED_HINT
+
+
+def alert_disconnected(consecutive_failures=1, reason=None, invalid_account=False, login=None):
     """Escalating notification, throttled per tier and across processes.
 
     The previous implementation used a module-level flag, which could not work:
@@ -184,7 +197,9 @@ def alert_disconnected(consecutive_failures=1, reason=None):
     always unset at entry and the critical tier re-fired every cycle from both.
 
     reason "mt5_auth_failed" (29 Oct) replaces the bridge-restart advice, which
-    cannot help an authorisation failure, with the checks that can.
+    cannot help an authorisation failure, with the checks that can; with
+    invalid_account (the terminal journal rejected the account, C1) the hint
+    names the login and the account check instead.
     """
     if reason == "mt5_auth_failed":
         if consecutive_failures == 1:
@@ -197,7 +212,7 @@ def alert_disconnected(consecutive_failures=1, reason=None):
             key, head = "mt5_disconnected_critical", (
                 f"🚨 HERMES CRITICAL HALT — MT5 authorisation failing for "
                 f"{consecutive_failures} consecutive cycles")
-        send_throttled(key, f"{head}\n{AUTH_FAILED_HINT}")
+        send_throttled(key, f"{head}\n{auth_hint(invalid_account, login)}")
         return
     if consecutive_failures == 1:
         send_throttled(

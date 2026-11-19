@@ -72,7 +72,7 @@ python tests/test_entry_observation.py        # 27 unit tests, no MT5 needed
 python tests/test_mt5_failure_state.py        # cross-process outage count and reconnect, no MT5 needed
 python tests/test_alert_throttle.py           # Telegram throttle state across cron processes, incl. concurrent runs
 python tests/test_mt5_run_lock.py             # one MT5 run at a time, retry budget, stuck-terminal kill (22 Oct)
-python tests/test_mt5_login.py                # credentials passed to mt5.initialize(), account check, own abort reason and alert text for -6 (29 Oct)
+python tests/test_mt5_login.py                # credentials passed to mt5.initialize(), account check, own abort reason and alert text for -6 (29 Oct); C1 'Invalid account' from the terminal journal (engine/terminal_log.py) and its alert (--controls)
 python tests/test_pipeline_parity.py          # C2.1: engine/pipeline.py reproduces the old inline run_hermes sequence (synthetic + post-holdout windows; --full every window; --controls)
 python tests/test_replay_contract.py          # ec-0.3 §9 contract tests 1-28 plus the holdout seal; 14, 23 (E0 eligibility) and 28 read tests/fixtures/live_signal_events.jsonl (the 6 live SIGNAL_APPROVED events, exported from the VPS 12 Nov)
 python tests/test_replay_contract.py --controls  # each test under its broken variants; every variant must fail
