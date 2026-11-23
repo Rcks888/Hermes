@@ -48,7 +48,7 @@ replay/          — 0g-6 replay engine under ec-0.3, in progress: data (snapsho
 alerts/          — Telegram notifications (`alert_soak_status` is unwired on purpose, ROADMAP known issue 5)
 logs/            — Soak data, events.jsonl, runtime logs
 contract_amendments/ — Contract amendment proposals for review (ec-0.3 approved; ec-1.0 TBD-3/TBD-4 proposal v1 and v2, 19 Nov; v2 answers the Reviewer's HOLD on v1)
-research/        — Read-only probes: signal outcome, entry timing (0g-2..0g-4); history export (Data step)
+research/        — Read-only probes: signal outcome, entry timing (0g-2..0g-4); history export (Data step); build_tbd34 (TBD-3 spread model and TBD-4 E2 tolerance artefacts, approved rules S1-S6 v2, T1-T2)
 data/history/    — Exported M15/M1 CSV snapshots, not committed; manifests with hashes are in research/data_feasibility/
 tests/           — Unit tests
 run_hermes.py    — Strategy cycle (alert-only)
@@ -80,6 +80,8 @@ python tests/test_prereg.py                   # pr-0.4 §9 protocol tests 1-7: s
 python tests/test_prereg.py --controls        # same, under broken variants
 python tests/test_conformance.py              # ec-0.3 §8 E1-E4 (E2 as proposed in v2), Levels 1-3 event parity and the verdict rule, on the signal fixture and constructed inputs
 python tests/test_conformance.py --controls   # same, under broken variants
+python tests/test_tbd34.py                    # research/build_tbd34.py: TBD-3 S1-S6 v2 selection (first occurrence, whole-sequence staleness, exact points, session of E, ts window, S5 fallback) and TBD-4 T1-T2 (type-1 p99, missing M1, holdout guard), constructed inputs (--controls)
+python research/build_tbd34.py --export=latest  # VPS, after 22 Nov 2026 and a new full export: writes spread_model_<ts>.json and e2_tolerance_<ts>.json to research/data_feasibility/; prints n, exclusions, alignment and T only
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED
 python research/prereg_gate_power.py          # local, no MT5: reproduces the 0b drawdown/power table (PREREGISTRATION.md section 3)
