@@ -80,8 +80,8 @@ python tests/test_prereg.py                   # pr-0.4 §9 protocol tests 1-7: s
 python tests/test_prereg.py --controls        # same, under broken variants
 python tests/test_conformance.py              # ec-0.3 §8 E1-E4 (E2 as proposed in v2), Levels 1-3 event parity and the verdict rule, on the signal fixture and constructed inputs
 python tests/test_conformance.py --controls   # same, under broken variants
-python tests/test_tbd34.py                    # research/build_tbd34.py: TBD-3 S1-S6 v2 selection (first occurrence, whole-sequence staleness, exact points, session of E, ts window, S5 fallback) and TBD-4 T1-T2 (type-1 p99, missing M1, holdout guard), constructed inputs (--controls)
-python research/build_tbd34.py --export=latest  # VPS, after 22 Nov 2026 and a new full export: writes spread_model_<ts>.json and e2_tolerance_<ts>.json to research/data_feasibility/; prints n, exclusions, alignment and T only
+python tests/test_tbd34.py                    # research/build_tbd34.py: TBD-3 S1-S6 v2 selection (first occurrence, whole-sequence staleness, exact points, session of E, ts window, S5 fallback), the Q-S5 A soak dataset (sha256, cutoff, ruled n) and TBD-4 T1-T2 (type-1 p99, missing M1, holdout guard), constructed inputs (--controls)
+python research/build_tbd34.py --export=latest --soak=research/data_feasibility/soak_0a_20261009.json  # VPS, after 22 Nov 2026 and a new full export; the soak must be the 0a copy (sha256 84d11d3f..., cycles to 30 Sep 07:06:58, n 1,341; Reviewer Q-S5 A), else refused: writes spread_model_<ts>.json and e2_tolerance_<ts>.json to research/data_feasibility/; prints n, exclusions, alignment and T only
 python research/probe_entry_timing.py --days=10 --anchor=<epoch>   # 14 controls gate the run
 python research/probe_signal_outcome.py       # self-test gates resolution of logged signals; a signal outside the bar window is NOT RESOLVED
 python research/prereg_gate_power.py          # local, no MT5: reproduces the 0b drawdown/power table (PREREGISTRATION.md section 3)

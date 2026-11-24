@@ -182,6 +182,7 @@ SOAK = {"cycles": [{"timestamp": "2026-09-20T12:10:00", "spread": 16, "session":
                    {"timestamp": "2026-09-20T02:10:00+00:00", "spread": 17.0, "session": "ASIA"},
                    {"timestamp": "2026-09-20T09:10:00", "spread": 15.5, "session": "LONDON"},
                    {"timestamp": "2026-09-20T22:10:00", "spread": None, "session": "OFF"}]}
+SOAK_FIX_N = {"ASIA": 1, "LONDON": 0, "NY": 1, "OFF": 0}
 
 
 def test_7_sufficiency_and_fallback():
@@ -246,7 +247,7 @@ def test_9_build():
            aborted(datetime(2026, 11, 17, 9, 0, tzinfo=UTC))]
     rows = [(e_of("2026-11-17 10:00"), 3000.12, 3001.0, 2999.0, 3000.0),
             (e_of("2026-11-17 10:15"), 3000.00, 3001.0, 2999.0, 3000.0)]
-    sa, ta = b.build(evs, SOAK, _snapshot(rows), SPEC, now=NOW)
+    sa, ta = b.build(evs, SOAK, _snapshot(rows), SPEC, now=NOW, soak_n=SOAK_FIX_N)
     check(sa["source"] == "soak" and sa["live_n_by_session"]["LONDON"] == 2
           and sa["exclusions"] == {"aborted": {"NY": 1}}, f"spread artefact {sa['source']} {sa['exclusions']}")
     with tempfile.TemporaryDirectory() as d:
@@ -255,8 +256,9 @@ def test_9_build():
         m = spread.SpreadModel.load(path)
     check(m.hash == sa["sha256"] and ta["spread_model_sha256"] == sa["sha256"], f"model hash {m.hash}")
     check(ta["T"] == 0.02 and ta["n"] == 2 and ta["export"]["snapshot_id"] == "test", f"tolerance {ta}")
-    raises(SystemExit, b.build, evs, SOAK, _snapshot(rows), SPEC, now=datetime(2026, 11, 22, 12, tzinfo=UTC))
-    raises(SystemExit, b.build, evs, SOAK, _snapshot(rows[:1]), SPEC, now=NOW)
+    raises(SystemExit, b.build, evs, SOAK, _snapshot(rows), SPEC, now=datetime(2026, 11, 22, 12, tzinfo=UTC),
+           soak_n=SOAK_FIX_N)
+    raises(SystemExit, b.build, evs, SOAK, _snapshot(rows[:1]), SPEC, now=NOW, soak_n=SOAK_FIX_N)
 
 
 def test_10_latest_export():
@@ -272,6 +274,40 @@ def test_10_latest_export():
         got = b.latest_export(Path(d))
         check(got.name == "20261123T090000Z", f"latest export {got.name}")
         raises(SystemExit, b.latest_export, Path(d) / "none")
+
+
+def test_11_soak_dataset():
+    """Q-S5 A: the soak is taken by path and refused unless its bytes have the
+    ruled sha256; only cycles to the cutoff (inclusive) count; the build
+    refuses a fallback whose engine-session counts differ from the ruled n,
+    and records file, sha256, cutoff and n."""
+    cut = b.SOAK_CUTOFF
+    cycles = SOAK["cycles"] + [{"timestamp": cut.isoformat(), "spread": 30, "session": "LONDON"},
+                               {"timestamp": (cut + timedelta(microseconds=1)).isoformat(), "spread": 31,
+                                "session": "LONDON"}]
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "soak_fix.json"
+        path.write_text(json.dumps({"cycles": cycles}))
+        digest = b.hashlib.sha256(path.read_bytes()).hexdigest()
+        soak = b.load_soak(path, digest=digest)
+        raises(b.SoakInvalid, b.load_soak, path)
+        path.write_text(json.dumps({"cycles": cycles[:-1]}))
+        raises(b.SoakInvalid, b.load_soak, path, digest=digest)
+    check(soak["source"]["sha256"] == digest and soak["source"]["file"] == "soak_fix.json",
+          f"source {soak['source']}")
+    pts, _, skipped = b.soak_points(soak)
+    check(pts["LONDON"] == [30] and skipped == {"after_cutoff": 1, "spread_not_whole_points": 1},
+          f"cutoff: LONDON {pts['LONDON']} skipped {skipped}")
+    evs = [cyc("2026-11-17 10:00")]
+    rows = [(e_of("2026-11-17 10:00"), 3000.12, 3001.0, 2999.0, 3000.0)]
+    n = dict(SOAK_FIX_N, LONDON=1)
+    sa, _ = b.build(evs, soak, _snapshot(rows), SPEC, now=NOW, soak_n=n)
+    check(sa["n_by_session"] == n and sa["soak_source"]["sha256"] == digest
+          and sa["soak_source"]["cutoff"] == "2026-09-30T07:06:58.683711+00:00"
+          and sa["soak_source"]["n_by_session"] == n, f"soak source {sa['soak_source']}")
+    raises(SystemExit, b.build, evs, soak, _snapshot(rows), SPEC, now=NOW, soak_n=SOAK_FIX_N)
+    check(b.SOAK_N == {"ASIA": 449, "LONDON": 278, "NY": 502, "OFF": 112} and sum(b.SOAK_N.values()) == 1341
+          and b.SOAK_SHA256.startswith("84d11d3f8eb6"), "ruled constants")
 
 
 def _latest_any(history=None):
@@ -321,6 +357,19 @@ def _spread_model_mixed(selected, soak):
     return spread.SpreadModel(mixed, source="mixed"), {s: len(v) for s, v in live.items()}, None
 
 
+def _load_soak_unchecked(path, digest=None):
+    return {"cycles": json.loads(Path(path).read_text()).get("cycles", []),
+            "source": {"file": Path(path).name, "sha256": digest}}
+
+
+def _soak_points_no_cutoff(soak, cutoff=None):
+    return _SOAK_POINTS(soak, cutoff=datetime.max.replace(tzinfo=UTC))
+
+
+def _soak_points_cutoff_exclusive(soak, cutoff=None):
+    return _SOAK_POINTS(soak, cutoff=b.SOAK_CUTOFF - timedelta(microseconds=1))
+
+
 def _open_at_forward_filled(self, t):
     i = int(__import__("numpy").searchsorted(self.time, t, side="right")) - 1
     return None if i < 0 else float(self.open[i])
@@ -361,6 +410,12 @@ VARIANTS = {
         ("run before the window ends", b, "CAL_END", datetime(2026, 11, 1, tzinfo=UTC))],
     "test_10_latest_export": [
         ("newest manifest of any kind", b, "latest_export", _latest_any)],
+    "test_11_soak_dataset": [
+        ("soak hash not checked", b, "load_soak", _load_soak_unchecked),
+        ("soak cutoff not applied", b, "soak_points", _soak_points_no_cutoff),
+        ("soak cutoff exclusive", b, "soak_points", _soak_points_cutoff_exclusive),
+        ("ruled soak n not checked", b, "soak_matches", lambda info, expected: True),
+        ("ruled soak n changed", b, "SOAK_N", {"ASIA": 437, "LONDON": 278, "NY": 447, "OFF": 44})],
 }
 
 

@@ -87,3 +87,31 @@ connection flags, XAUUSD symbol_info, spread, offset, resources, error text).
 S1-S4, S6, MIN_POINTS, T1-T2 and interpretations I1-I6. TBD-3 and TBD-4 are
 frozen together, by the commit that adds both artefacts, after this answer.
 No unseal, no ec-1.0/pr-1.0 tag, no replay result, no live change.
+
+
+5. Reviewer ruling, 24 Nov 2026
+-------------------------------
+Q-S5: A - APPROVE. Classified as a clarification of input identity, not a
+research-rule change. Implementation proposal in section 3: APPROVE.
+
+TBD-3 S5 fallback dataset:
+  identity   the 0a soak as measured through 2026-09-30T07:06:58.683711Z
+  source     logs/soak.20261009.json, sha256
+             84d11d3f8eb654d61b86acf0678937e93db45e33455067a537297f73e44be07d
+  selection  cycles with a spread, timestamp <= the cutoff
+  n          1,341; engine sessions ASIA 449, LONDON 278, NY 502, OFF 112
+  trigger    unchanged: 0g-1 replaces the fallback only if ASIA >= 437,
+             LONDON >= 278, NY >= 447 and OFF >= 44 together; otherwise the
+             whole fallback for all sessions
+The 1,206 of v2 were reconciliation pairs; 1,341 is the S5 population.
+MIN_POINTS unchanged. On the 24 Nov counts (OFF 39 < 44) the fallback is
+selected. T = 1.80 (n 2,689) from the 24 Nov run is not frozen; TBD-4 is
+frozen only by the approved build/freeze commit.
+
+Implemented in research/build_tbd34.py: --soak=<path> required; load_soak
+refuses unless the bytes hash to SOAK_SHA256; soak_points applies
+SOAK_CUTOFF inclusive; build refuses a fallback whose engine-session counts
+differ from SOAK_N; the artefact records file, sha256, ruling, cutoff and n
+(soak_source). The copy is committed as
+research/data_feasibility/soak_0a_20261009.json (same bytes) with both
+artefacts. tests/test_tbd34.py test_11, 5 controls.

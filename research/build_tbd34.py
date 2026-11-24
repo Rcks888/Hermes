@@ -3,7 +3,7 @@
 by the Reviewer-approved rules of contract_amendments/
 ec-1.0_TBD3_TBD4_PROPOSAL_v2.txt: S1-S6 v2 and T1-T2.
 
-Reads logs/events.jsonl, logs/soak.json and a new history export. Writes
+Reads logs/events.jsonl, the fixed 0a soak copy and a new history export. Writes
 research/data_feasibility/spread_model_<stamp>.json and
 e2_tolerance_<stamp>.json. Prints n by session, exclusions, alignment and T
 only: it runs no strategy, no portfolio and no gate, and reads no signal
@@ -12,9 +12,19 @@ goes through replay.data.guard. The commit that adds both artefacts freezes
 TBD-3 and TBD-4.
 
 Usage (VPS, after Sun 22 Nov 2026 23:59:59 UTC, with an export covering it):
-    venv/bin/python research/build_tbd34.py --export=latest
+    venv/bin/python research/build_tbd34.py --export=latest \
+        --soak=research/data_feasibility/soak_0a_20261009.json
 (latest = the newest full export under data/history/, never a probe; or give
 --export=data/history/<snapshot id>).
+
+S5 fallback dataset, Reviewer ruling Q-S5 A (24 Nov 2026,
+contract_amendments/ec-1.0_TBD3_S5_QUESTION_v1.txt): the 0a soak as it was on
+30 Sep, not the rotating logs/soak.json. The file given by --soak must have
+SOAK_SHA256 (the bytes of the VPS copy logs/soak.20261009.json); only cycles
+with a spread and timestamp <= SOAK_CUTOFF are used, and the engine-session
+counts must equal SOAK_N (1,341 cycles). File, sha256, cutoff and n are
+recorded in the spread artefact. MIN_POINTS and the all-or-nothing rule are
+unchanged.
 
 Interpretations, disclosed (none changes an approved rule):
 - I1. "The first 0g-1 cycle" (S2, S3(1)) is the first cycle event, in ts
@@ -36,8 +46,9 @@ Interpretations, disclosed (none changes an approved rule):
   in integer arithmetic, then rounded up to 0.01.
 
 Module-level functions sequence, points_of, clock_of, exclusion, is_rerun,
-in_window, covers, select, sufficient, soak_points, spread_model and
-quantile_rank are the seams tests/test_tbd34.py patches with broken variants.
+in_window, covers, select, sufficient, load_soak, soak_points, soak_matches,
+spread_model and quantile_rank are the seams tests/test_tbd34.py patches with
+broken variants.
 """
 import collections
 import hashlib
@@ -56,8 +67,11 @@ from engine.pipeline import get_session_tag  # noqa: E402
 from replay import clock, conformance, data, entry, spread  # noqa: E402
 
 EVENTS = ROOT / "logs" / "events.jsonl"
-SOAK = ROOT / "logs" / "soak.json"
 OUT_DIR = ROOT / "research" / "data_feasibility"
+SOAK_SHA256 = "84d11d3f8eb654d61b86acf0678937e93db45e33455067a537297f73e44be07d"
+SOAK_CUTOFF = datetime(2026, 9, 30, 7, 6, 58, 683711, tzinfo=timezone.utc)
+SOAK_N = {"ASIA": 449, "LONDON": 278, "NY": 502, "OFF": 112}
+SOAK_RULING = "Q-S5 A, Reviewer 24 Nov 2026 (contract_amendments/ec-1.0_TBD3_S5_QUESTION_v1.txt)"
 RULE3 = "TBD-3 S1-S6 v2"
 RULE4 = "TBD-4 T1-T2"
 PROPOSAL = "contract_amendments/ec-1.0_TBD3_TBD4_PROPOSAL_v2.txt"
@@ -214,9 +228,25 @@ def sufficient(n_by_session):
     return all(n_by_session.get(s, 0) >= m for s, m in MIN_POINTS.items())
 
 
-def soak_points(soak):
-    """S5 fallback: every soak cycle with a spread, integer points as logged,
-    session = get_session_tag(UTC hour of its timestamp) (I5)."""
+class SoakInvalid(ValueError):
+    """The soak file is not the Q-S5 A dataset."""
+
+
+def load_soak(path, digest=SOAK_SHA256):
+    """Q-S5 A: the soak file by path, refused unless its bytes hash to digest."""
+    raw = Path(path).read_bytes()
+    got = hashlib.sha256(raw).hexdigest()
+    if got != digest:
+        raise SoakInvalid(f"{path}: sha256 {got}, expected {digest}")
+    return {"cycles": json.loads(raw).get("cycles", []),
+            "source": {"file": Path(path).name, "sha256": got, "ruling": SOAK_RULING}}
+
+
+def soak_points(soak, cutoff=None):
+    """S5 fallback: every soak cycle with a spread and timestamp <= cutoff
+    (Q-S5 A), integer points as logged, session = get_session_tag(UTC hour of
+    its timestamp) (I5)."""
+    cutoff = SOAK_CUTOFF if cutoff is None else cutoff
     pts = {s: [] for s in spread.SESSIONS}
     probe_local, skipped = collections.Counter(), collections.Counter()
     for c in soak.get("cycles", []):
@@ -228,6 +258,9 @@ def soak_points(soak):
             skipped["timestamp_unparsable"] += 1
             continue
         t = t if t.tzinfo else t.replace(tzinfo=UTC)
+        if t > cutoff:
+            skipped["after_cutoff"] += 1
+            continue
         p = Decimal(str(c["spread"]))
         if p != p.to_integral_value() or p < 1:
             skipped["spread_not_whole_points"] += 1
@@ -247,6 +280,11 @@ def spread_model(selected, soak):
     info = {"n_by_session_engine": {s: len(v) for s, v in soak_pts.items()},
             "n_by_session_probe_local": dict(probe_local), "skipped": dict(skipped)}
     return spread.SpreadModel(soak_pts, source="soak"), n_live, info
+
+
+def soak_matches(info, expected):
+    """Q-S5 A: the fallback holds exactly the ruled engine-session counts."""
+    return info["n_by_session_engine"] == expected
 
 
 def quantile_rank(n, p=P99):
@@ -305,8 +343,9 @@ def counts(c):
     return dict(out)
 
 
-def build(events, soak, snapshot, spec, now=None):
-    """Both artefacts as dicts, from already-loaded inputs."""
+def build(events, soak, snapshot, spec, now=None, soak_n=SOAK_N):
+    """Both artefacts as dicts, from already-loaded inputs; soak from
+    load_soak, soak_n the counts its fallback must hold."""
     now = now or datetime.now(UTC)
     if now <= CAL_END:
         raise SystemExit(f"the S2 window ends {CAL_END.isoformat()}; run after it")
@@ -315,6 +354,8 @@ def build(events, soak, snapshot, spec, now=None):
         raise SystemExit("no 0g-1 cycle (no event with a quote)")
     sel = select(cycles, (first, CAL_END), spec.point)
     model, n_live, soak_info = spread_model(sel, soak)
+    if soak_info is not None and not soak_matches(soak_info, soak_n):
+        raise SystemExit(f"soak fallback n {soak_info['n_by_session_engine']}, ruled {soak_n} (Q-S5 A)")
     if not covers(snapshot["m1"], max((r["E"] for r in sel["points"]), default=None)):
         raise SystemExit("the export ends before the last calibration E; export again")
     window = {"first_0g1_cycle_ts": first.isoformat(), "end": CAL_END.isoformat()}
@@ -323,6 +364,7 @@ def build(events, soak, snapshot, spec, now=None):
         "n_by_session": {s: len(v) for s, v in model.by_session.items()},
         "live_n_by_session": n_live, "min_points": MIN_POINTS, "live_sufficient": soak_info is None,
         "soak": soak_info,
+        "soak_source": dict(soak.get("source") or {}, cutoff=SOAK_CUTOFF.isoformat(), n_by_session=soak_n),
         "exclusions": counts(sel["exclusions"]), "stale_by_flag": dict(sel["stale_by_flag"]),
         "reruns_discarded": dict(sel["reruns"]), "untimed_cycles": untimed,
         "spread_price_mismatch": sel["spread_mismatch"],
@@ -339,6 +381,8 @@ def report(sa, ta):
     print(f"TBD-3 {sa['inclusion_rule']}  window {sa['window']['first_0g1_cycle_ts']} .. {sa['window']['end']}")
     print(f"  live points by session {sa['live_n_by_session']}  minimum {sa['min_points']}"
           f"  -> source: {sa['source']}")
+    src = sa["soak_source"]
+    print(f"  soak {src.get('file')}  sha256 {src.get('sha256')}  cutoff {src['cutoff']}")
     if sa["soak"]:
         print(f"  soak, engine sessions {sa['soak']['n_by_session_engine']}"
               f"  probe-local {sa['soak']['n_by_session_probe_local']}  skipped {sa['soak']['skipped']}")
@@ -362,14 +406,16 @@ def latest_export(history=ROOT / "data" / "history"):
 
 def main(argv):
     exp = next((a.split("=", 1)[1] for a in argv if a.startswith("--export=")), None)
-    if not exp:
-        raise SystemExit("usage: build_tbd34.py --export=latest | --export=data/history/<snapshot id>")
+    soak_path = next((a.split("=", 1)[1] for a in argv if a.startswith("--soak=")), None)
+    if not exp or not soak_path:
+        raise SystemExit("usage: build_tbd34.py --export=latest | --export=data/history/<snapshot id>"
+                         " --soak=research/data_feasibility/soak_0a_20261009.json")
     export_dir = latest_export() if exp == "latest" else (Path(exp) if Path(exp).is_absolute() else ROOT / exp)
     print(f"export {export_dir.name}")
     events, bad = read_events()
     if bad:
         raise SystemExit(f"{bad} unparsable lines in {EVENTS}")
-    soak = json.loads(SOAK.read_text()) if SOAK.exists() else {"cycles": []}
+    soak = load_soak(Path(soak_path) if Path(soak_path).is_absolute() else ROOT / soak_path)
     snapshot = data.load_snapshot(export_dir)
     sa, ta = build(events, soak, snapshot, entry.BrokerSpec.load())
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
