@@ -1,0 +1,89 @@
+HERMES EXECUTION CONTRACT - TBD-3 S5: WHICH SOAK (QUESTION v1, 2026-11-24)
+==========================================================================
+
+Base: contract_amendments/ec-1.0_TBD3_TBD4_PROPOSAL_v2.txt (S1-S6 v2 and
+T1-T2, APPROVED 19 Nov). This is a question, not an amendment. Nothing is
+frozen: neither artefact is committed, and no value below is chosen from a
+strategy outcome.
+
+
+1. What happened
+----------------
+24 Nov 01:39 UTC, VPS: full export 20261124T013944Z (MaxBars 2,000,000,
+2022-06-01 .. 2026-11-24 server, F3 met, cross-check valid, 0 unstable
+chunks; committed 7e20949 with the restore probe), then
+research/build_tbd34.py --export=latest (c7398e5).
+
+Live 0g-1 points under S3/S4, window 2026-10-07T09:47:33Z .. 2026-11-22T23:59:59Z:
+    ASIA 924, LONDON 630, NY 1096, OFF 39   (minimum 437 / 278 / 447 / 44)
+OFF is 5 short, so S5 selected the soak for all four sessions. The build
+read logs/soak.json and found 547 cycles with a spread:
+    ASIA 171, LONDON 114, NY 215, OFF 47
+Alignment D-E p50 3.993 s, max |32.007| s; session mismatch 0; spread-price
+mismatch 0; untimed 0. TBD-4 (live points only, unaffected by S5):
+T = 1.80, n 2689, missing M1 0.
+
+Both artefacts (spread_model_ and e2_tolerance_20261124T014331Z.json) are
+held outside the repository, uncommitted.
+
+
+2. Why this is not the soak S5 was approved on
+----------------------------------------------
+Proposal v2 section 1 described "the 1,206-pair soak (0a), logs/soak.json on
+the VPS: ASIA 437, LONDON 278, NY 447, OFF 44". That file no longer holds it.
+run_soak.py (lines 116-125), once logs/soak.json passes 2,000 cycles, copies
+it to logs/soak.<YYYYMMDD>.json and keeps only the last 500 cycles. The soak
+still runs (cron 7,22,37,52 * * * 1-5), so logs/soak.json changes every 15
+minutes and the S5 model would differ on every build. I did not foresee the
+rotation when writing v2.
+
+Copies on the VPS, cycles with a spread (24 Nov):
+    logs/soak.20261009.json  1999  2026-09-10T08:10Z .. 2026-10-09T03:22Z
+    logs/soak.20261030.json  1905  2026-10-01T22:37Z .. 2026-10-30T17:22Z
+    logs/soak.20261123.json  1879  2026-10-23T13:07Z .. 2026-11-23T08:07Z
+    logs/soak.json            547  2026-11-16T08:44Z .. 2026-11-24T01:37Z
+Consecutive copies overlap (each keeps the previous last 500 cycles).
+
+The 0a soak is recoverable exactly. logs/soak.20261009.json, sha256
+84d11d3f8eb654d61b86acf0678937e93db45e33455067a537297f73e44be07d, cycles
+with a spread and timestamp <= 2026-09-30T07:06:58.683711Z (the probe_ts of
+spread_reconciliation_20260930T070700Z.json): 1,341, equal to that record's
+soak_cycles_with_spread. By session:
+    get_session_tag (S5)    ASIA 449, LONDON 278, NY 502, OFF 112
+    soak's own field        identical (the soak tags with get_session_tag
+                            on the UTC host hour)
+
+A second discrepancy, also mine: the counts quoted in v2 (437/278/447/44,
+total 1,206) are the matched pairs of the reconciliation, classified by that
+probe's own session rule. S5 v2 says "each logs/soak.json cycle with a
+spread", which on 30 Sep was 1,341 cycles. The MIN_POINTS constants are the
+pair counts, as approved; this question does not touch them.
+
+
+3. Question
+-----------
+Q-S5. Which soak population does S5 v2 mean?
+  A  [recommended] The 0a soak as measured on 30 Sep: the 1,341 cycles above,
+     identified by the copy's sha256 and the cut-off timestamp. It is the
+     population v2 named and the reconciliation measured, it is fixed, and
+     it lies wholly before the 0g-1 window.
+  B  Every soak cycle with a spread to 2026-11-22T23:59:59Z (the S2 end),
+     from all copies, de-duplicated by timestamp. Larger, but it is a
+     population v2 did not describe, it overlaps the 0g-1 window and both
+     accounts, and it needs a new de-duplication rule.
+  C  Another rule the Reviewer sets.
+
+Under A or B the build would no longer read logs/soak.json. Proposed
+implementation (no rule change): the chosen source file(s) are copied into
+research/data_feasibility/ and committed with the artefacts; the build takes
+them by path, refuses unless each sha256 matches the value recorded here,
+applies the cut-off, and records file, sha256, cut-off and n in the artefact.
+A soak cycle holds no credential or account detail (timestamp, session,
+connection flags, XAUUSD symbol_info, spread, offset, resources, error text).
+
+
+4. Unchanged
+------------
+S1-S4, S6, MIN_POINTS, T1-T2 and interpretations I1-I6. TBD-3 and TBD-4 are
+frozen together, by the commit that adds both artefacts, after this answer.
+No unseal, no ec-1.0/pr-1.0 tag, no replay result, no live change.
